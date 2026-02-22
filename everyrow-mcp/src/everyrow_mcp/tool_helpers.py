@@ -122,7 +122,11 @@ async def create_tool_response(
     main_content = TextContent(type="text", text=text)
     if settings.is_http:
         ui_json = await _submission_ui_json(
-            session_url, task_id, total, token, mcp_server_url=mcp_server_url
+            session_url=session_url,
+            task_id=task_id,
+            total=total,
+            token=token,
+            mcp_server_url=mcp_server_url,
         )
         return [TextContent(type="text", text=ui_json), main_content]
     return [main_content]

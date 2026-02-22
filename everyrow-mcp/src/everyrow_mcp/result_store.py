@@ -33,75 +33,61 @@ def _format_columns(columns: list[str]) -> str:
     return col_names
 
 
-def _slice_preview(records: list[dict], offset: int, page_size: int) -> list[dict]:
-    """Slice a page from a list of record dicts."""
-    clamped = min(offset, len(records))
-    return records[clamped : clamped + page_size]
-
-
 def _estimate_tokens(text: str) -> int:
     """Estimate token count using ~4 characters per token heuristic."""
     return len(text) // 4
 
 
 def clamp_page_to_budget(
-    preview: list[dict],
+    preview_records: list[dict],
     page_size: int,
-    token_budget: int,
 ) -> tuple[list[dict], int]:
-    """Reduce page if serialised preview exceeds the token budget.
+    estimated = _estimate_tokens(json.dumps(preview_records))
+    if estimated <= settings.token_budget:
+        return preview_records, page_size
 
-    Uses binary search to find the largest page_size whose JSON
-    representation fits within *token_budget*.  Never reduces below 1 row.
-
-    Returns ``(clamped_preview, effective_page_size)``.
-    """
-    if not preview:
-        return preview, page_size
-
-    estimated = _estimate_tokens(json.dumps(preview))
-    if estimated <= token_budget:
-        return preview, page_size
-
-    # Binary search for the largest page that fits
-    lo, hi = 1, len(preview)
+    lo, hi = 1, len(preview_records)
     best = 1
     while lo <= hi:
         mid = (lo + hi) // 2
-        candidate = preview[:mid]
-        if _estimate_tokens(json.dumps(candidate)) <= token_budget:
+        candidate = preview_records[:mid]
+        if _estimate_tokens(json.dumps(candidate)) <= settings.token_budget:
             best = mid
             lo = mid + 1
         else:
             hi = mid - 1
 
-    clamped = preview[:best]
-    logger.info(
-        "Token budget %d exceeded (%d est. tokens for %d rows); clamped to %d rows",
-        token_budget,
-        estimated,
-        len(preview),
-        best,
-    )
+    clamped = preview_records[:best]
     return clamped, best
 
 
 def _build_result_response(
     task_id: str,
     csv_url: str,
-    preview: list[dict],
+    preview_records: list[dict],
     total: int,
     columns: list[str],
     offset: int,
     page_size: int,
     session_url: str = "",
+    *,
+    requested_page_size: int | None = None,
 ) -> list[TextContent]:
-    """Build MCP TextContent response for Redis-backed results."""
+    """Build MCP TextContent response for Redis-backed results.
+
+    *page_size* is the effective (possibly clamped) size used for display.
+    *requested_page_size*, when provided, is the user's original page_size
+    and is used in the "next page" hint so the server can re-clamp
+    independently on each call.
+    """
     col_names = _format_columns(columns)
+    hint_page_size = (
+        requested_page_size if requested_page_size is not None else page_size
+    )
 
     widget_data = {
         "csv_url": csv_url,
-        "preview": preview,
+        "preview": preview_records,
         "total": total,
     }
     if session_url:
@@ -112,7 +98,7 @@ def _build_result_response(
     next_offset = offset + page_size if has_more else None
 
     if has_more:
-        page_size_arg = f", page_size={page_size}"
+        page_size_arg = f", page_size={hint_page_size}"
         summary = (
             f"Results: {total} rows, {len(columns)} columns ({col_names}). "
             f"Showing rows {offset + 1}-{min(offset + page_size, total)} of {total}.\n"
@@ -154,56 +140,53 @@ async def try_cached_result(
     page_size: int,
     mcp_server_url: str = "",
 ) -> list[TextContent] | None:
-    """Return a Redis-backed result page, using per-page cache.
-
-    Returns None if Redis is not available or no cached metadata exists.
-    """
-    # Check base metadata — if absent, this task isn't cached
     cached_meta_raw = await redis_store.get_result_meta(task_id)
     if not cached_meta_raw:
         return None
 
     meta = json.loads(cached_meta_raw)
-    total: int = meta["total"]
-    columns: list[str] = meta["columns"]
-    session_url: str = meta.get("session_url", "")
-
-    # Check per-page cache
     cached_page = await redis_store.get_result_page(task_id, offset, page_size)
     if cached_page is not None:
-        preview = json.loads(cached_page)
+        preview_records = json.loads(cached_page)
     else:
         # Page cache miss — read full CSV from Redis and slice
         try:
             csv_text = await redis_store.get_result_csv(task_id)
             if csv_text is None:
-                preview = []
-            else:
-                df = pd.read_csv(io.StringIO(csv_text))
-                all_records = df.where(df.notna(), None).to_dict(orient="records")
-                preview = _slice_preview(all_records, offset, page_size)
-                await redis_store.store_result_page(
-                    task_id, offset, page_size, json.dumps(preview)
+                logger.warning(
+                    "CSV expired in Redis for task %s, falling back to API", task_id
                 )
+                return None
+            df = pd.read_csv(io.StringIO(csv_text))
+            all_records = df.to_dict(orient="records")
+            clamped = min(offset, len(all_records))
+            preview_records = all_records[clamped : clamped + page_size]
+            await redis_store.store_result_page(
+                task_id, offset, page_size, json.dumps(preview_records)
+            )
         except Exception:
-            logger.warning("Failed to read CSV from Redis for task %s", task_id)
-            preview = []
+            logger.warning(
+                "Failed to read CSV from Redis for task %s, falling back to API",
+                task_id,
+            )
+            return None
 
-    preview, effective_page_size = clamp_page_to_budget(
-        preview, page_size, settings.token_budget
+    preview_records, effective_page_size = clamp_page_to_budget(
+        preview_records=preview_records,
+        page_size=page_size,
     )
-
     csv_url = await _get_csv_url(task_id, mcp_server_url)
 
     return _build_result_response(
         task_id=task_id,
         csv_url=csv_url,
-        preview=preview,
-        total=total,
-        columns=columns,
-        offset=min(offset, total),
+        preview_records=preview_records,
+        total=meta["total"],
+        columns=meta["columns"],
+        offset=min(offset, meta["total"]),
         page_size=effective_page_size,
-        session_url=session_url,
+        session_url=meta.get("session_url", ""),
+        requested_page_size=page_size,
     )
 
 
@@ -236,13 +219,17 @@ async def try_store_result(
         # Build and cache page preview
         clamped_offset = min(offset, total)
         page_df = df.iloc[clamped_offset : clamped_offset + page_size]
-        preview = page_df.where(page_df.notna(), None).to_dict(orient="records")
+        preview_records = page_df.to_dict(orient="records")
         await redis_store.store_result_page(
-            task_id, offset, page_size, json.dumps(preview)
+            task_id=task_id,
+            offset=offset,
+            page_size=page_size,
+            preview_json=json.dumps(preview_records),
         )
 
-        preview, effective_page_size = clamp_page_to_budget(
-            preview, page_size, settings.token_budget
+        preview_records, effective_page_size = clamp_page_to_budget(
+            preview_records=preview_records,
+            page_size=page_size,
         )
 
         csv_url = await _get_csv_url(task_id, mcp_server_url)
@@ -250,12 +237,13 @@ async def try_store_result(
         return _build_result_response(
             task_id=task_id,
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview_records,
             total=total,
             columns=columns,
             offset=clamped_offset,
             page_size=effective_page_size,
             session_url=session_url,
+            requested_page_size=page_size,
         )
     except Exception:
         logger.exception(

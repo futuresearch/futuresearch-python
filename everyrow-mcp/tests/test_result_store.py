@@ -25,7 +25,6 @@ from everyrow_mcp.result_store import (
     _build_result_response,
     _estimate_tokens,
     _format_columns,
-    _slice_preview,
     clamp_page_to_budget,
     try_cached_result,
     try_store_result,
@@ -75,28 +74,6 @@ class TestFormatColumns:
             assert c in result
 
 
-class TestSlicePreview:
-    def test_basic_slice(self):
-        records = [{"id": i} for i in range(10)]
-        assert _slice_preview(records, 0, 3) == [{"id": 0}, {"id": 1}, {"id": 2}]
-
-    def test_offset_slice(self):
-        records = [{"id": i} for i in range(10)]
-        assert _slice_preview(records, 5, 3) == [{"id": 5}, {"id": 6}, {"id": 7}]
-
-    def test_offset_past_end(self):
-        records = [{"id": i} for i in range(3)]
-        assert _slice_preview(records, 10, 5) == []
-
-    def test_page_extends_past_end(self):
-        records = [{"id": i} for i in range(5)]
-        result = _slice_preview(records, 3, 10)
-        assert result == [{"id": 3}, {"id": 4}]
-
-    def test_empty_records(self):
-        assert _slice_preview([], 0, 10) == []
-
-
 class TestBuildResultResponse:
     def test_all_rows_shown(self):
         preview = [{"name": "Alice"}, {"name": "Bob"}]
@@ -104,7 +81,7 @@ class TestBuildResultResponse:
         result = _build_result_response(
             task_id="task-123",
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview,
             total=2,
             columns=["name"],
             offset=0,
@@ -122,7 +99,7 @@ class TestBuildResultResponse:
         result = _build_result_response(
             task_id="task-456",
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview,
             total=20,
             columns=["id"],
             offset=0,
@@ -141,7 +118,7 @@ class TestBuildResultResponse:
         result = _build_result_response(
             task_id="task-789",
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview,
             total=20,
             columns=["id"],
             offset=18,
@@ -156,7 +133,7 @@ class TestBuildResultResponse:
         result = _build_result_response(
             task_id="task-url",
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview,
             total=1,
             columns=["a"],
             offset=0,
@@ -172,7 +149,7 @@ class TestBuildResultResponse:
         result = _build_result_response(
             task_id="task-nurl",
             csv_url=csv_url,
-            preview=preview,
+            preview_records=preview,
             total=1,
             columns=["a"],
             offset=0,
@@ -180,6 +157,42 @@ class TestBuildResultResponse:
         )
         widget = json.loads(result[0].text)
         assert "session_url" not in widget
+
+    def test_next_page_hint_uses_requested_page_size(self):
+        """When clamped, the next-page hint should use the original page_size."""
+        preview = [{"id": i} for i in range(3)]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-hint/download?token=abc"
+        result = _build_result_response(
+            task_id="task-hint",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=20,
+            columns=["id"],
+            offset=0,
+            page_size=3,  # effective (clamped) size
+            requested_page_size=10,  # user's original request
+        )
+        summary = result[1].text
+        # The hint should suggest the user's original page_size, not the clamped one
+        assert "page_size=10" in summary
+        # Offset should advance by effective page_size (what was actually shown)
+        assert "offset=3" in summary
+
+    def test_next_page_hint_defaults_to_page_size(self):
+        """Without requested_page_size, the hint uses page_size."""
+        preview = [{"id": i} for i in range(5)]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-def/download?token=abc"
+        result = _build_result_response(
+            task_id="task-def",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=20,
+            columns=["id"],
+            offset=0,
+            page_size=5,
+        )
+        summary = result[1].text
+        assert "page_size=5" in summary
 
 
 # ── Async functions ────────────────────────────────────────────
@@ -245,6 +258,34 @@ class TestTryCachedResult:
 
         widget = json.loads(result[0].text)
         assert widget["session_url"] == "https://everyrow.io/sessions/xyz"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_csv_expired(self, _http_state):
+        """When metadata exists but CSV is gone, fall back to API (return None)."""
+        task_id = "task-csv-expired"
+        meta = json.dumps({"total": 5, "columns": ["a", "b"]})
+        await redis_store.store_result_meta(task_id, meta)
+        # No CSV stored, no page cached
+
+        result = await try_cached_result(task_id, 0, 5, mcp_server_url=FAKE_SERVER_URL)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_csv_read_fails(self, _http_state):
+        """When CSV read raises, fall back to API (return None)."""
+        task_id = "task-csv-error"
+        meta = json.dumps({"total": 5, "columns": ["a"]})
+        await redis_store.store_result_meta(task_id, meta)
+
+        with patch(
+            "everyrow_mcp.result_store.redis_store.get_result_csv",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Redis connection lost"),
+        ):
+            result = await try_cached_result(
+                task_id, 0, 5, mcp_server_url=FAKE_SERVER_URL
+            )
+        assert result is None
 
 
 class TestTryStoreResult:
@@ -395,12 +436,14 @@ class TestEstimateTokens:
 class TestClampPageToBudget:
     def test_within_budget_returns_full_page(self):
         preview = [{"id": i} for i in range(5)]
-        result, effective_size = clamp_page_to_budget(preview, 5, 100_000)
+        with override_settings(token_budget=100_000):
+            result, effective_size = clamp_page_to_budget(preview, 5)
         assert result == preview
         assert effective_size == 5
 
     def test_empty_preview(self):
-        result, effective_size = clamp_page_to_budget([], 10, 100)
+        with override_settings(token_budget=100):
+            result, effective_size = clamp_page_to_budget([], 10)
         assert result == []
         assert effective_size == 10
 
@@ -408,7 +451,8 @@ class TestClampPageToBudget:
         # Create rows with long text that will exceed a small budget
         preview = [{"text": "x" * 1000} for _ in range(20)]
         budget = 500  # ~2000 chars budget → fits ~1-2 rows
-        result, effective_size = clamp_page_to_budget(preview, 20, budget)
+        with override_settings(token_budget=budget):
+            result, effective_size = clamp_page_to_budget(preview, 20)
         assert effective_size < 20
         assert len(result) == effective_size
         # Verify the clamped result fits within budget
@@ -417,7 +461,8 @@ class TestClampPageToBudget:
     def test_never_reduces_below_one(self):
         # Single huge row that exceeds budget
         preview = [{"text": "x" * 100_000}]
-        result, effective_size = clamp_page_to_budget(preview, 1, 100)
+        with override_settings(token_budget=100):
+            result, effective_size = clamp_page_to_budget(preview, 1)
         assert effective_size == 1
         assert len(result) == 1
 
@@ -428,7 +473,8 @@ class TestClampPageToBudget:
         full_tokens = _estimate_tokens(json.dumps(preview))
         # Sanity: the full preview must actually exceed the budget
         budget = full_tokens // 3
-        result, effective_size = clamp_page_to_budget(preview, 20, budget)
+        with override_settings(token_budget=budget):
+            result, effective_size = clamp_page_to_budget(preview, 20)
         assert effective_size < 20
         # Verify it fits
         assert _estimate_tokens(json.dumps(result)) <= budget
@@ -517,3 +563,21 @@ class TestTokenBudgetIntegration:
         assert result is not None
         widget = json.loads(result[0].text)
         assert len(widget["preview"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_clamped_hint_preserves_original_page_size(
+        self, wide_df, _http_state
+    ):
+        """Next-page hint uses user's original page_size, not the clamped one."""
+        task_id = "task-hint-preserve"
+        await redis_store.store_poll_token(task_id, "tok")
+
+        with override_settings(token_budget=2000):
+            result = await try_store_result(
+                task_id, wide_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
+            )
+
+        assert result is not None
+        summary = result[1].text
+        # The hint should suggest the user's original page_size=10
+        assert "page_size=10" in summary

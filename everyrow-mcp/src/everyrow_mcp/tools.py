@@ -103,14 +103,13 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
             total=len(df),
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label=f"Submitted: {len(df)} agents starting.",
         token=client.token,
         total=len(df),
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
@@ -175,14 +174,13 @@ async def everyrow_single_agent(
             total=1,
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label="Submitted: single agent starting.",
         token=client.token,
         total=1,
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
@@ -253,14 +251,13 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
             total=len(df),
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label=f"Submitted: {len(df)} rows for ranking.",
         token=client.token,
         total=len(df),
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
@@ -335,14 +332,13 @@ async def everyrow_screen(
             total=len(df),
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label=f"Submitted: {len(df)} rows for screening.",
         token=client.token,
         total=len(df),
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
@@ -408,14 +404,13 @@ async def everyrow_dedupe(
             total=len(df),
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label=f"Submitted: {len(df)} rows for deduplication.",
         token=client.token,
         total=len(df),
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
@@ -501,14 +496,13 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
             total=len(left_df),
         )
 
-    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
         label=f"Submitted: {len(left_df)} left rows for merging.",
         token=client.token,
         total=len(left_df),
-        mcp_server_url=mcp_server_url,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
 
