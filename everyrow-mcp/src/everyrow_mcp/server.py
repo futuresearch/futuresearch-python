@@ -22,6 +22,7 @@ from everyrow_mcp.models import (  # noqa: F401
     RankInput,
     ResultsInput,
     ScreenInput,
+    SingleAgentInput,
     _schema_to_model,
 )
 from everyrow_mcp.tools import (  # noqa: F401
@@ -32,6 +33,7 @@ from everyrow_mcp.tools import (  # noqa: F401
     everyrow_rank,
     everyrow_results,
     everyrow_screen,
+    everyrow_single_agent,
 )
 
 

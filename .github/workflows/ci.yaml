@@ -64,6 +64,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install redis-server
+        run: sudo apt-get update && sudo apt-get install -y redis-server
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:

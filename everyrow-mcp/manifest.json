@@ -54,6 +54,10 @@
       "description": "Run a multi-dimensional probability forecast on each row of a CSV."
     },
     {
+      "name": "everyrow_single_agent",
+      "description": "Run a single web research agent on a task, optionally with context data."
+    },
+    {
       "name": "everyrow_progress",
       "description": "Check progress of a running task. Blocks for a time to limit the polling rate."
     },

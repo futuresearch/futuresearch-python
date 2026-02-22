@@ -22,7 +22,7 @@ pip install everyrow
 export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
 ```
 
-The dataset is a list of 246 SaaS and developer tools like Slack, Notion, Asana. Download [saas_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/saas_products.csv) to follow along. We find the annual price of each product's lowest paid tier, which isn't available through any structured API; it requires visiting pricing pages that change frequently and present information in different formats.
+The dataset is a list of 246 SaaS and developer tools like Slack, Notion, Asana. To follow along, [right click this link](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/saas_products.csv) and save the CSV file to your computer. We find the annual price of each product's lowest paid tier, which isn't available through any structured API; it requires visiting pricing pages that change frequently and present information in different formats.
 
 ```python
 import asyncio
