@@ -407,6 +407,12 @@ class ResultsInput(BaseModel):
         description="Full absolute path to the output CSV file (must end in .csv). "
         "Required in stdio mode to save results locally.",
     )
+    output_spreadsheet_title: str | None = Field(
+        default=None,
+        description="Create a new Google Sheet with this title and write the full "
+        "results there. Returns the spreadsheet URL. Fails if a sheet with "
+        "this exact title already exists — pick a unique name.",
+    )
     offset: int = Field(
         default=0,
         description="Row offset for pagination. Default 0 returns the first page.",

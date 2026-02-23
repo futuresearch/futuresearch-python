@@ -116,12 +116,15 @@ class EveryRowAuthorizationCode(AuthorizationCode):
 
     supabase_access_token: str
     supabase_refresh_token: str
+    google_access_token: str = ""
+    google_refresh_token: str = ""
 
 
 class EveryRowRefreshToken(RefreshToken):
     """Extends RefreshToken with the Supabase refresh token."""
 
     supabase_refresh_token: str
+    google_refresh_token: str = ""
 
 
 class SupabaseTokenResponse(BaseModel):
@@ -129,6 +132,8 @@ class SupabaseTokenResponse(BaseModel):
 
     access_token: str
     refresh_token: str
+    provider_token: str = ""
+    provider_refresh_token: str = ""
 
 
 class PendingAuth(BaseModel):
@@ -236,6 +241,10 @@ class EveryRowAuthProvider(
                     'flow_type': 'pkce',
                     'code_challenge': supabase_challenge,
                     'code_challenge_method': 's256',
+                    'scopes': (
+                        'https://www.googleapis.com/auth/spreadsheets '
+                        'https://www.googleapis.com/auth/drive.readonly'
+                    ),
                 }
             )
         }"
@@ -380,6 +389,8 @@ class EveryRowAuthProvider(
             resource=pending.params.resource,
             supabase_access_token=supa_tokens.access_token,
             supabase_refresh_token=supa_tokens.refresh_token,
+            google_access_token=supa_tokens.provider_token,
+            google_refresh_token=supa_tokens.provider_refresh_token,
         )
         await self._redis.setex(
             name=build_key("authcode", code),
@@ -425,9 +436,19 @@ class EveryRowAuthProvider(
         client_id: str,
         scopes: list[str],
         supabase_refresh_token: str,
+        google_access_token: str = "",
+        google_refresh_token: str = "",
     ) -> OAuthToken:
         jwt_claims = self._UNSAFE_decode_server_jwt(access_token)
         expires_in = max(0, jwt_claims.get("exp", 0) - int(time.time()))
+
+        # Store Google tokens in Redis for Sheets tools
+        if google_access_token:
+            from everyrow_mcp.sheets_client import store_google_token  # noqa: PLC0415
+
+            await store_google_token(
+                "current", google_access_token, google_refresh_token or None
+            )
 
         rt_str = secrets.token_urlsafe(32)
         rt = EveryRowRefreshToken(
@@ -435,6 +456,7 @@ class EveryRowAuthProvider(
             client_id=client_id,
             scopes=scopes,
             supabase_refresh_token=supabase_refresh_token,
+            google_refresh_token=google_refresh_token,
         )
         await self._redis.setex(
             name=build_key("refresh", rt_str),
@@ -459,6 +481,8 @@ class EveryRowAuthProvider(
             client_id=client.client_id,
             scopes=authorization_code.scopes,
             supabase_refresh_token=authorization_code.supabase_refresh_token,
+            google_access_token=authorization_code.google_access_token,
+            google_refresh_token=authorization_code.google_refresh_token,
         )
 
     async def load_access_token(self, token: str) -> AccessToken | None:
@@ -488,11 +512,16 @@ class EveryRowAuthProvider(
         supa_tokens = await self._refresh_supabase_token(
             refresh_token.supabase_refresh_token
         )
+        google_refresh = (
+            supa_tokens.provider_refresh_token or refresh_token.google_refresh_token
+        )
         return await self._issue_token_response(
             access_token=supa_tokens.access_token,
             client_id=client.client_id,
             scopes=final_scopes,
             supabase_refresh_token=supa_tokens.refresh_token,
+            google_access_token=supa_tokens.provider_token,
+            google_refresh_token=google_refresh,
         )
 
     async def revoke_token(self, token: AccessToken | EveryRowRefreshToken) -> None:
@@ -522,6 +551,8 @@ class EveryRowAuthProvider(
         return SupabaseTokenResponse(
             access_token=data["access_token"],
             refresh_token=data["refresh_token"],
+            provider_token=data.get("provider_token", ""),
+            provider_refresh_token=data.get("provider_refresh_token", ""),
         )
 
     async def _exchange_supabase_code(

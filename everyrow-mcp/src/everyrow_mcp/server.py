@@ -8,6 +8,7 @@ from textwrap import dedent
 
 from pydantic import BaseModel
 
+import everyrow_mcp.sheets_tools
 import everyrow_mcp.tools  # noqa: F401  — registers @mcp.tool() decorators
 from everyrow_mcp.app import mcp
 from everyrow_mcp.config import settings

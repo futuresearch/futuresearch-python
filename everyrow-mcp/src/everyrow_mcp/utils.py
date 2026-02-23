@@ -203,18 +203,35 @@ def normalize_google_url(url: str) -> str:
     return url
 
 
+def _is_google_url(url: str) -> bool:
+    return "docs.google.com" in url or "drive.google.com" in url
+
+
 async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     """Fetch CSV data from a URL and return as a DataFrame.
 
     Normalizes Google Sheets/Drive URLs before fetching.
+    Automatically authenticates with the user's Google token for
+    Google Sheets/Drive URLs.
 
     Raises:
         ValueError: On non-2xx response or empty data.
     """
     normalized = normalize_google_url(url)
     logger.info("Fetching CSV from URL: %s (normalized: %s)", url, normalized)
+
+    headers: dict[str, str] = {}
+    if _is_google_url(normalized):
+        try:
+            from everyrow_mcp.sheets_client import get_google_token  # noqa: PLC0415
+
+            token = await get_google_token()
+            headers["Authorization"] = f"Bearer {token}"
+        except Exception:
+            logger.debug("No Google token available, fetching without auth")
+
     async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
-        response = await client.get(normalized)
+        response = await client.get(normalized, headers=headers)
     if not response.is_success:
         logger.error("URL fetch failed (HTTP %s): %s", response.status_code, normalized)
         raise ValueError(
