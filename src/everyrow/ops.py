@@ -778,7 +778,12 @@ async def forecast(
     context: str | None = None,
     session: Session | None = None,
 ) -> TableResult:
-    """Forecast probabilities for each row using 6 parallel research agents + dual forecasters.
+    """Forecast the probability of binary questions resolving YES or NO.
+
+    Each row is forecast using an approach validated against FutureSearch's
+    past-casting environment of 1500 hard forecasting questions and 15M research
+    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
+    and https://arxiv.org/abs/2506.21558.
 
     The input table should contain at minimum a ``question`` column with the binary
     question to forecast.  Recommended additional columns: ``resolution_criteria``,
