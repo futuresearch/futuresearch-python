@@ -621,6 +621,89 @@ class TestToolDescriptions:
         assert "output_path" in results_tool.description
         assert "Do NOT" not in results_tool.description
 
+    def test_stdio_schema_has_output_path_required(self):
+        """In stdio mode, everyrow_results exposes task_id + output_path only."""
+        set_tool_descriptions("stdio")
+        tool = mcp_app._tool_manager.get_tool("everyrow_results")
+        assert tool is not None
+        results_def = tool.parameters["$defs"]["ResultsInput"]
+        assert set(results_def["properties"]) == {"task_id", "output_path"}
+        assert "output_path" in results_def["required"]
+        assert "task_id" in results_def["required"]
+        # output_path should be a plain string, not nullable
+        assert results_def["properties"]["output_path"]["type"] == "string"
+
+    def test_http_schema_has_pagination_no_output_path(self):
+        """In HTTP mode, everyrow_results exposes task_id + offset + page_size."""
+        set_tool_descriptions("http")
+        tool = mcp_app._tool_manager.get_tool("everyrow_results")
+        assert tool is not None
+        results_def = tool.parameters["$defs"]["ResultsInput"]
+        assert set(results_def["properties"]) == {"task_id", "offset", "page_size"}
+        assert "output_path" not in results_def.get("required", [])
+        # Reset for other tests
+        set_tool_descriptions("stdio")
+
+    @pytest.mark.parametrize(
+        "tool_name,def_name",
+        [
+            ("everyrow_agent", "AgentInput"),
+            ("everyrow_rank", "RankInput"),
+            ("everyrow_screen", "ScreenInput"),
+            ("everyrow_dedupe", "DedupeInput"),
+        ],
+    )
+    def test_stdio_schema_has_input_csv(self, tool_name: str, def_name: str):
+        """In stdio mode, CSV-based tools expose input_csv."""
+        set_tool_descriptions("stdio")
+        tool = mcp_app._tool_manager.get_tool(tool_name)
+        assert tool is not None
+        input_def = tool.parameters["$defs"][def_name]
+        assert "input_csv" in input_def["properties"]
+        assert "input_data" in input_def["properties"]
+        assert "input_json" in input_def["properties"]
+
+    @pytest.mark.parametrize(
+        "tool_name,def_name",
+        [
+            ("everyrow_agent", "AgentInput"),
+            ("everyrow_rank", "RankInput"),
+            ("everyrow_screen", "ScreenInput"),
+            ("everyrow_dedupe", "DedupeInput"),
+        ],
+    )
+    def test_http_schema_removes_input_csv(self, tool_name: str, def_name: str):
+        """In HTTP mode, CSV-based tools do NOT expose input_csv."""
+        set_tool_descriptions("http")
+        tool = mcp_app._tool_manager.get_tool(tool_name)
+        assert tool is not None
+        input_def = tool.parameters["$defs"][def_name]
+        assert "input_csv" not in input_def["properties"]
+        assert "input_data" in input_def["properties"]
+        assert "input_json" in input_def["properties"]
+        set_tool_descriptions("stdio")
+
+    def test_stdio_merge_has_csv_fields(self):
+        """In stdio mode, everyrow_merge exposes left_csv and right_csv."""
+        set_tool_descriptions("stdio")
+        tool = mcp_app._tool_manager.get_tool("everyrow_merge")
+        assert tool is not None
+        merge_def = tool.parameters["$defs"]["MergeInput"]
+        assert "left_csv" in merge_def["properties"]
+        assert "right_csv" in merge_def["properties"]
+
+    def test_http_merge_removes_csv_fields(self):
+        """In HTTP mode, everyrow_merge does NOT expose left_csv/right_csv."""
+        set_tool_descriptions("http")
+        tool = mcp_app._tool_manager.get_tool("everyrow_merge")
+        assert tool is not None
+        merge_def = tool.parameters["$defs"]["MergeInput"]
+        assert "left_csv" not in merge_def["properties"]
+        assert "right_csv" not in merge_def["properties"]
+        assert "left_input_data" in merge_def["properties"]
+        assert "right_input_data" in merge_def["properties"]
+        set_tool_descriptions("stdio")
+
 
 # ── HTTP mode contrast tests ─────────────────────────────────────────
 
