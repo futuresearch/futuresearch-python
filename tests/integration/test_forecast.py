@@ -14,8 +14,8 @@ async def test_forecast_returns_probability_and_rationale():
     input_df = pd.DataFrame(
         [
             {
-                "question": "Will the US Federal Reserve cut rates by at least 25bp before July 1, 2026?",
-                "resolution_criteria": "Resolves YES if the Fed announces at least one rate cut of 25bp or more at any FOMC meeting between now and June 30, 2026.",
+                "question": "Will the US Federal Reserve cut rates by at least 25bp before July 1, 2027?",
+                "resolution_criteria": "Resolves YES if the Fed announces at least one rate cut of 25bp or more at any FOMC meeting between now and June 30, 2027.",
             },
         ]
     )
