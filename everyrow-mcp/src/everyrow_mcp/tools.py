@@ -107,6 +107,66 @@ async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
     return None
 
 
+async def _write_results_to_sheet(
+    df: Any, title: str, preview_size: int = 5
+) -> list[TextContent]:
+    """Create a new Google Sheet and write the full DataFrame there.
+
+    Raises if a spreadsheet with the same title already exists.
+    Returns human-readable text with a link to the new sheet.
+    """
+    import pandas as pd  # noqa: PLC0415
+
+    from everyrow_mcp.sheets_client import (  # noqa: PLC0415
+        GoogleSheetsClient,
+        get_google_token,
+        records_to_values,
+    )
+
+    token = await get_google_token()
+    async with GoogleSheetsClient(token) as client:
+        # Guard: check for existing sheets with the same title
+        existing = await client.list_spreadsheets(query=title, max_results=5)
+        for f in existing:
+            if f.get("name") == title:
+                raise ValueError(
+                    f"A spreadsheet named '{title}' already exists "
+                    f"(id: {f['id']}). Pick a different title to avoid "
+                    f"overwriting existing data."
+                )
+
+        # Create and populate
+        metadata = await client.create_spreadsheet(title)
+        spreadsheet_id = metadata["spreadsheetId"]
+        url = metadata.get(
+            "spreadsheetUrl",
+            f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
+        )
+
+        records = df.where(pd.notna(df), None).to_dict(orient="records")
+        values = records_to_values(records)
+        await client.write_range(spreadsheet_id, "Sheet1", values)
+
+    total = len(df)
+    preview = (
+        df.head(preview_size)
+        .where(pd.notna(df.head(preview_size)), None)
+        .to_dict(orient="records")
+    )
+    summary = f"Created Google Sheet '{title}' with {total} rows.\nURL: {url}"
+
+    widget_data: dict = {
+        "preview": preview,
+        "total": total,
+        "spreadsheet_url": url,
+    }
+
+    return [
+        TextContent(type="text", text=json.dumps(widget_data)),
+        TextContent(type="text", text=summary),
+    ]
+
+
 @mcp.tool(
     name="everyrow_browse_lists",
     structured_output=False,
@@ -1041,7 +1101,11 @@ async def everyrow_results_stdio(
     """Retrieve results from a completed everyrow task and save them to a CSV.
 
     Only call this after everyrow_progress reports status 'completed'.
+
     Pass output_path (ending in .csv) to save results as a local CSV file.
+    Optionally pass output_spreadsheet_title to create a new Google Sheet with
+    the full results. This always creates a new sheet — it refuses to overwrite
+    an existing sheet with the same title.
     """
     client = _get_client(ctx)
     task_id = params.task_id
@@ -1066,6 +1130,18 @@ async def everyrow_results_stdio(
             )
         ]
 
+    # ── Google Sheets output ─────────────────────────────────────
+    if params.output_spreadsheet_title:
+        try:
+            return await _write_results_to_sheet(df, params.output_spreadsheet_title)
+        except Exception as e:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Failed to write results to Google Sheet: {e!r}",
+                )
+            ]
+
     output_file = Path(params.output_path)
     save_result_to_csv(df, output_file)
     artifact_line = f"\nOutput artifact_id: {artifact_id}" if artifact_id else ""
@@ -1087,9 +1163,10 @@ async def everyrow_results_http(
     """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    The user always has access to all rows via the widget — page_size only
-    controls how many rows _you_ can read.
-    After results load, tell the user how many rows you can see vs the total.
+    Results are returned as a paginated preview with a download link.
+    Optionally pass output_spreadsheet_title to create a new Google Sheet with
+    the full results. This always creates a new sheet — it refuses to overwrite
+    an existing sheet with the same title.
     """
     client = _get_client(ctx)
     task_id = params.task_id
@@ -1147,6 +1224,18 @@ async def everyrow_results_http(
                 text=f"Error retrieving results for task {task_id}. Please try again.",
             )
         ]
+
+    # ── Google Sheets output ─────────────────────────────────────
+    if params.output_spreadsheet_title:
+        try:
+            return await _write_results_to_sheet(df, params.output_spreadsheet_title)
+        except Exception as e:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Failed to write results to Google Sheet: {e!r}",
+                )
+            ]
 
     # output_path is accepted by the schema but ignored in HTTP mode —
     # the server must not write to its own filesystem on remote request.

@@ -126,6 +126,11 @@ class Settings(BaseSettings):
     )
 
     everyrow_api_key: str | None = Field(default=None, repr=False)
+    google_sheets_credentials_json: str | None = Field(
+        default=None,
+        description="Path to a Google service account JSON file or inline JSON. "
+        "Required for Google Sheets tools in stdio mode.",
+    )
 
     @property
     def is_http(self) -> bool:

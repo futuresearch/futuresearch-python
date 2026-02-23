@@ -144,6 +144,11 @@ async def _validate_url_target(url: str) -> None:
     await _resolve_and_validate(hostname)
 
 
+def _is_google_url(url: str) -> bool:
+    """Check if a URL points to Google Sheets or Drive."""
+    return "docs.google.com" in url or "drive.google.com" in url
+
+
 def is_url(value: str) -> bool:
     """Check if a string looks like an HTTP(S) URL."""
     return value.startswith("http://") or value.startswith("https://")
@@ -278,6 +283,7 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     """Fetch CSV data from a URL and return a DataFrame.
 
     Automatically normalises Google Sheets URLs to their CSV export endpoint.
+    Authenticates Google URLs with the user's token when available.
     Validates that the URL (and any redirects) do not target internal networks.
 
     Raises:
@@ -287,6 +293,17 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     url = _normalise_google_sheets_url(url)
     await _validate_url_target(url)
 
+    # Authenticate Google URLs with the user's OAuth token
+    headers: dict[str, str] = {}
+    if _is_google_url(url):
+        try:
+            from everyrow_mcp.sheets_client import get_google_token  # noqa: PLC0415
+
+            token = await get_google_token()
+            headers["Authorization"] = f"Bearer {token}"
+        except Exception:
+            logger.debug("No Google token available, fetching without auth")
+
     async with httpx.AsyncClient(
         transport=_SSRFSafeTransport(),
         follow_redirects=True,
@@ -295,7 +312,7 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
         event_hooks={"response": [_check_redirect]},
     ) as client:
         # Stream the response to enforce a size limit before buffering
-        async with client.stream("GET", url) as response:
+        async with client.stream("GET", url, headers=headers) as response:
             response.raise_for_status()
             content_length = response.headers.get("content-length")
             if content_length and int(content_length) > settings.max_fetch_size_bytes:
@@ -340,6 +357,7 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
         f"Could not parse response from {url} as CSV or JSON. "
         f"Content-Type: {content_type}"
     )
+
 
 
 def validate_csv_path(path: str) -> None:

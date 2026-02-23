@@ -28,7 +28,8 @@ from mcp.server.fastmcp.server import lifespan_wrapper
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
 
-# Import tools module to trigger @mcp.tool() registration on the FastMCP instance
+# Import tools modules to trigger @mcp.tool() registration on the FastMCP instance
+import everyrow_mcp.sheets_tools
 import everyrow_mcp.tools  # noqa: F401
 from everyrow_mcp import redis_store
 from everyrow_mcp.app import mcp as mcp_app
@@ -166,7 +167,7 @@ class TestMcpProtocol:
 
     @pytest.mark.asyncio
     async def test_list_tools(self, _http_state):
-        """list_tools returns all registered tools (including upload_data)."""
+        """list_tools returns all registered tools."""
         async with mcp_client() as session:
             result = await session.list_tools()
             tool_names = sorted(t.name for t in result.tools)
@@ -188,6 +189,11 @@ class TestMcpProtocol:
                     "everyrow_single_agent",
                     "everyrow_upload_data",
                     "everyrow_use_list",
+                    "sheets_list",
+                    "sheets_read",
+                    "sheets_write",
+                    "sheets_create",
+                    "sheets_info",
                 ]
             )
             assert tool_names == expected
