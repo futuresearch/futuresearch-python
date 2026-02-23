@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from everyrow_mcp.utils import validate_csv_path
+from everyrow_mcp.utils import validate_csv_path, validate_url
 
 JSON_TYPE_MAP = {
     "string": str,
@@ -136,6 +136,10 @@ class _SingleSourceInput(BaseModel):
         default=None,
         description="Data as a JSON array of objects.",
     )
+    input_url: str | None = Field(
+        default=None,
+        description="URL to fetch CSV from (http/https). Supports Google Sheets and Drive share links.",
+    )
 
     @field_validator("input_csv")
     @classmethod
@@ -144,11 +148,18 @@ class _SingleSourceInput(BaseModel):
             validate_csv_path(v)
         return v
 
+    @field_validator("input_url")
+    @classmethod
+    def validate_input_url(cls, v: str | None) -> str | None:
+        if v is not None:
+            validate_url(v)
+        return v
+
     @model_validator(mode="after")
     def check_input_source(self):
         _check_exactly_one(
-            values=(self.input_csv, self.input_data, self.input_json),
-            field_names=("input_csv", "input_data", "input_json"),
+            values=(self.input_csv, self.input_data, self.input_json, self.input_url),
+            field_names=("input_csv", "input_data", "input_json", "input_url"),
             label="Input",
         )
         return self
@@ -265,6 +276,10 @@ class MergeInput(BaseModel):
         default=None,
         description="Left table as JSON array of objects.",
     )
+    left_url: str | None = Field(
+        default=None,
+        description="URL to fetch left CSV from (http/https). Supports Google Sheets and Drive share links.",
+    )
 
     # RIGHT table
     right_csv: str | None = Field(
@@ -278,6 +293,10 @@ class MergeInput(BaseModel):
     right_input_json: list[dict[str, Any]] | None = Field(
         default=None,
         description="Right table as JSON array of objects.",
+    )
+    right_url: str | None = Field(
+        default=None,
+        description="URL to fetch right CSV from (http/https). Supports Google Sheets and Drive share links.",
     )
 
     merge_on_left: str | None = Field(
@@ -305,6 +324,13 @@ class MergeInput(BaseModel):
             validate_csv_path(v)
         return v
 
+    @field_validator("left_url", "right_url")
+    @classmethod
+    def validate_urls(cls, v: str | None) -> str | None:
+        if v is not None:
+            validate_url(v)
+        return v
+
     @model_validator(mode="after")
     def check_sources(self) -> "MergeInput":
         _check_exactly_one(
@@ -312,8 +338,9 @@ class MergeInput(BaseModel):
                 self.left_csv,
                 self.left_input_data,
                 self.left_input_json,
+                self.left_url,
             ),
-            field_names=("left_csv", "left_input_data", "left_input_json"),
+            field_names=("left_csv", "left_input_data", "left_input_json", "left_url"),
             label="Left table",
         )
         _check_exactly_one(
@@ -321,11 +348,13 @@ class MergeInput(BaseModel):
                 self.right_csv,
                 self.right_input_data,
                 self.right_input_json,
+                self.right_url,
             ),
             field_names=(
                 "right_csv",
                 "right_input_data",
                 "right_input_json",
+                "right_url",
             ),
             label="Right table",
         )

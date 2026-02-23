@@ -1,10 +1,16 @@
 """Utility functions for the everyrow MCP server."""
 
+import logging
+import re
 from io import StringIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def validate_csv_path(path: str) -> None:
@@ -146,6 +152,97 @@ def load_csv(
     if df.empty:
         raise ValueError("input_data produced an empty DataFrame.")
     return df
+
+
+def validate_url(url: str) -> str:
+    """Validate that a string is an http(s) URL.
+
+    Returns the URL unchanged if valid.
+
+    Raises:
+        ValueError: If the URL scheme is not http/https or netloc is missing.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"URL must use http or https scheme, got '{parsed.scheme}'")
+    if not parsed.netloc:
+        raise ValueError(f"URL is missing a host: {url}")
+    return url
+
+
+# Regex patterns for Google URL normalization
+_SHEETS_EDIT_RE = re.compile(
+    r"^https?://docs\.google\.com/spreadsheets/d/([^/]+)/edit(?:\?[^#]*)?(?:#gid=(\d+))?$"
+)
+_DRIVE_VIEW_RE = re.compile(r"^https?://drive\.google\.com/file/d/([^/]+)/view")
+
+
+def normalize_google_url(url: str) -> str:
+    """Convert common Google Sheets/Drive share URLs to direct download URLs.
+
+    - Sheets edit URL -> CSV export URL (preserving gid if present)
+    - Drive view URL -> direct download URL
+    - Anything else -> returned as-is
+    """
+    m = _SHEETS_EDIT_RE.match(url)
+    if m:
+        doc_id = m.group(1)
+        gid = m.group(2)
+        export_url = (
+            f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv"
+        )
+        if gid is not None:
+            export_url += f"&gid={gid}"
+        return export_url
+
+    m = _DRIVE_VIEW_RE.match(url)
+    if m:
+        file_id = m.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    return url
+
+
+async def fetch_csv_from_url(url: str) -> pd.DataFrame:
+    """Fetch CSV data from a URL and return as a DataFrame.
+
+    Normalizes Google Sheets/Drive URLs before fetching.
+
+    Raises:
+        ValueError: On non-2xx response or empty data.
+    """
+    normalized = normalize_google_url(url)
+    logger.info("Fetching CSV from URL: %s (normalized: %s)", url, normalized)
+    async with httpx.AsyncClient(follow_redirects=True, timeout=60) as client:
+        response = await client.get(normalized)
+    if not response.is_success:
+        logger.error("URL fetch failed (HTTP %s): %s", response.status_code, normalized)
+        raise ValueError(
+            f"Failed to fetch URL (HTTP {response.status_code}): {normalized}"
+        )
+    df = pd.read_csv(StringIO(response.text))
+    if df.empty:
+        logger.error("URL returned empty CSV: %s", normalized)
+        raise ValueError(f"URL returned empty CSV data: {normalized}")
+    logger.info("Fetched %d rows, %d columns from URL", len(df), len(df.columns))
+    return df
+
+
+async def load_input(
+    *,
+    input_csv: str | None = None,
+    input_data: str | None = None,
+    input_json: list[dict[str, Any]] | None = None,
+    input_url: str | None = None,
+) -> pd.DataFrame:
+    """Load tabular data from a file path, inline CSV, JSON records, or URL.
+
+    Async dispatcher: delegates to ``fetch_csv_from_url`` for URLs,
+    falls back to the synchronous ``load_csv`` for all other sources.
+    """
+    if input_url:
+        return await fetch_csv_from_url(input_url)
+    return load_csv(input_csv=input_csv, input_data=input_data, input_json=input_json)
 
 
 def save_result_to_csv(df: pd.DataFrame, path: Path) -> None:
