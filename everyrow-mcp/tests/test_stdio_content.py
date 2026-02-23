@@ -639,7 +639,12 @@ class TestToolDescriptions:
         tool = mcp_app._tool_manager.get_tool("everyrow_results")
         assert tool is not None
         results_def = tool.parameters["$defs"]["ResultsInput"]
-        assert set(results_def["properties"]) == {"task_id", "offset", "page_size"}
+        assert set(results_def["properties"]) == {
+            "task_id",
+            "offset",
+            "page_size",
+            "output_spreadsheet_title",
+        }
         assert "output_path" not in results_def.get("required", [])
         # Reset for other tests
         set_tool_descriptions("stdio")

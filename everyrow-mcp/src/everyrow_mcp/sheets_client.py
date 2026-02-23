@@ -1,7 +1,8 @@
 """Async Google Sheets API client using httpx.
 
-Handles token resolution for both HTTP mode (Redis-stored OAuth tokens)
-and stdio mode (service account JWT exchange).
+Handles token resolution for HTTP mode (Redis-stored OAuth tokens obtained
+during the Supabase/Google OAuth flow). Sheets tools are not available in
+stdio mode.
 """
 
 from __future__ import annotations
@@ -12,17 +13,13 @@ import time
 from typing import Any
 
 import httpx
-import jwt as pyjwt
 
-from everyrow_mcp.config import settings
 from everyrow_mcp.redis_store import build_key, get_redis_client
 
 logger = logging.getLogger(__name__)
 
 SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
 DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-SCOPES = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly"
 
 # Google token TTL and refresh buffer
 GOOGLE_TOKEN_TTL = 3600  # 1 hour
@@ -34,22 +31,14 @@ GOOGLE_TOKEN_REDIS_TTL = 3600  # store for 1 hour in Redis
 
 
 async def get_google_token() -> str:
-    """Resolve a valid Google access token.
-
-    - HTTP mode: reads from Redis (stored during OAuth flow), auto-refreshes if near expiry.
-    - stdio mode: generates from service account JSON via JWT assertion.
-    """
-    if settings.is_http:
-        return await _get_google_token_http()
-    return await _get_google_token_stdio()
-
-
-async def _get_google_token_http() -> str:
-    """Get Google token from Redis (HTTP mode).
+    """Resolve a valid Google access token from Redis.
 
     The token is stored during the OAuth callback when the user logs in
-    via Google through Supabase.
+    via Google through Supabase. Auto-refreshes if near expiry.
+
+    Only available in HTTP mode — sheets tools are removed in stdio mode.
     """
+
     redis = get_redis_client()
 
     # Try to get the stored token
@@ -81,6 +70,8 @@ async def _get_google_token_http() -> str:
 
 async def _refresh_google_token_http(refresh_token: str) -> str:
     """Refresh a Google access token using the Supabase-stored refresh token."""
+    from everyrow_mcp.config import settings  # noqa: PLC0415
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         # Refresh through Supabase which proxies to Google
         resp = await client.post(
@@ -102,69 +93,6 @@ async def _refresh_google_token_http(refresh_token: str) -> str:
 
     await store_google_token("current", provider_token, provider_refresh_token)
     return provider_token
-
-
-async def _get_google_token_stdio() -> str:
-    """Get Google token via service account JWT exchange (stdio mode)."""
-    creds_json = settings.google_sheets_credentials_json
-    if not creds_json:
-        raise RuntimeError(
-            "GOOGLE_SHEETS_CREDENTIALS_JSON not set. "
-            "Set it to a path to a service account JSON file or inline JSON."
-        )
-
-    # Load service account credentials
-    sa_info = _load_service_account_info(creds_json)
-
-    # Sign JWT assertion
-    now = int(time.time())
-    payload = {
-        "iss": sa_info["client_email"],
-        "sub": sa_info["client_email"],
-        "scope": SCOPES,
-        "aud": GOOGLE_TOKEN_URL,
-        "iat": now,
-        "exp": now + GOOGLE_TOKEN_TTL,
-    }
-
-    assertion = pyjwt.encode(
-        payload,
-        sa_info["private_key"],
-        algorithm="RS256",
-    )
-
-    # Exchange JWT for access token
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "assertion": assertion,
-            },
-        )
-        resp.raise_for_status()
-        token_data = resp.json()
-
-    return token_data["access_token"]
-
-
-def _load_service_account_info(creds_json: str) -> dict[str, Any]:
-    """Load service account info from a file path or inline JSON string."""
-    import os  # noqa: PLC0415
-
-    # If it looks like a file path, read it
-    if os.path.isfile(creds_json):
-        with open(creds_json) as f:
-            return json.load(f)
-
-    # Otherwise treat as inline JSON
-    try:
-        return json.loads(creds_json)
-    except json.JSONDecodeError as e:
-        raise ValueError(
-            f"GOOGLE_SHEETS_CREDENTIALS_JSON is neither a valid file path "
-            f"nor valid JSON: {e}"
-        ) from e
 
 
 async def store_google_token(

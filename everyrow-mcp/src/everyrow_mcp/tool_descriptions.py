@@ -137,6 +137,7 @@ def _patch_results_schema(mode: str) -> None:
     if mode == "stdio":
         props.pop("offset", None)
         props.pop("page_size", None)
+        props.pop("output_spreadsheet_title", None)
         props["output_path"] = {
             "type": "string",
             "description": (
@@ -169,3 +170,17 @@ def set_tool_descriptions(transport: str) -> None:
     _patch_csv_input_tools(mode)
     _patch_merge_schema(mode)
     _patch_results_schema(mode)
+
+    # Sheets tools require HTTP mode (OAuth provides the Google token)
+    if mode == "stdio":
+        _SHEETS_TOOLS = [
+            "sheets_list",
+            "sheets_read",
+            "sheets_write",
+            "sheets_create",
+            "sheets_info",
+        ]
+        for name in _SHEETS_TOOLS:
+            tool = mcp._tool_manager.get_tool(name)
+            if tool is not None:
+                mcp._tool_manager._tools.pop(name, None)
