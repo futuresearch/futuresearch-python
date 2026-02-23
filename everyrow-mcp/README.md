@@ -12,9 +12,7 @@ The server requires an everyrow API key. Get one at [everyrow.io/api-key](https:
 
 ### Claude Desktop
 
-Download the latest `.mcpb` bundle from the [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) page and double-click to install in Claude Desktop. You'll be prompted to enter your everyrow API key during setup.
-
-> **Note:** The MCPB bundle works in Claude Desktop's **Chat** mode. Due to a [known limitation](https://github.com/anthropics/claude-code/issues/20377), local MCP servers are not currently exposed in Cowork mode.
+Download the latest `.mcpb` bundle from the [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) page and double-click to install in Claude Desktop. You'll be prompted to enter your everyrow API key during setup. After installing the bundle, you can use everyrow from Chat, Cowork and Code within Claude Desktop.
 
 ### Cursor
 Set the environment variable in your terminal shell before opening cursor. You may need to re-open cursor from your shell after this. Alternatively, hardcode the api key within cursor settings instead of the hard-coded `${env:EVERYROW_API_KEY}`
@@ -103,20 +101,20 @@ Example: Dedupe contacts where "same person even with name abbreviations or care
 
 ### everyrow_merge
 
-Join two CSV files using intelligent entity matching.
+Join two CSV files using intelligent entity matching (LEFT JOIN semantics).
 
 ```
 Parameters:
 - task: Natural language description of how to match rows
-- left_csv: Absolute path to primary CSV
-- right_csv: Absolute path to secondary CSV
-- merge_on_left: (optional) Column name in left table
-- merge_on_right: (optional) Column name in right table
-- use_web_search: (optional) "auto", "yes", or "no"
-- relationship_type: (optional) "many_to_one" (default) if multiple left rows can match one right row, or "one_to_one" matches must be unique
+- left_csv: The table being enriched — all its rows are kept in the output
+- right_csv: The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls
+- merge_on_left: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
+- merge_on_right: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
+- use_web_search: (optional) "auto" (default), "yes", or "no"
+- relationship_type: (optional) "many_to_one" (default) — multiple left rows can match one right row. "one_to_one" — only when both tables have unique entities of the same kind.
 ```
 
-Example: Match software products to parent companies (Photoshop -> Adobe)
+Example: Match software products (left, enriched) to parent companies (right, lookup): Photoshop -> Adobe
 
 ### everyrow_agent
 

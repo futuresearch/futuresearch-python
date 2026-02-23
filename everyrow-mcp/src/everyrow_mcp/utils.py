@@ -1,6 +1,8 @@
 """Utility functions for the everyrow MCP server."""
 
+from io import StringIO
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -104,6 +106,46 @@ def resolve_output_path(output_path: str, input_path: str, prefix: str) -> Path:
 
     input_name = Path(input_path).stem
     return out / f"{prefix}_{input_name}.csv"
+
+
+def load_csv(
+    *,
+    input_csv: str | None = None,
+    input_data: str | None = None,
+    input_json: list[dict[str, Any]] | None = None,
+) -> pd.DataFrame:
+    """Load tabular data from a file path, inline CSV string, or JSON records.
+
+    Exactly one of the three sources must be provided.
+
+    Args:
+        input_csv: Absolute path to a CSV file on disk.
+        input_data: Raw CSV content as a string.
+        input_json: List of dicts (JSON records).
+
+    Returns:
+        DataFrame with the loaded data.
+
+    Raises:
+        ValueError: If no source or multiple sources are provided, or if data is empty.
+    """
+    sources = sum(1 for s in (input_csv, input_data, input_json) if s)
+    if sources != 1:
+        raise ValueError("Provide exactly one of input_csv, input_data, or input_json.")
+
+    if input_csv:
+        return pd.read_csv(input_csv)
+
+    if input_json:
+        df = pd.DataFrame(input_json)
+        if df.empty:
+            raise ValueError("input_json produced an empty DataFrame.")
+        return df
+
+    df = pd.read_csv(StringIO(input_data))  # type: ignore[arg-type]
+    if df.empty:
+        raise ValueError("input_data produced an empty DataFrame.")
+    return df
 
 
 def save_result_to_csv(df: pd.DataFrame, path: Path) -> None:

@@ -22,6 +22,12 @@ BASE_PATH = "/docs"
 # GitHub blob URLs pointing into this repo are checked as local files
 REPO_BLOB_PREFIX = "https://github.com/futuresearch/everyrow-sdk/blob/main/"
 
+# Colab URLs pointing into this repo are checked as local files
+REPO_COLAB_PREFIX = (
+    "https://colab.research.google.com/github/"
+    "futuresearch/everyrow-sdk/blob/main/"
+)
+
 # Git LFS media URLs — the correct way to link to LFS-tracked files.
 # These are checked as local files instead of fetching from GitHub.
 REPO_LFS_PREFIX = (
@@ -41,6 +47,8 @@ CHECKED_DOMAINS: set[str] = {
 # Each URL must be listed explicitly — new links to the same domain will
 # error until added here, so broken links don't slip through unnoticed.
 SKIPPED_URLS: set[str] = {
+    "https://clinicaltrials.gov/",
+    "https://clinicaltrials.gov/data-api/about-api",
     "https://code.claude.com/docs/en/discover-plugins",
     "https://code.claude.com/docs/en/mcp",
     "https://cursor.com/deeplink/mcp-install-dark.svg",
@@ -59,7 +67,9 @@ SKIPPED_URLS: set[str] = {
     "https://huggingface.co/datasets/fancyzhx/dbpedia_14",
     "https://hugovk.github.io/top-pypi-packages/",
     "https://jqlang.org/",
+    "https://pip.pypa.io/en/stable/",
     "https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle",
+    "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
 }
 
 
@@ -179,6 +189,16 @@ def check_file(
             # of fetching from GitHub.
             if url_without_fragment.startswith(REPO_LFS_PREFIX):
                 rel_path = url_without_fragment[len(REPO_LFS_PREFIX) :]
+                if not (REPO_ROOT / rel_path).exists():
+                    errors.append(
+                        f"  {page_label}: file not found for {href!r}"
+                        f" (expected {rel_path})"
+                    )
+                continue
+
+            # Colab links to this repo: check the notebook exists locally.
+            if url_without_fragment.startswith(REPO_COLAB_PREFIX):
+                rel_path = url_without_fragment[len(REPO_COLAB_PREFIX) :]
                 if not (REPO_ROOT / rel_path).exists():
                     errors.append(
                         f"  {page_label}: file not found for {href!r}"

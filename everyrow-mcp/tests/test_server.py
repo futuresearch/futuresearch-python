@@ -30,11 +30,13 @@ from everyrow_mcp.server import (
     RankInput,
     ResultsInput,
     ScreenInput,
+    SingleAgentInput,
     _schema_to_model,
     everyrow_agent,
     everyrow_cancel,
     everyrow_progress,
     everyrow_results,
+    everyrow_single_agent,
 )
 
 # CSV fixtures are defined in conftest.py
@@ -84,6 +86,16 @@ class TestSchemaToModel:
         model = _schema_to_model("AllTypes", schema)
         assert len(model.model_fields) == 4
 
+    def test_rejects_non_object_property_schema(self):
+        """Property definitions must be JSON Schema objects."""
+        schema = {
+            "type": "object",
+            "properties": {"score": "number"},
+        }
+
+        with pytest.raises(ValueError, match="Invalid property schema"):
+            _schema_to_model("BadSchema", schema)
+
 
 class TestInputValidation:
     """Tests for input validation."""
@@ -120,6 +132,104 @@ class TestInputValidation:
                 left_csv=str(csv_file),
                 right_csv=str(tmp_path / "nonexistent.csv"),
             )
+
+    def test_agent_input_rejects_empty_response_schema(self, tmp_path: Path):
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        with pytest.raises(
+            ValidationError, match="must include a non-empty top-level 'properties'"
+        ):
+            AgentInput(
+                task="test",
+                input_csv=str(csv_file),
+                response_schema={},
+            )
+
+    def test_agent_input_rejects_shorthand_response_schema(self, tmp_path: Path):
+        """response_schema must be JSON Schema, not a field map."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        with pytest.raises(
+            ValidationError, match="must include a non-empty top-level 'properties'"
+        ):
+            AgentInput(
+                task="test",
+                input_csv=str(csv_file),
+                response_schema={"population": "string", "year": "string"},
+            )
+
+    def test_tool_inputs_accept_example_schemas(self, tmp_path: Path):
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        ScreenInput(
+            task="test",
+            input_csv=str(csv_file),
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "passes": {
+                        "type": "boolean",
+                    },
+                },
+            },
+        )
+        AgentInput(
+            task="test",
+            input_csv=str(csv_file),
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "answer": {
+                        "type": "string",
+                    },
+                },
+            },
+        )
+        AgentInput(
+            task="test",
+            input_csv=str(csv_file),
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "annual_revenue": {
+                        "type": "integer",
+                        "description": "Annual revenue in USD",
+                    },
+                    "employee_count": {
+                        "type": "integer",
+                        "description": "Number of employees",
+                    },
+                },
+                "required": ["annual_revenue"],
+            },
+        )
+
+    def test_screen_input_requires_boolean_property(self, tmp_path: Path):
+        """Screen schemas must include at least one boolean property."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        with pytest.raises(ValidationError, match="must include at least one boolean"):
+            ScreenInput(
+                task="test",
+                input_csv=str(csv_file),
+                response_schema={
+                    "type": "object",
+                    "properties": {"reason": {"type": "string"}},
+                },
+            )
+
+        ScreenInput(
+            task="test",
+            input_csv=str(csv_file),
+            response_schema={
+                "type": "object",
+                "properties": {"pass": {"type": "boolean"}},
+            },
+        )
 
 
 def _make_mock_task(task_id=None):
@@ -210,11 +320,11 @@ class TestAgent:
 
         with (
             patch(
-                "everyrow_mcp.server.agent_map_async", new_callable=AsyncMock
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.create_session",
+                "everyrow_mcp.tools.create_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -232,6 +342,131 @@ class TestAgent:
             assert "everyrow_progress" in text
 
 
+class TestSingleAgent:
+    """Tests for everyrow_single_agent."""
+
+    @pytest.mark.asyncio
+    async def test_submit_returns_task_id(self):
+        """Test that submit returns immediately with task_id and session_url."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Find the current CEO of Apple",
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+            assert "Session:" in text
+            assert "everyrow_progress" in text
+            assert "single agent" in text
+
+    @pytest.mark.asyncio
+    async def test_submit_with_input_data(self):
+        """Test that input_data is converted to a dynamic model."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Research this company's funding",
+                input_data={"company": "Stripe", "url": "stripe.com"},
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+
+            # Verify single_agent_async was called with an input model
+            call_kwargs = mock_op.call_args[1]
+            assert "input" in call_kwargs
+            input_model = call_kwargs["input"]
+            assert input_model.company == "Stripe"
+            assert input_model.url == "stripe.com"
+
+    @pytest.mark.asyncio
+    async def test_submit_with_response_schema(self):
+        """Test that response_schema creates a response model."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Find funding info",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "funding_round": {
+                            "type": "string",
+                            "description": "Latest funding round",
+                        },
+                    },
+                    "required": ["funding_round"],
+                },
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+
+            # Verify response_model was passed
+            call_kwargs = mock_op.call_args[1]
+            assert "response_model" in call_kwargs
+
+    def test_input_rejects_empty_task(self):
+        """Test that SingleAgentInput rejects an empty task."""
+        with pytest.raises(ValidationError):
+            SingleAgentInput(task="")
+
+    def test_input_rejects_invalid_response_schema(self):
+        """Test that SingleAgentInput validates response_schema."""
+        with pytest.raises(
+            ValidationError, match="must include a non-empty top-level 'properties'"
+        ):
+            SingleAgentInput(
+                task="test",
+                response_schema={},
+            )
+
+
 class TestProgress:
     """Tests for everyrow_progress."""
 
@@ -242,13 +477,13 @@ class TestProgress:
         task_id = str(uuid4())
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.get_task_status_tasks_task_id_status_get.asyncio",
+                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("API error"),
             ),
-            patch("everyrow_mcp.server.asyncio.sleep", new_callable=AsyncMock),
+            patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
         ):
             params = ProgressInput(task_id=task_id)
             result = await everyrow_progress(params)
@@ -271,14 +506,14 @@ class TestProgress:
         )
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.get_task_status_tasks_task_id_status_get.asyncio",
+                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
-            patch("everyrow_mcp.server.asyncio.sleep", new_callable=AsyncMock),
-            patch("everyrow_mcp.server._write_task_state"),
+            patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
+            patch("everyrow_mcp.tools._write_task_state"),
         ):
             params = ProgressInput(task_id=task_id)
             result = await everyrow_progress(params)
@@ -304,14 +539,14 @@ class TestProgress:
         )
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.get_task_status_tasks_task_id_status_get.asyncio",
+                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
-            patch("everyrow_mcp.server.asyncio.sleep", new_callable=AsyncMock),
-            patch("everyrow_mcp.server._write_task_state"),
+            patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
+            patch("everyrow_mcp.tools._write_task_state"),
         ):
             params = ProgressInput(task_id=task_id)
             result = await everyrow_progress(params)
@@ -332,9 +567,9 @@ class TestResults:
         output_file = tmp_path / "output.csv"
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.get_task_status_tasks_task_id_status_get.asyncio",
+                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("API error"),
             ),
@@ -360,14 +595,14 @@ class TestResults:
         )
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
+            patch("everyrow_mcp.app._client", mock_client),
             patch(
-                "everyrow_mcp.server.get_task_status_tasks_task_id_status_get.asyncio",
+                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
             patch(
-                "everyrow_mcp.server.get_task_result_tasks_task_id_result_get.asyncio",
+                "everyrow_mcp.tools.get_task_result_tasks_task_id_result_get.asyncio",
                 new_callable=AsyncMock,
                 return_value=result_response,
             ),
@@ -403,9 +638,9 @@ class TestCancel:
         mock_response.json.return_value = {"task_id": task_id, "status": "REVOKED"}
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
-            patch("everyrow_mcp.server._clear_task_state") as mock_clear,
-            patch("everyrow_mcp.server.httpx.AsyncClient") as mock_httpx_cls,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch("everyrow_mcp.tools._clear_task_state") as mock_clear,
+            patch("everyrow_mcp.tools.httpx.AsyncClient") as mock_httpx_cls,
         ):
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=mock_response)
@@ -439,9 +674,9 @@ class TestCancel:
         }
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
-            patch("everyrow_mcp.server._clear_task_state") as mock_clear,
-            patch("everyrow_mcp.server.httpx.AsyncClient") as mock_httpx_cls,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch("everyrow_mcp.tools._clear_task_state") as mock_clear,
+            patch("everyrow_mcp.tools.httpx.AsyncClient") as mock_httpx_cls,
         ):
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=mock_response)
@@ -472,8 +707,8 @@ class TestCancel:
         mock_response.json.return_value = {"detail": "Not found"}
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
-            patch("everyrow_mcp.server.httpx.AsyncClient") as mock_httpx_cls,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch("everyrow_mcp.tools.httpx.AsyncClient") as mock_httpx_cls,
         ):
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(return_value=mock_response)
@@ -498,8 +733,8 @@ class TestCancel:
         task_id = str(uuid4())
 
         with (
-            patch("everyrow_mcp.server._client", mock_client),
-            patch("everyrow_mcp.server.httpx.AsyncClient") as mock_httpx_cls,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch("everyrow_mcp.tools.httpx.AsyncClient") as mock_httpx_cls,
         ):
             mock_http = AsyncMock()
             mock_http.post = AsyncMock(side_effect=RuntimeError("Network failure"))
@@ -517,7 +752,7 @@ class TestCancel:
     @pytest.mark.asyncio
     async def test_cancel_without_client(self):
         """Test cancel when MCP server is not initialized."""
-        with patch("everyrow_mcp.server._client", None):
+        with patch("everyrow_mcp.app._client", None):
             params = CancelInput(task_id=str(uuid4()))
             result = await everyrow_cancel(params)
 

@@ -1,3 +1,38 @@
+/* Notebook action buttons (View source, Run in Colab) */
+.notebook-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  justify-content: flex-end;
+}
+
+.notebook-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.notebook-action-link:hover {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  background-color: var(--code-bg);
+  text-decoration: none;
+}
+
+.notebook-action-colab:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background-color: var(--accent-light);
+}
+
 /*
  * Notebook styles - scoped to .notebook-content
  * Based on Jupyter's default styling but minimal

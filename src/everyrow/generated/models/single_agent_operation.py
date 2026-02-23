@@ -33,14 +33,16 @@ class SingleAgentOperation:
             If not provided, use default answer schema.
         llm (LLMEnumPublic | None | Unset): LLM to use for the agent. Required when effort_level is not set.
         effort_level (None | PublicEffortLevel | Unset): Effort level preset: low (quick), medium (balanced), high
-            (thorough). Mutually exclusive with llm/iteration_budget/include_research - use either a preset or custom
+            (thorough). Mutually exclusive with llm/iteration_budget/include_reasoning - use either a preset or custom
             params, not both. If not specified, you must provide all individual parameters (llm, iteration_budget,
-            include_research).
+            include_reasoning).
         return_list (bool | Unset): If True, treat the output as a list of responses instead of a single response.
             Default: True.
         iteration_budget (int | None | Unset): Number of agent iterations (0-20). Required when effort_level is not set.
-        include_research (bool | None | Unset): Include research notes in the response. Required when effort_level is
+        include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.
+        include_research (bool | None | Unset): Deprecated: use include_reasoning instead. Include research notes in the
+            response. Required when effort_level is not set.
     """
 
     input_: list[SingleAgentOperationInputType1Item] | SingleAgentOperationInputType2 | UUID
@@ -51,6 +53,7 @@ class SingleAgentOperation:
     effort_level: None | PublicEffortLevel | Unset = UNSET
     return_list: bool | Unset = True
     iteration_budget: int | None | Unset = UNSET
+    include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -111,6 +114,12 @@ class SingleAgentOperation:
         else:
             iteration_budget = self.iteration_budget
 
+        include_reasoning: bool | None | Unset
+        if isinstance(self.include_reasoning, Unset):
+            include_reasoning = UNSET
+        else:
+            include_reasoning = self.include_reasoning
+
         include_research: bool | None | Unset
         if isinstance(self.include_research, Unset):
             include_research = UNSET
@@ -137,6 +146,8 @@ class SingleAgentOperation:
             field_dict["return_list"] = return_list
         if iteration_budget is not UNSET:
             field_dict["iteration_budget"] = iteration_budget
+        if include_reasoning is not UNSET:
+            field_dict["include_reasoning"] = include_reasoning
         if include_research is not UNSET:
             field_dict["include_research"] = include_research
 
@@ -263,6 +274,15 @@ class SingleAgentOperation:
 
         iteration_budget = _parse_iteration_budget(d.pop("iteration_budget", UNSET))
 
+        def _parse_include_reasoning(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        include_reasoning = _parse_include_reasoning(d.pop("include_reasoning", UNSET))
+
         def _parse_include_research(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -281,6 +301,7 @@ class SingleAgentOperation:
             effort_level=effort_level,
             return_list=return_list,
             iteration_budget=iteration_budget,
+            include_reasoning=include_reasoning,
             include_research=include_research,
         )
 

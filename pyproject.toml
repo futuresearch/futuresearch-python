@@ -1,9 +1,12 @@
 [tool.uv.workspace]
 members = ["everyrow-mcp"]
 
+[tool.uv.sources]
+everyrow = { workspace = true }
+
 [project]
 name = "everyrow"
-version = "0.3.1"
+version = "0.3.4"
 description = "An SDK for everyrow.io: agent ops at spreadsheet scale"
 readme = "README.md"
 requires-python = ">=3.12"

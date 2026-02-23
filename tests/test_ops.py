@@ -431,12 +431,12 @@ async def test_single_agent_with_effort_level_preset(mocker, mock_session):
     # Custom params should be UNSET when using preset
     assert body.llm is UNSET
     assert body.iteration_budget is UNSET
-    assert body.include_research is UNSET
+    assert body.include_reasoning is UNSET
 
 
 @pytest.mark.asyncio
 async def test_single_agent_with_custom_params(mocker, mock_session):
-    """Test that custom params (llm, iteration_budget, include_research) are sent correctly."""
+    """Test that custom params (llm, iteration_budget, include_reasoning) are sent correctly."""
     task_id = uuid.uuid4()
     artifact_id = uuid.uuid4()
 
@@ -472,7 +472,7 @@ async def test_single_agent_with_custom_params(mocker, mock_session):
         effort_level=None,
         llm=LLM.CLAUDE_4_5_HAIKU,
         iteration_budget=5,
-        include_research=True,
+        include_reasoning=True,
     )
 
     # Verify the body sent to the API
@@ -484,7 +484,7 @@ async def test_single_agent_with_custom_params(mocker, mock_session):
     # Custom params should have the specified values
     assert body.llm == LLMEnumPublic.CLAUDE_4_5_HAIKU
     assert body.iteration_budget == 5
-    assert body.include_research is True
+    assert body.include_reasoning is True
 
 
 @pytest.mark.asyncio
@@ -536,7 +536,7 @@ async def test_agent_map_with_effort_level_preset(mocker, mock_session):
     assert body.effort_level == PublicEffortLevel.HIGH
     assert body.llm is UNSET
     assert body.iteration_budget is UNSET
-    assert body.include_research is UNSET
+    assert body.include_reasoning is UNSET
 
 
 @pytest.mark.asyncio
@@ -581,7 +581,7 @@ async def test_agent_map_with_custom_params(mocker, mock_session):
         effort_level=None,
         llm=LLM.GPT_5_MINI,
         iteration_budget=10,
-        include_research=False,
+        include_reasoning=False,
     )
 
     # Verify the body sent to the API
@@ -591,4 +591,4 @@ async def test_agent_map_with_custom_params(mocker, mock_session):
     assert body.effort_level is UNSET
     assert body.llm == LLMEnumPublic.GPT_5_MINI
     assert body.iteration_budget == 10
-    assert body.include_research is False
+    assert body.include_reasoning is False

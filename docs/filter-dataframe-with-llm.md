@@ -5,7 +5,7 @@ description: How to screen data by criteria that require research in Python. LLM
 
 # How to Filter a DataFrame with an LLM
 
-Here we show how to filter a pandas dataframe by qualitative criteria, when normal filtering like df[df['column'] == value] won't work.
+Here we show how to filter a pandas dataframe by qualitative criteria, when normal filtering like `df[df['column'] == value]` won't work.
 
 LLMs, and LLM-web-agents, can evaluate qualitative criteria at high accuracy. But they can be very expensive and difficult to orchestrate at scale. We provide a low cost solution by handling the orchestration, batching, and consistency checking.
 
@@ -34,7 +34,7 @@ df[df['posting'].str.contains('remote', case=False)]
 
 What you need is a filter that understands: this posting explicitly allows remote work, requires senior experience, and states a specific salary number.
 
-We use a dataset of 3,616 job postings from Hacker News "Who's Hiring" threads, 10% of all posts every month since March 2020 through January 2026. Download [hn_jobs.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs.csv) to follow along.
+We use a dataset of 3,616 job postings from Hacker News "Who's Hiring" threads, 10% of all posts every month since March 2020 through January 2026. To follow along, [right click this link](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) and save the CSV file to your computer.
 
 ```bash
 pip install everyrow
@@ -47,7 +47,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from everyrow.ops import screen
 
-jobs = pd.read_csv("hn_jobs.csv")  # 3,616 job postings
+jobs = pd.read_csv("hn_jobs_screen.csv")  # 3,616 job postings
 
 class JobScreenResult(BaseModel):
     qualifies: bool = Field(description="True if meets ALL criteria")

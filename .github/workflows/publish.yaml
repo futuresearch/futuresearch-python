@@ -36,24 +36,28 @@ jobs:
     permissions:
       contents: write
     # MCPB bundles enable one-click installation in Claude Desktop.
-    # Note: Local MCP servers currently only work in Chat mode, not Cowork mode.
-    # See: https://github.com/anthropics/claude-code/issues/20377
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+      - name: Read version from manifest
+        id: version
+        run: echo "version=$(jq -r .version everyrow-mcp/manifest.json)" >> "$GITHUB_OUTPUT"
+
       - name: Build MCPB bundle
         working-directory: everyrow-mcp
-        run: npx -y @anthropic-ai/mcpb pack
+        run: npx -y @anthropic-ai/mcpb pack . everyrow-mcp-${{ steps.version.outputs.version }}.mcpb
 
       - name: Upload MCPB to release
         uses: softprops/action-gh-release@v2
         with:
-          files: everyrow-mcp/everyrow-mcp.mcpb
+          files: everyrow-mcp/everyrow-mcp-${{ steps.version.outputs.version }}.mcpb
 
   publish-mcp-registry:
     name: Publish to MCP Registry

@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "everyrow-mcp",
   "display_name": "Everyrow MCP Server",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "description": "AI-powered dataframe ops: transform, dedupe, merge, rank, and screen with natural language",
   "long_description": "MCP server for everyrow: agent ops at spreadsheet scale. This server exposes everyrow's 5 core operations as MCP tools, allowing LLM applications to screen, rank, dedupe, merge, and run agents on CSV files. All tools operate on local CSV files.",
   "author": {
@@ -14,8 +14,9 @@
     "url": "https://github.com/futuresearch/everyrow-sdk.git"
   },
   "homepage": "https://everyrow.io",
-  "documentation": "https://github.com/futuresearch/everyrow-sdk/tree/main/everyrow-mcp",
+  "documentation": "https://everyrow.io/docs",
   "support": "https://github.com/futuresearch/everyrow-sdk/issues",
+  "icon": "images/future-search-logo-128.png",
   "server": {
     "type": "uv",
     "entry_point": "src/everyrow_mcp/server.py",
@@ -30,23 +31,35 @@
   "tools": [
     {
       "name": "everyrow_screen",
-      "description": "Filter CSV rows based on criteria that require judgment"
+      "description": "Filter rows in a CSV file based on any criteria."
     },
     {
       "name": "everyrow_rank",
-      "description": "Score and sort CSV rows based on qualitative criteria"
+      "description": "Score and sort rows in a CSV file based on any criteria."
     },
     {
       "name": "everyrow_dedupe",
-      "description": "Remove duplicate rows using semantic equivalence"
+      "description": "Remove duplicate rows from a CSV file using semantic equivalence."
     },
     {
       "name": "everyrow_merge",
-      "description": "Join two CSV files using intelligent entity matching"
+      "description": "Join two CSV files using intelligent entity matching."
     },
     {
       "name": "everyrow_agent",
-      "description": "Run web research agents on each row of a CSV"
+      "description": "Run web research agents on each row of a CSV file."
+    },
+    {
+      "name": "everyrow_single_agent",
+      "description": "Run a single web research agent on a task, optionally with context data."
+    },
+    {
+      "name": "everyrow_progress",
+      "description": "Check progress of a running task. Blocks for a time to limit the polling rate."
+    },
+    {
+      "name": "everyrow_results",
+      "description": "Retrieve results from a completed everyrow task and save them to a CSV."
     }
   ],
   "user_config": {

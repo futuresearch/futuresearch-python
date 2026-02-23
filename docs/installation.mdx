@@ -7,10 +7,6 @@ description: Get started with everyrow. Install the Python SDK via pip, add the 
 
 Get an API key at [everyrow.io/api-key](https://everyrow.io/api-key) ($20 free credit included).
 
-```bash
-export EVERYROW_API_KEY=your_key_here
-```
-
 Select your platform and integration method below.
 
 <InstallationTabs>
@@ -22,6 +18,13 @@ pip install everyrow
 ```
 
 Requires Python 3.12+.
+
+**Important:** be sure to supply your API key when running scripts:
+
+```bash
+export EVERYROW_API_KEY=sk-cho...
+python3 example_script.py
+```
 
 **Quick example:**
 
@@ -152,31 +155,11 @@ You can optionally configure Claude Code to show a [progress bar](/docs/progress
 
 <TabContent agent="claude-desktop" type="mcp">
 
-Download the latest `.mcpb` bundle from [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) and double-click to install. You'll be prompted for your API key during setup.
+First, make sure you have [uv installed](https://docs.astral.sh/uv/).
 
-> **Note:** Works in Claude Desktop's **Chat** mode only (not Cowork mode due to a [known limitation](https://github.com/anthropics/claude-code/issues/20377)).
+Then, download the latest `.mcpb` bundle from [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) and double-click to install. You'll be prompted for your API key during setup.
 
-**Manual installation:**
-
-Add to your MCP config (requires [uv](https://docs.astral.sh/uv/)):
-
-```json
-{
-  "mcpServers": {
-    "everyrow": {
-      "command": "uvx",
-      "args": ["everyrow-mcp"],
-      "env": {
-        "EVERYROW_API_KEY": "sk-cho..."
-      }
-    }
-  }
-}
-```
-
-Config file location:
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+After installing the bundle, you can use everyrow from Chat, Cowork and Code within Claude Desktop.
 
 </TabContent>
 
@@ -365,6 +348,6 @@ Config file location:
 
 ## Dependencies
 
-The MCP server requires **uv** (if using `uvx`) or **pip** (if installed directly). The Python SDK requires **Python 3.12+**.
+The MCP server requires [**uv**](https://docs.astral.sh/uv/) (if using `uvx`) or [**pip**](https://pip.pypa.io/en/stable/) (if installed directly). The Python SDK requires **Python 3.12+**.
 
 For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar) in the progress monitoring guide.

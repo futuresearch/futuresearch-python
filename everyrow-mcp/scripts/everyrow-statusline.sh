@@ -14,6 +14,7 @@ TASK_FILE="$HOME/.everyrow/task.json"
 
 if [ -f "$TASK_FILE" ]; then
   TASK=$(cat "$TASK_FILE")
+  TASK_TYPE=$(echo "$TASK" | jq -r '.task_type // empty')
   STATUS=$(echo "$TASK" | jq -r '.status')
   COMPLETED=$(echo "$TASK" | jq -r '.completed // 0')
   TOTAL=$(echo "$TASK" | jq -r '.total // 0')
@@ -22,7 +23,21 @@ if [ -f "$TASK_FILE" ]; then
   STARTED=$(echo "$TASK" | jq -r '.started_at // 0' | cut -d. -f1)
   ELAPSED=$(( $(date +%s) - STARTED ))
 
-  if [ "$STATUS" = "running" ] && [ "$TOTAL" -gt 0 ]; then
+  if [ "$STATUS" = "running" ] && [ "$TASK_TYPE" = "screen" ]; then
+    LINK=""
+    if [ -n "$URL" ]; then
+      LINK=" $(printf '%b' "\e]8;;${URL}\a⬡ view\e]8;;\a")"
+    fi
+
+    echo -e "${GREEN}everyrow${RESET} running ${DIM}${ELAPSED}s${RESET}${LINK}"
+  elif [ "$STATUS" = "completed" ] && [ "$TASK_TYPE" = "screen" ]; then
+    LINK=""
+    if [ -n "$URL" ]; then
+      LINK=" $(printf '%b' "\e]8;;${URL}\a⬡ view\e]8;;\a")"
+    fi
+
+    echo -e "${GREEN}everyrow${RESET} ✓ done${LINK}"
+  elif [ "$STATUS" = "running" ] && [ "$TOTAL" -gt 0 ]; then
     TASK_PCT=$((COMPLETED * 100 / TOTAL))
     BAR_WIDTH=15
     FILLED=$((TASK_PCT * BAR_WIDTH / 100))

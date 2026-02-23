@@ -33,15 +33,17 @@ class AgentMapOperation:
             not provided, use default answer schema.
         llm (LLMEnumPublic | None | Unset): LLM to use for each agent. Required when effort_level is not set.
         effort_level (None | PublicEffortLevel | Unset): Effort level preset: low (quick), medium (balanced), high
-            (thorough). Mutually exclusive with llm/iteration_budget/include_research - use either a preset or custom
+            (thorough). Mutually exclusive with llm/iteration_budget/include_reasoning - use either a preset or custom
             params, not both. If not specified, you must provide all individual parameters (llm, iteration_budget,
-            include_research).
+            include_reasoning).
         join_with_input (bool | Unset): If True, merge agent output with input row. If False, output only agent results.
             Default: True.
         iteration_budget (int | None | Unset): Number of agent iterations per row (0-20). Required when effort_level is
             not set.
-        include_research (bool | None | Unset): Include research notes in the response. Required when effort_level is
+        include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.
+        include_research (bool | None | Unset): Deprecated: use include_reasoning instead. Include research notes in the
+            response. Required when effort_level is not set.
         enforce_row_independence (bool | Unset): If True, each agent runs completely independently without being
             affected by other agents. Disables adaptive budget adjustment and straggler management, ensuring agents are not
             hurried or given iteration limits based on other agents' progress. Use this when consistent per-row behavior is
@@ -56,6 +58,7 @@ class AgentMapOperation:
     effort_level: None | PublicEffortLevel | Unset = UNSET
     join_with_input: bool | Unset = True
     iteration_budget: int | None | Unset = UNSET
+    include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     enforce_row_independence: bool | Unset = False
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -117,6 +120,12 @@ class AgentMapOperation:
         else:
             iteration_budget = self.iteration_budget
 
+        include_reasoning: bool | None | Unset
+        if isinstance(self.include_reasoning, Unset):
+            include_reasoning = UNSET
+        else:
+            include_reasoning = self.include_reasoning
+
         include_research: bool | None | Unset
         if isinstance(self.include_research, Unset):
             include_research = UNSET
@@ -145,6 +154,8 @@ class AgentMapOperation:
             field_dict["join_with_input"] = join_with_input
         if iteration_budget is not UNSET:
             field_dict["iteration_budget"] = iteration_budget
+        if include_reasoning is not UNSET:
+            field_dict["include_reasoning"] = include_reasoning
         if include_research is not UNSET:
             field_dict["include_research"] = include_research
         if enforce_row_independence is not UNSET:
@@ -271,6 +282,15 @@ class AgentMapOperation:
 
         iteration_budget = _parse_iteration_budget(d.pop("iteration_budget", UNSET))
 
+        def _parse_include_reasoning(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        include_reasoning = _parse_include_reasoning(d.pop("include_reasoning", UNSET))
+
         def _parse_include_research(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -291,6 +311,7 @@ class AgentMapOperation:
             effort_level=effort_level,
             join_with_input=join_with_input,
             iteration_budget=iteration_budget,
+            include_reasoning=include_reasoning,
             include_research=include_research,
             enforce_row_independence=enforce_row_independence,
         )

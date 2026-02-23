@@ -147,7 +147,7 @@ async def single_agent[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: Literal[False] = False,
 ) -> ScalarResult[T]: ...
@@ -161,7 +161,7 @@ async def single_agent(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[BaseModel] = DefaultAgentResponse,
     return_table: Literal[True] = True,
 ) -> TableResult: ...
@@ -174,7 +174,7 @@ async def single_agent[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
 ) -> ScalarResult[T] | TableResult:
@@ -185,10 +185,10 @@ async def single_agent[T: BaseModel](
         session: Optional session. If not provided, one will be created automatically.
         input: Input data (BaseModel, DataFrame, UUID, or Result).
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
-            custom params (llm, iteration_budget, include_research). Default: medium.
+            custom params (llm, iteration_budget, include_reasoning). Default: medium.
         llm: LLM to use. Required when effort_level is None.
         iteration_budget: Number of agent iterations (0-20). Required when effort_level is None.
-        include_research: Include research notes. Required when effort_level is None.
+        include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
         return_table: If True, return a TableResult instead of ScalarResult.
 
@@ -204,7 +204,7 @@ async def single_agent[T: BaseModel](
                 effort_level=effort_level,
                 llm=llm,
                 iteration_budget=iteration_budget,
-                include_research=include_research,
+                include_reasoning=include_reasoning,
                 response_model=response_model,
                 return_table=return_table,
             )
@@ -216,7 +216,7 @@ async def single_agent[T: BaseModel](
         effort_level=effort_level,
         llm=llm,
         iteration_budget=iteration_budget,
-        include_research=include_research,
+        include_reasoning=include_reasoning,
         response_model=response_model,
         return_table=return_table,
     )
@@ -230,7 +230,7 @@ async def single_agent_async[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
 ) -> EveryrowTask[T]:
@@ -252,7 +252,7 @@ async def single_agent_async[T: BaseModel](
         else UNSET,
         llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
-        include_research=include_research if include_research is not None else UNSET,
+        include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         return_list=return_table,
     )
 
@@ -278,7 +278,7 @@ async def agent_map(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
 ) -> TableResult:
@@ -289,10 +289,10 @@ async def agent_map(
         session: Optional session. If not provided, one will be created automatically.
         input: The input table (DataFrame, UUID, or TableResult).
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
-            custom params (llm, iteration_budget, include_research). Default: low.
+            custom params (llm, iteration_budget, include_reasoning). Default: low.
         llm: LLM to use for each agent. Required when effort_level is None.
         iteration_budget: Number of agent iterations per row (0-20). Required when effort_level is None.
-        include_research: Include research notes. Required when effort_level is None.
+        include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
 
     Returns:
@@ -309,7 +309,7 @@ async def agent_map(
                 effort_level=effort_level,
                 llm=llm,
                 iteration_budget=iteration_budget,
-                include_research=include_research,
+                include_reasoning=include_reasoning,
                 enforce_row_independence=enforce_row_independence,
                 response_model=response_model,
             )
@@ -324,7 +324,7 @@ async def agent_map(
         effort_level=effort_level,
         llm=llm,
         iteration_budget=iteration_budget,
-        include_research=include_research,
+        include_reasoning=include_reasoning,
         enforce_row_independence=enforce_row_independence,
         response_model=response_model,
     )
@@ -341,7 +341,7 @@ async def agent_map_async(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
 ) -> EveryrowTask[BaseModel]:
@@ -361,7 +361,7 @@ async def agent_map_async(
         else UNSET,
         llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
-        include_research=include_research if include_research is not None else UNSET,
+        include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         join_with_input=True,
         enforce_row_independence=enforce_row_independence,
     )
@@ -582,17 +582,17 @@ async def merge(
     use_web_search: Literal["auto", "yes", "no"] | None = None,
     relationship_type: Literal["many_to_one", "one_to_one"] | None = None,
 ) -> MergeResult:
-    """Merge two tables using AI.
+    """Merge two tables using AI (LEFT JOIN semantics).
 
     Args:
         task: The task description for the merge operation
         session: Optional session. If not provided, one will be created automatically.
-        left_table: The left table to merge (DataFrame, UUID, or TableResult)
-        right_table: The right table to merge (DataFrame, UUID, or TableResult)
-        merge_on_left: Optional column name in left table to merge on
-        merge_on_right: Optional column name in right table to merge on
-        use_web_search: Optional. Control web search behavior: "auto" tries LLM merge first then conditionally searches, "no" skips web search entirely, "yes" forces web search on every row. Defaults to "auto" if not provided.
-        relationship_type: Optional. Control merge relationship type: "many_to_one" (default) allows multiple left rows to match one right row, "one_to_one" enforces unique matching between left and right rows.
+        left_table: The table being enriched — all its rows are kept in the output (DataFrame, UUID, or TableResult)
+        right_table: The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls (DataFrame, UUID, or TableResult)
+        merge_on_left: Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted.
+        merge_on_right: Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted.
+        use_web_search: Control web search behavior: "auto" (default) tries LLM merge first then conditionally searches, "no" skips web search entirely, "yes" forces web search on every row.
+        relationship_type: Defaults to "many_to_one", which is correct in most cases (multiple left rows can match one right row, e.g. products → companies). Only use "one_to_one" when both tables have unique entities of the same kind.
 
     Returns:
         MergeResult containing the merged table and match breakdown by method (exact, fuzzy, llm, web)

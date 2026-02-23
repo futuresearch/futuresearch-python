@@ -14,15 +14,17 @@ from everyrow.ops import merge
 
 result = await merge(
     task="Match each software product to its parent company",
-    left_table=software_products,
-    right_table=approved_vendors,
-    merge_on_left="product_name",
-    merge_on_right="company_name",
+    left_table=software_products,   # table being enriched — all rows kept
+    right_table=approved_vendors,    # lookup/reference table — columns appended
+    # merge_on_left/merge_on_right omitted: auto-detection handles most cases.
+    # Only specify them when you expect exact string matches on specific columns
+    # or want to draw agent attention to them.
 )
 print(result.data.head())
 ```
 
-For ambiguous cases, add context:
+For ambiguous cases, add context. Here `merge_on_left`/`merge_on_right` are set because
+the column names ("sponsor", "company") are too generic for auto-detection:
 
 ```python
 result = await merge(
@@ -34,10 +36,10 @@ result = await merge(
         - Regional names (MSD is Merck outside the US)
         - Abbreviations (BMS → Bristol-Myers Squibb)
     """,
-    left_table=trials,
-    right_table=pharma_companies,
-    merge_on_left="sponsor",
-    merge_on_right="company",
+    left_table=trials,              # table being enriched — all rows kept
+    right_table=pharma_companies,   # lookup table
+    merge_on_left="sponsor",        # specified: draws agent attention to this column
+    merge_on_right="company",       # specified: draws agent attention to this column
 )
 print(result.data.head())
 ```
@@ -51,10 +53,12 @@ A DataFrame with all left table columns plus matched right table columns. Rows t
 | Name | Type | Description |
 |------|------|-------------|
 | `task` | str | How to match the tables |
-| `left_table` | DataFrame | Primary table (all rows kept) |
-| `right_table` | DataFrame | Table to match from |
-| `merge_on_left` | Optional[str] | Column in left table. Model will try to guess if not specified. |
-| `merge_on_right` | Optional[str] | Column in right table. Model will try to guess if not specified. |
+| `left_table` | DataFrame | The table being enriched — all its rows are kept in the output (LEFT JOIN). |
+| `right_table` | DataFrame | The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls. |
+| `merge_on_left` | Optional[str] | Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted. |
+| `merge_on_right` | Optional[str] | Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted. |
+| `relationship_type` | Optional[str] | `"many_to_one"` (default) — multiple left rows can match one right row. `"one_to_one"` — only when both tables have unique entities of the same kind. |
+| `use_web_search` | Optional[str] | `"auto"` (default), `"yes"`, or `"no"`. Controls whether agents use web search to resolve matches. |
 | `session` | Session | Optional, auto-created if omitted |
 
 ## Performance

@@ -1,12 +1,72 @@
 """Shared pytest fixtures for everyrow MCP server tests."""
 
+from __future__ import annotations
+
+# Set env vars for HttpSettings before any everyrow imports
+import os
+
+os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
+os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("MCP_SERVER_URL", "https://mcp.example.com")
+os.environ.setdefault("REDIS_PORT", "6380")
+
+import socket
+import subprocess
+import time
 from pathlib import Path
 
 import pandas as pd
 import pytest
+import redis.asyncio as aioredis
 from everyrow.api_utils import create_client
 
-from everyrow_mcp import server
+from everyrow_mcp import app
+
+_REDIS_PORT = 16379  # non-default port to avoid clashing with local Redis
+
+
+@pytest.fixture(scope="session")
+def _redis_server():
+    """Start a local redis-server process for the test session."""
+    proc = subprocess.Popen(
+        [
+            "redis-server",
+            "--port",
+            str(_REDIS_PORT),
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    # Wait for Redis to accept connections
+    for _ in range(30):
+        try:
+            s = socket.create_connection(("localhost", _REDIS_PORT), timeout=0.1)
+            s.close()
+            break
+        except OSError:
+            time.sleep(0.1)
+    else:
+        proc.kill()
+        raise RuntimeError("Test redis-server did not start in time")
+
+    yield
+
+    proc.terminate()
+    proc.wait(timeout=5)
+
+
+@pytest.fixture
+async def fake_redis(_redis_server) -> aioredis.Redis:
+    """A real Redis client, flushed after each test."""
+    r = aioredis.Redis(host="localhost", port=_REDIS_PORT, decode_responses=True)
+    await r.flushdb()
+    yield r
+    await r.flushdb()
+    await r.aclose()
 
 
 @pytest.fixture
@@ -18,10 +78,10 @@ async def everyrow_client():
     """
     try:
         with create_client() as client:
-            server._client = client
+            app._client = client
             yield client
     finally:
-        server._client = None
+        app._client = None
 
 
 @pytest.fixture

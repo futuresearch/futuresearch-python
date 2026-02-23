@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { DocsLayout } from "@/components/DocsLayout";
+import { NotebookActions } from "@/components/NotebookActions";
 import { getNavigation } from "@/utils/docs";
 import { getNotebookBySlug, getNotebookSlugs } from "@/utils/notebooks";
 
@@ -50,6 +51,7 @@ export default async function NotebookPage({ params }: PageProps) {
 
   return (
     <DocsLayout navigation={navigation}>
+      <NotebookActions slug={slug} />
       <article
         className="notebook-content"
         dangerouslySetInnerHTML={{ __html: notebook.html }}
