@@ -77,6 +77,18 @@ Run web research agents on each row.
 
 Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
 
+### everyrow_single_agent
+
+Run a single web research agent on a question, without a CSV. Use this when you want to research one thing — the agent can search the web, read pages, and return structured results.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task` | string | Yes | Natural language task for the agent to perform. |
+| `input_data` | object | No | Optional context as key-value pairs (e.g. `{"company": "Acme", "url": "acme.com"}`). |
+| `response_schema` | object | No | JSON schema for structured output. Default: `{"type": "object", "properties": {"answer": {"type": "string"}}}`. |
+
+Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
+
 ## Progress and Results Tools
 
 ### everyrow_progress
@@ -99,6 +111,16 @@ Retrieve results from a completed task and save to CSV.
 | `output_path` | string | Yes | Directory or full .csv path for output. |
 
 Returns confirmation with row count and file path.
+
+### everyrow_cancel
+
+Cancel a running task. Use when the user wants to stop a task that is currently processing.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | Yes | The task ID to cancel. |
+
+Returns a confirmation message. If the task has already finished, returns an error with its current state.
 
 ## Workflow
 
