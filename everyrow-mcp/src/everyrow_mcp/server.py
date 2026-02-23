@@ -13,7 +13,11 @@ from everyrow_mcp.app import mcp
 from everyrow_mcp.config import settings
 from everyrow_mcp.http_config import configure_http_mode
 from everyrow_mcp.redis_store import Transport
-from everyrow_mcp.tool_descriptions import set_tool_descriptions
+from everyrow_mcp.tools import (
+    _RESULTS_ANNOTATIONS,
+    _RESULTS_META,
+    everyrow_results_http,
+)
 
 
 class InputArgs(BaseModel):
@@ -70,7 +74,16 @@ def main():
     transport = Transport.HTTP if input_args.http else Transport.STDIO
     settings.transport = transport.value
 
-    set_tool_descriptions(transport)
+    # tools.py registers everyrow_results_stdio by default.
+    # Override with the HTTP variant when running in HTTP mode.
+    if transport == Transport.HTTP:
+        mcp.tool(
+            name="everyrow_results",
+            structured_output=False,
+            annotations=_RESULTS_ANNOTATIONS,
+            meta=_RESULTS_META,
+        )(everyrow_results_http)
+
     if input_args.http:
         if input_args.no_auth:
             mcp_server_url = f"http://localhost:{input_args.port}"

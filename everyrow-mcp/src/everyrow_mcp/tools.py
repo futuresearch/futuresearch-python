@@ -23,16 +23,16 @@ from pydantic import BaseModel, create_model
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.app import _clear_task_state, mcp
-from everyrow_mcp.config import settings
 from everyrow_mcp.models import (
     AgentInput,
     DedupeInput,
+    HttpResultsInput,
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
     _schema_to_model,
 )
 from everyrow_mcp.result_store import try_cached_result, try_store_result
@@ -492,12 +492,11 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
         openWorldHint=False,
     ),
 )
-# NOTE: This docstring is overridden at startup by set_tool_descriptions().
 async def everyrow_progress(
     params: ProgressInput,
     ctx: EveryRowContext,
 ) -> list[TextContent]:
-    """Check progress of a running task. Blocks for a time to limit the polling rate.
+    """Check progress of a running task. Blocks briefly to limit the polling rate.
 
     After receiving a status update, immediately call everyrow_progress again
     unless the task is completed or failed. The tool handles pacing internally.
@@ -533,37 +532,63 @@ async def everyrow_progress(
     return [TextContent(type="text", text=ts.progress_message(task_id))]
 
 
-@mcp.tool(
-    name="everyrow_results",
-    structured_output=False,
-    annotations=ToolAnnotations(
-        title="Save Task Results",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=False,
-    ),
-    meta={"ui": {"resourceUri": "ui://everyrow/results.html"}},
-)
-# NOTE: This docstring is overridden at startup by set_tool_descriptions().
-async def everyrow_results(  # noqa: PLR0911
-    params: ResultsInput, ctx: EveryRowContext
+async def everyrow_results_stdio(
+    params: StdioResultsInput, ctx: EveryRowContext
 ) -> list[TextContent]:
     """Retrieve results from a completed everyrow task and save them to a CSV.
 
     Only call this after everyrow_progress reports status 'completed'.
+    Pass output_path (ending in .csv) to save results as a local CSV file.
+    """
+    client = _get_client(ctx)
+    task_id = params.task_id
+
+    try:
+        df, _session_id = await _fetch_task_result(client, task_id)
+    except TaskNotReady as e:
+        return [
+            TextContent(
+                type="text",
+                text=dedent(f"""\
+                    Task status is {e.status}. Cannot fetch results yet.
+                    Call everyrow_progress(task_id='{task_id}') to check again."""),
+            )
+        ]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
+
+    output_file = Path(params.output_path)
+    save_result_to_csv(df, output_file)
+    return [
+        TextContent(
+            type="text",
+            text=dedent(f"""\
+                Saved {len(df)} rows to {output_file}
+
+                Tip: For multi-step pipelines or custom response models, \
+                use the everyrow Python SDK directly."""),
+        )
+    ]
+
+
+async def everyrow_results_http(
+    params: HttpResultsInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Retrieve results from a completed everyrow task.
+
+    Only call this after everyrow_progress reports status 'completed'.
+    Results are returned as a paginated preview with a download link.
     """
     client = _get_client(ctx)
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
 
-    # ── HTTP mode: return from cache if available ───────────────
-    if settings.is_http:
-        cached = await try_cached_result(
-            task_id, params.offset, params.page_size, mcp_server_url=mcp_server_url
-        )
-        if cached is not None:
-            return cached
+    # ── Return from cache if available ───────────────────────────
+    cached = await try_cached_result(
+        task_id, params.offset, params.page_size, mcp_server_url=mcp_server_url
+    )
+    if cached is not None:
+        return cached
 
     # ── Fetch from API ────────────────────────────────────────────
     try:
@@ -581,29 +606,12 @@ async def everyrow_results(  # noqa: PLR0911
     except Exception as e:
         return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
 
-    # ── stdio mode: save to file ──────────────────────────────────
-    if settings.is_stdio:
-        if params.output_path:
-            output_file = Path(params.output_path)
-            save_result_to_csv(df, output_file)
-            return [
-                TextContent(
-                    type="text",
-                    text=dedent(f"""\
-                        Saved {len(df)} rows to {output_file}
+    # ── Optionally save to file (local HTTP mode) ─────────────────
+    if params.output_path:
+        output_file = Path(params.output_path)
+        save_result_to_csv(df, output_file)
 
-                        Tip: For multi-step pipelines or custom response models, \
-                        use the everyrow Python SDK directly."""),
-                )
-            ]
-        return [
-            TextContent(
-                type="text",
-                text=f"Results ready: {len(df)} rows. Provide output_path to save to CSV.",
-            )
-        ]
-
-    # ── HTTP mode: store in Redis and return paginated response ──
+    # ── Store in Redis and return paginated response ──────────────
     store_response = await try_store_result(
         task_id,
         df,
@@ -621,3 +629,23 @@ async def everyrow_results(  # noqa: PLR0911
             text=f"Error: failed to store results for task {task_id}.",
         )
     ]
+
+
+# Default registration: stdio variant. server.main() re-registers the HTTP
+# variant when --http is used.  This ensures list_tools() always finds the
+# tool, even in test modules that import tools.py without calling main().
+_RESULTS_ANNOTATIONS = ToolAnnotations(
+    title="Save Task Results",
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+)
+_RESULTS_META = {"ui": {"resourceUri": "ui://everyrow/results.html"}}
+
+mcp.tool(
+    name="everyrow_results",
+    structured_output=False,
+    annotations=_RESULTS_ANNOTATIONS,
+    meta=_RESULTS_META,
+)(everyrow_results_stdio)

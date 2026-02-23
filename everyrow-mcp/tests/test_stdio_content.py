@@ -47,12 +47,11 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
 )
 from everyrow_mcp.redis_store import Transport
-from everyrow_mcp.tool_descriptions import set_tool_descriptions
 from everyrow_mcp.tool_helpers import SessionContext
 from everyrow_mcp.tools import (
     everyrow_agent,
@@ -60,7 +59,7 @@ from everyrow_mcp.tools import (
     everyrow_merge,
     everyrow_progress,
     everyrow_rank,
-    everyrow_results,
+    everyrow_results_stdio,
     everyrow_screen,
     everyrow_single_agent,
 )
@@ -509,49 +508,22 @@ class TestStdioResultsContent:
                 return_value=result_resp,
             ),
         ):
-            result = await everyrow_results(
-                ResultsInput(task_id=task_id, output_path=str(output_file)), ctx
+            result = await everyrow_results_stdio(
+                StdioResultsInput(task_id=task_id, output_path=str(output_file)), ctx
             )
 
         assert len(result) == 1
-        assert_stdio_clean(result, tool_name="everyrow_results (save)")
+        assert_stdio_clean(result, tool_name="everyrow_results_stdio (save)")
         assert "Saved 2 rows" in result[0].text
         assert output_file.exists()
 
     @pytest.mark.asyncio
-    async def test_results_without_output_path(self):
-        """Without output_path, stdio should prompt the model to provide one."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        status_resp = _make_status_response(status="completed")
-        result_resp = _make_result_response([{"name": "Acme"}])
-
-        with (
-            patch(
-                "everyrow_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_resp,
-            ),
-            patch(
-                "everyrow_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_resp,
-            ),
-        ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
-
-        assert len(result) == 1
-        assert_stdio_clean(result, tool_name="everyrow_results (no path)")
-        assert "output_path" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_results_task_not_ready(self):
+    async def test_results_task_not_ready(self, tmp_path: Path):
         """When task isn't completed yet, response is clean."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
+        output_file = tmp_path / "output.csv"
 
         status_resp = _make_status_response(status="running")
 
@@ -562,7 +534,9 @@ class TestStdioResultsContent:
                 return_value=status_resp,
             ),
         ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            result = await everyrow_results_stdio(
+                StdioResultsInput(task_id=task_id, output_path=str(output_file)), ctx
+            )
 
         assert len(result) == 1
         assert_stdio_clean(result, tool_name="everyrow_results (not ready)")
@@ -570,11 +544,12 @@ class TestStdioResultsContent:
         assert "everyrow_progress" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_results_api_error(self):
+    async def test_results_api_error(self, tmp_path: Path):
         """API errors produce clean error text, not JSON."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
+        output_file = tmp_path / "output.csv"
 
         with (
             patch(
@@ -583,7 +558,9 @@ class TestStdioResultsContent:
                 side_effect=RuntimeError("Connection refused"),
             ),
         ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            result = await everyrow_results_stdio(
+                StdioResultsInput(task_id=task_id, output_path=str(output_file)), ctx
+            )
 
         assert len(result) == 1
         assert_stdio_clean(result, tool_name="everyrow_results (error)")
@@ -593,56 +570,8 @@ class TestStdioResultsContent:
 # ── Tool description tests ────────────────────────────────────────────
 
 
-class TestToolDescriptions:
-    """Verify tool descriptions are set correctly per transport."""
-
-    def test_stdio_results_description(self):
-        set_tool_descriptions("stdio")
-        tool = mcp_app._tool_manager.get_tool("everyrow_results")
-        assert tool is not None
-        assert "output_path" in tool.description
-        assert "Do NOT" not in tool.description
-
-    def test_http_results_description(self):
-        set_tool_descriptions("http")
-        tool = mcp_app._tool_manager.get_tool("everyrow_results")
-        assert tool is not None
-        assert "Do NOT pass output_path" in tool.description
-        assert "paginated preview" in tool.description
-
-        # Reset to stdio for other tests
-        set_tool_descriptions("stdio")
-
-    def test_descriptions_visible_via_mcp_protocol(self):
-        """list_tools returns the patched description, not the original docstring."""
-        set_tool_descriptions("stdio")
-        tools = mcp_app._tool_manager.list_tools()
-        results_tool = next(t for t in tools if t.name == "everyrow_results")
-        assert "output_path" in results_tool.description
-        assert "Do NOT" not in results_tool.description
-
-    def test_stdio_schema_has_output_path_required(self):
-        """In stdio mode, everyrow_results exposes task_id + output_path only."""
-        set_tool_descriptions("stdio")
-        tool = mcp_app._tool_manager.get_tool("everyrow_results")
-        assert tool is not None
-        results_def = tool.parameters["$defs"]["ResultsInput"]
-        assert set(results_def["properties"]) == {"task_id", "output_path"}
-        assert "output_path" in results_def["required"]
-        assert "task_id" in results_def["required"]
-        # output_path should be a plain string, not nullable
-        assert results_def["properties"]["output_path"]["type"] == "string"
-
-    def test_http_schema_has_pagination_no_output_path(self):
-        """In HTTP mode, everyrow_results exposes task_id + offset + page_size."""
-        set_tool_descriptions("http")
-        tool = mcp_app._tool_manager.get_tool("everyrow_results")
-        assert tool is not None
-        results_def = tool.parameters["$defs"]["ResultsInput"]
-        assert set(results_def["properties"]) == {"task_id", "offset", "page_size"}
-        assert "output_path" not in results_def.get("required", [])
-        # Reset for other tests
-        set_tool_descriptions("stdio")
+class TestToolSchemas:
+    """Verify tool schemas expose the expected fields."""
 
     @pytest.mark.parametrize(
         "tool_name,def_name",
@@ -653,54 +582,23 @@ class TestToolDescriptions:
             ("everyrow_dedupe", "DedupeInput"),
         ],
     )
-    def test_stdio_schema_has_input_csv(self, tool_name: str, def_name: str):
-        """In stdio mode, CSV-based tools expose input_csv and data."""
-        set_tool_descriptions("stdio")
+    def test_schema_has_input_csv_and_data(self, tool_name: str, def_name: str):
+        """CSV-based tools expose both input_csv and data."""
         tool = mcp_app._tool_manager.get_tool(tool_name)
         assert tool is not None
         input_def = tool.parameters["$defs"][def_name]
         assert "input_csv" in input_def["properties"]
         assert "data" in input_def["properties"]
 
-    @pytest.mark.parametrize(
-        "tool_name,def_name",
-        [
-            ("everyrow_agent", "AgentInput"),
-            ("everyrow_rank", "RankInput"),
-            ("everyrow_screen", "ScreenInput"),
-            ("everyrow_dedupe", "DedupeInput"),
-        ],
-    )
-    def test_http_schema_removes_input_csv(self, tool_name: str, def_name: str):
-        """In HTTP mode, CSV-based tools do NOT expose input_csv."""
-        set_tool_descriptions("http")
-        tool = mcp_app._tool_manager.get_tool(tool_name)
-        assert tool is not None
-        input_def = tool.parameters["$defs"][def_name]
-        assert "input_csv" not in input_def["properties"]
-        assert "data" in input_def["properties"]
-        set_tool_descriptions("stdio")
-
-    def test_stdio_merge_has_csv_fields(self):
-        """In stdio mode, everyrow_merge exposes left_csv and right_csv."""
-        set_tool_descriptions("stdio")
+    def test_merge_schema_has_csv_and_data_fields(self):
+        """everyrow_merge exposes left_csv/right_csv and left_data/right_data."""
         tool = mcp_app._tool_manager.get_tool("everyrow_merge")
         assert tool is not None
         merge_def = tool.parameters["$defs"]["MergeInput"]
         assert "left_csv" in merge_def["properties"]
         assert "right_csv" in merge_def["properties"]
-
-    def test_http_merge_removes_csv_fields(self):
-        """In HTTP mode, everyrow_merge does NOT expose left_csv/right_csv."""
-        set_tool_descriptions("http")
-        tool = mcp_app._tool_manager.get_tool("everyrow_merge")
-        assert tool is not None
-        merge_def = tool.parameters["$defs"]["MergeInput"]
-        assert "left_csv" not in merge_def["properties"]
-        assert "right_csv" not in merge_def["properties"]
         assert "left_data" in merge_def["properties"]
         assert "right_data" in merge_def["properties"]
-        set_tool_descriptions("stdio")
 
 
 # ── HTTP mode contrast tests ─────────────────────────────────────────

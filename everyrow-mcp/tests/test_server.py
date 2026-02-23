@@ -32,18 +32,20 @@ from everyrow_mcp import redis_store
 from everyrow_mcp.models import (
     AgentInput,
     DedupeInput,
+    HttpResultsInput,
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
     _schema_to_model,
 )
 from everyrow_mcp.tools import (
     everyrow_agent,
     everyrow_progress,
-    everyrow_results,
+    everyrow_results_http,
+    everyrow_results_stdio,
     everyrow_single_agent,
 )
 from tests.conftest import make_test_context, override_settings
@@ -592,8 +594,8 @@ class TestResults:
                 side_effect=RuntimeError("API error"),
             ),
         ):
-            params = ResultsInput(task_id=task_id, output_path=str(output_file))
-            result = await everyrow_results(params, ctx)
+            params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
+            result = await everyrow_results_stdio(params, ctx)
 
         assert "Error retrieving results" in result[0].text
 
@@ -625,8 +627,8 @@ class TestResults:
                 return_value=result_response,
             ),
         ):
-            params = ResultsInput(task_id=task_id, output_path=str(output_file))
-            result = await everyrow_results(params, ctx)
+            params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
+            result = await everyrow_results_stdio(params, ctx)
         text = result[0].text
 
         assert "Saved 2 rows to" in text
@@ -638,45 +640,12 @@ class TestResults:
         assert list(output_df.columns) == ["name", "answer"]
 
     @pytest.mark.asyncio
-    async def test_results_stdio_no_output_path(self):
-        """In stdio mode without output_path, returns hint to provide one."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response(
-            [
-                {"name": "TechStart", "answer": "Series A"},
-                {"name": "AILabs", "answer": "Seed"},
-            ]
-        )
-
-        with (
-            patch(
-                "everyrow_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "everyrow_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
-        ):
-            params = ResultsInput(task_id=task_id)
-            result = await everyrow_results(params, ctx)
-
-        assert len(result) == 1
-        assert "2 rows" in result[0].text
-        assert "output_path" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_results_scalar_single_agent(self):
+    async def test_results_scalar_single_agent(self, tmp_path: Path):
         """Test results handles scalar (single_agent) TaskResultResponseDataType1."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
+        output_file = tmp_path / "output.csv"
 
         status_response = _make_task_status_response(status="completed")
         scalar_data = TaskResultResponseDataType1.from_dict(
@@ -700,8 +669,8 @@ class TestResults:
                 return_value=result_response,
             ),
         ):
-            params = ResultsInput(task_id=task_id)
-            result = await everyrow_results(params, ctx)
+            params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
+            result = await everyrow_results_stdio(params, ctx)
 
         assert len(result) == 1
         assert "1 rows" in result[0].text
@@ -739,7 +708,6 @@ class TestResults:
         ]
 
         with (
-            override_settings(transport="streamable-http"),
             patch(
                 "everyrow_mcp.tools.try_cached_result",
                 new_callable=AsyncMock,
@@ -761,7 +729,7 @@ class TestResults:
                 return_value=store_response,
             ),
         ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            result = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
 
         assert len(result) == 2
         widget_data = json.loads(result[0].text)
@@ -790,14 +758,13 @@ class TestResults:
         ]
 
         with (
-            override_settings(transport="streamable-http"),
             patch(
                 "everyrow_mcp.tools.try_cached_result",
                 new_callable=AsyncMock,
                 return_value=cached_response,
             ),
         ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            result = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
 
         assert result == cached_response
 
@@ -812,7 +779,6 @@ class TestResults:
         result_response = _make_task_result_response([{"name": "A"}])
 
         with (
-            override_settings(transport="streamable-http"),
             patch(
                 "everyrow_mcp.tools.try_cached_result",
                 new_callable=AsyncMock,
@@ -834,7 +800,7 @@ class TestResults:
                 return_value=None,
             ),
         ):
-            result = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            result = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
 
         assert len(result) == 1
         assert "Error: failed to store results" in result[0].text
@@ -920,22 +886,41 @@ class TestAgentInputValidation:
 
 
 class TestResultsInputValidation:
-    """Tests for ResultsInput with optional output_path."""
+    """Tests for StdioResultsInput and HttpResultsInput."""
 
-    def test_output_path_optional(self):
-        """Test that output_path can be omitted."""
-        params = ResultsInput(task_id="some-id")
-        assert params.output_path is None
+    def test_stdio_requires_output_path(self):
+        """Test that StdioResultsInput requires output_path."""
+        with pytest.raises(ValidationError):
+            StdioResultsInput(task_id="some-id")
 
-    def test_output_path_still_validated(self, tmp_path: Path):
+    def test_stdio_output_path_validated(self, tmp_path: Path):
         """Test that output_path is validated when provided."""
-        params = ResultsInput(task_id="some-id", output_path=str(tmp_path / "out.csv"))
+        params = StdioResultsInput(
+            task_id="some-id", output_path=str(tmp_path / "out.csv")
+        )
         assert params.output_path is not None
 
-    def test_output_path_rejects_non_csv(self, tmp_path: Path):
+    def test_stdio_output_path_rejects_non_csv(self, tmp_path: Path):
         """Test that non-CSV output_path is rejected."""
         with pytest.raises(ValidationError, match=r"must end in \.csv"):
-            ResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
+            StdioResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
+
+    def test_http_output_path_optional(self):
+        """Test that HttpResultsInput allows omitting output_path."""
+        params = HttpResultsInput(task_id="some-id")
+        assert params.output_path is None
+
+    def test_http_output_path_validated(self, tmp_path: Path):
+        """Test that HttpResultsInput validates output_path when provided."""
+        params = HttpResultsInput(
+            task_id="some-id", output_path=str(tmp_path / "out.csv")
+        )
+        assert params.output_path is not None
+
+    def test_http_output_path_rejects_non_csv(self, tmp_path: Path):
+        """Test that non-CSV output_path is rejected in HTTP mode too."""
+        with pytest.raises(ValidationError, match=r"must end in \.csv"):
+            HttpResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
 
 
 class TestInputModelsUnchanged:

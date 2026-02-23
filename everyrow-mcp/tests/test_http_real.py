@@ -32,12 +32,12 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 
 from everyrow_mcp import redis_store
-from everyrow_mcp.models import AgentInput, ProgressInput, ResultsInput, ScreenInput
+from everyrow_mcp.models import AgentInput, HttpResultsInput, ProgressInput, ScreenInput
 from everyrow_mcp.routes import api_progress
 from everyrow_mcp.tools import (
     everyrow_agent,
     everyrow_progress,
-    everyrow_results,
+    everyrow_results_http,
     everyrow_screen,
 )
 from tests.conftest import make_test_context, override_settings
@@ -244,7 +244,9 @@ class TestHttpScreenPipeline:
                 ),
                 TextContent(type="text", text="Results ready."),
             ]
-            results = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            results = await everyrow_results_http(
+                HttpResultsInput(task_id=task_id), ctx
+            )
 
         assert len(results) == 2
         print(f"  Results: {results[1].text}")
@@ -317,7 +319,9 @@ class TestHttpAgentPipeline:
                 ),
                 TextContent(type="text", text="Results: 2 rows."),
             ]
-            results = await everyrow_results(ResultsInput(task_id=task_id), ctx)
+            results = await everyrow_results_http(
+                HttpResultsInput(task_id=task_id), ctx
+            )
 
         assert len(results) == 2
         print(f"  Results: {results[1].text}")

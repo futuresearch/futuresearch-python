@@ -251,7 +251,7 @@ class MergeInput(BaseModel):
     # LEFT table
     left_csv: str | None = Field(
         default=None,
-        description="Absolute path to the left CSV (table being enriched).",
+        description="Absolute path to the left CSV (local/stdio mode only).",
     )
     left_data: str | list[dict[str, Any]] | None = Field(
         default=None,
@@ -261,7 +261,7 @@ class MergeInput(BaseModel):
     # RIGHT table
     right_csv: str | None = Field(
         default=None,
-        description="Absolute path to the right CSV (lookup table).",
+        description="Absolute path to the right CSV (local/stdio mode only).",
     )
     right_data: str | list[dict[str, Any]] | None = Field(
         default=None,
@@ -343,8 +343,41 @@ class ProgressInput(BaseModel):
     task_id: str = Field(..., description="The task ID returned by the operation tool.")
 
 
-class ResultsInput(BaseModel):
-    """Input for retrieving completed task results."""
+def _validate_output_path(v: str | None) -> str | None:
+    """Validate output_path ends in .csv and parent directory exists."""
+    if v is not None:
+        if not v.lower().endswith(".csv"):
+            raise ValueError("output_path must end in .csv")
+        parent = Path(v).parent
+        if not parent.exists():
+            raise ValueError(
+                f"Parent directory does not exist: {parent}. "
+                "Create it first or use a different path."
+            )
+    return v
+
+
+class StdioResultsInput(BaseModel):
+    """Input for retrieving completed task results in stdio mode."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task_id: str = Field(..., description="The task ID of the completed task.")
+    output_path: str = Field(
+        ...,
+        description="Full absolute path to the output CSV file (must end in .csv).",
+    )
+
+    @field_validator("output_path")
+    @classmethod
+    def validate_output(cls, v: str) -> str:
+        result = _validate_output_path(v)
+        assert result is not None
+        return result
+
+
+class HttpResultsInput(BaseModel):
+    """Input for retrieving completed task results in HTTP mode."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -352,7 +385,7 @@ class ResultsInput(BaseModel):
     output_path: str | None = Field(
         default=None,
         description="Full absolute path to the output CSV file (must end in .csv). "
-        "Required in stdio mode to save results locally.",
+        "Optional — results are returned as a paginated preview by default.",
     )
     offset: int = Field(
         default=0,
@@ -360,22 +393,13 @@ class ResultsInput(BaseModel):
         ge=0,
     )
     page_size: int = Field(
-        default=20,
-        description="Number of rows per page. Default 20. Max 100.",
+        default=1000,
+        description="Number of rows per page. Default 1000. Max 10000.",
         ge=1,
-        le=100,
+        le=10000,
     )
 
     @field_validator("output_path")
     @classmethod
     def validate_output(cls, v: str | None) -> str | None:
-        if v is not None:
-            if not v.lower().endswith(".csv"):
-                raise ValueError("output_path must end in .csv")
-            parent = Path(v).parent
-            if not parent.exists():
-                raise ValueError(
-                    f"Parent directory does not exist: {parent}. "
-                    "Create it first or use a different path."
-                )
-        return v
+        return _validate_output_path(v)

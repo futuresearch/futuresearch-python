@@ -21,9 +21,9 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
 )
 from everyrow_mcp.tools import (
     everyrow_agent,
@@ -31,7 +31,7 @@ from everyrow_mcp.tools import (
     everyrow_merge,
     everyrow_progress,
     everyrow_rank,
-    everyrow_results,
+    everyrow_results_stdio,
     everyrow_screen,
     everyrow_single_agent,
 )
@@ -118,8 +118,8 @@ class TestScreenIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "screened_jobs.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -169,8 +169,8 @@ class TestRankIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "ranked_companies.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -220,8 +220,8 @@ class TestDedupeIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "deduped_contacts.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -279,8 +279,8 @@ class TestMergeIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "merged_products.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -348,8 +348,8 @@ class TestAgentIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "agent_companies.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -408,8 +408,8 @@ class TestSingleAgentIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "single_agent_result.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
@@ -448,8 +448,8 @@ class TestSingleAgentIntegration:
 
         # 3. Retrieve results
         output_file = tmp_path / "single_agent_no_input.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
         assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
