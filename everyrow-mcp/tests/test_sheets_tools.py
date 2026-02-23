@@ -299,7 +299,7 @@ class TestGoogleSheetsClient:
 
 
 @pytest.fixture
-def mock_google_token():
+def _mock_google_token():
     """Patch get_google_token to return a fake token."""
     with patch(
         "everyrow_mcp.sheets_tools.get_google_token",

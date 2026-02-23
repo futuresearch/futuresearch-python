@@ -136,6 +136,17 @@ def main():
             logging.error("Get an API key at https://everyrow.io/api-key")
             sys.exit(1)
 
+        # Sheets tools require HTTP mode (OAuth provides the Google token).
+        # Remove them from the tool manager so they don't appear in list_tools().
+        for name in (
+            "sheets_list",
+            "sheets_read",
+            "sheets_write",
+            "sheets_create",
+            "sheets_info",
+        ):
+            mcp._tool_manager._tools.pop(name, None)
+
     mcp.run(transport=transport.value)
 
 

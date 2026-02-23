@@ -92,6 +92,26 @@
     {
       "name": "everyrow_use_list",
       "description": "Import a reference list into your session and save it as a CSV file."
+    },
+    {
+      "name": "sheets_list",
+      "description": "List the user's Google Sheets, optionally filtered by name."
+    },
+    {
+      "name": "sheets_read",
+      "description": "Read data from a Google Sheet and return it as JSON records."
+    },
+    {
+      "name": "sheets_write",
+      "description": "Write data to a Google Sheet."
+    },
+    {
+      "name": "sheets_create",
+      "description": "Create a new Google Sheet, optionally populated with data."
+    },
+    {
+      "name": "sheets_info",
+      "description": "Get metadata about a Google Sheet: title, sheet names, and dimensions."
     }
   ],
   "user_config": {
