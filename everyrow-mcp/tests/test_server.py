@@ -29,10 +29,12 @@ from everyrow_mcp.server import (
     RankInput,
     ResultsInput,
     ScreenInput,
+    SingleAgentInput,
     _schema_to_model,
     everyrow_agent,
     everyrow_progress,
     everyrow_results,
+    everyrow_single_agent,
 )
 
 # CSV fixtures are defined in conftest.py
@@ -336,6 +338,131 @@ class TestAgent:
             assert str(mock_task.task_id) in text
             assert "Session:" in text
             assert "everyrow_progress" in text
+
+
+class TestSingleAgent:
+    """Tests for everyrow_single_agent."""
+
+    @pytest.mark.asyncio
+    async def test_submit_returns_task_id(self):
+        """Test that submit returns immediately with task_id and session_url."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Find the current CEO of Apple",
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+            assert "Session:" in text
+            assert "everyrow_progress" in text
+            assert "single agent" in text
+
+    @pytest.mark.asyncio
+    async def test_submit_with_input_data(self):
+        """Test that input_data is converted to a dynamic model."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Research this company's funding",
+                input_data={"company": "Stripe", "url": "stripe.com"},
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+
+            # Verify single_agent_async was called with an input model
+            call_kwargs = mock_op.call_args[1]
+            assert "input" in call_kwargs
+            input_model = call_kwargs["input"]
+            assert input_model.company == "Stripe"
+            assert input_model.url == "stripe.com"
+
+    @pytest.mark.asyncio
+    async def test_submit_with_response_schema(self):
+        """Test that response_schema creates a response model."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.single_agent_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.app._client", mock_client),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = SingleAgentInput(
+                task="Find funding info",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "funding_round": {
+                            "type": "string",
+                            "description": "Latest funding round",
+                        },
+                    },
+                    "required": ["funding_round"],
+                },
+            )
+            result = await everyrow_single_agent(params)
+            text = result[0].text
+
+            assert str(mock_task.task_id) in text
+
+            # Verify response_model was passed
+            call_kwargs = mock_op.call_args[1]
+            assert "response_model" in call_kwargs
+
+    def test_input_rejects_empty_task(self):
+        """Test that SingleAgentInput rejects an empty task."""
+        with pytest.raises(ValidationError):
+            SingleAgentInput(task="")
+
+    def test_input_rejects_invalid_response_schema(self):
+        """Test that SingleAgentInput validates response_schema."""
+        with pytest.raises(
+            ValidationError, match="must include a non-empty top-level 'properties'"
+        ):
+            SingleAgentInput(
+                task="test",
+                response_schema={},
+            )
 
 
 class TestProgress:

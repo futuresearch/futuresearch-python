@@ -33,10 +33,10 @@ Set your API key before launching Claude Code:
 export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
 ```
 
-Download the dataset: [hn_jobs.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs.csv) (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026). With the CSV in your working directory, tell Claude:
+Download the dataset: [hn_jobs_screen.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026). With the CSV in your working directory, tell Claude:
 
 ```
-Screen hn_jobs.csv to find job postings that meet ALL THREE criteria:
+Screen hn_jobs_screen.csv to find job postings that meet ALL THREE criteria:
 
 1. Remote-friendly: explicitly allows remote work, hybrid, WFH, distributed
    teams, or "work from anywhere"
@@ -51,7 +51,7 @@ Claude calls everyrow's `screen` MCP tool with your criteria, then polls for pro
 ```
 Tool: everyrow_screen
 ├─ task: "Find job postings that meet ALL THREE criteria: 1. Remote-friendly..."
-├─ input_csv: "/Users/you/hn_jobs.csv"
+├─ input_csv: "/Users/you/hn_jobs_screen.csv"
 └─ response_schema: null
 
 → Submitted: 3,616 rows for screening.
@@ -122,7 +122,7 @@ pip install everyrow
 export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
 ```
 
-Download the dataset: [hn_jobs.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs.csv) (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026).
+To follow along, [right click this link](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) and save the CSV file to your computer (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026).
 
 ```python
 import asyncio
@@ -130,7 +130,7 @@ import pandas as pd
 from pydantic import BaseModel, Field
 from everyrow.ops import screen
 
-jobs = pd.read_csv("hn_jobs.csv")  # 3,616 job postings
+jobs = pd.read_csv("hn_jobs_screen.csv")  # 3,616 job postings
 
 class JobScreenResult(BaseModel):
     qualifies: bool = Field(description="True if meets ALL criteria")

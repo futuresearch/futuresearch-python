@@ -50,6 +50,10 @@
       "description": "Run web research agents on each row of a CSV file."
     },
     {
+      "name": "everyrow_single_agent",
+      "description": "Run a single web research agent on a task, optionally with context data."
+    },
+    {
       "name": "everyrow_progress",
       "description": "Check progress of a running task. Blocks for a time to limit the polling rate."
     },

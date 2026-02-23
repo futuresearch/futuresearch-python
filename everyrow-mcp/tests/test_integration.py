@@ -23,6 +23,7 @@ from everyrow_mcp.server import (
     RankInput,
     ResultsInput,
     ScreenInput,
+    SingleAgentInput,
     everyrow_agent,
     everyrow_dedupe,
     everyrow_merge,
@@ -30,6 +31,7 @@ from everyrow_mcp.server import (
     everyrow_rank,
     everyrow_results,
     everyrow_screen,
+    everyrow_single_agent,
 )
 
 # Skip all tests in this module unless environment variable is set
@@ -329,3 +331,93 @@ class TestAgentIntegration:
         assert len(output_df) == 2
         # Should have research results
         assert "headquarters" in output_df.columns or "answer" in output_df.columns
+
+
+class TestSingleAgentIntegration:
+    """Integration tests for the single agent tool."""
+
+    @pytest.mark.asyncio
+    async def test_single_agent_basic(
+        self,
+        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        tmp_path: Path,
+    ):
+        """Test single agent researching one question."""
+        # 1. Submit the task
+        params = SingleAgentInput(
+            task="Find the current CEO and headquarters city of this company.",
+            input_data={"company": "Anthropic"},
+            response_schema={
+                "properties": {
+                    "ceo": {
+                        "type": "string",
+                        "description": "Name of the current CEO",
+                    },
+                    "headquarters": {
+                        "type": "string",
+                        "description": "City where HQ is located",
+                    },
+                },
+                "required": ["ceo", "headquarters"],
+            },
+        )
+
+        result = await everyrow_single_agent(params)
+        submit_text = result[0].text
+        print(f"\nSubmit result: {submit_text}")
+
+        task_id = extract_task_id(submit_text)
+
+        # 2. Poll until complete
+        await poll_until_complete(task_id)
+
+        # 3. Retrieve results
+        output_file = tmp_path / "single_agent_result.csv"
+        results = await everyrow_results(
+            ResultsInput(task_id=task_id, output_path=str(output_file))
+        )
+        print(f"Results: {results[0].text}")
+
+        # 4. Verify output
+        assert output_file.exists()
+        output_df = pd.read_csv(output_file)
+        print("\nSingle agent result:")
+        print(output_df)
+
+        assert len(output_df) == 1
+        assert "ceo" in output_df.columns or "answer" in output_df.columns
+
+    @pytest.mark.asyncio
+    async def test_single_agent_no_input_data(
+        self,
+        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        tmp_path: Path,
+    ):
+        """Test single agent with no input_data (pure question)."""
+        params = SingleAgentInput(
+            task="What is the current market cap of Apple Inc?",
+        )
+
+        result = await everyrow_single_agent(params)
+        submit_text = result[0].text
+        print(f"\nSubmit result: {submit_text}")
+
+        task_id = extract_task_id(submit_text)
+
+        # 2. Poll until complete
+        await poll_until_complete(task_id)
+
+        # 3. Retrieve results
+        output_file = tmp_path / "single_agent_no_input.csv"
+        results = await everyrow_results(
+            ResultsInput(task_id=task_id, output_path=str(output_file))
+        )
+        print(f"Results: {results[0].text}")
+
+        # 4. Verify output
+        assert output_file.exists()
+        output_df = pd.read_csv(output_file)
+        print("\nSingle agent (no input) result:")
+        print(output_df)
+
+        assert len(output_df) == 1
