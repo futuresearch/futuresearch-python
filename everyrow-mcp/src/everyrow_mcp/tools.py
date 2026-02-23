@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
 import pandas as pd
 from everyrow.api_utils import handle_response
 from everyrow.generated.api.tasks import (
     get_task_result_tasks_task_id_result_get,
     get_task_status_tasks_task_id_status_get,
 )
+from everyrow.task import cancel_task
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.generated.models.task_result_response_data_type_1 import (
     TaskResultResponseDataType1,
@@ -772,50 +772,14 @@ async def everyrow_cancel(params: CancelInput) -> list[TextContent]:
 
     task_id = params.task_id
     try:
-        base_url = str(client._base_url).rstrip("/")
-        cancel_url = f"{base_url}/tasks/{task_id}/cancel"
-
-        async with httpx.AsyncClient() as http:
-            response = await http.post(
-                cancel_url,
-                headers={
-                    f"{client.auth_header_name}": f"{client.prefix} {client.token}"
-                },
-                timeout=30.0,
+        await cancel_task(task_id=UUID(task_id), client=client)
+        _clear_task_state()
+        return [
+            TextContent(
+                type="text",
+                text=f"Cancelled task {task_id}.",
             )
-
-        if response.status_code == 200:
-            _clear_task_state()
-            data = response.json()
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Cancelled task {task_id}. Status: {data.get('status', 'REVOKED')}.",
-                )
-            ]
-        elif response.status_code == 409:
-            _clear_task_state()
-            detail = response.json().get("detail", "already terminated")
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Task {task_id} is already finished: {detail}",
-                )
-            ]
-        elif response.status_code == 404:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Task {task_id} not found. Check the task ID and try again.",
-                )
-            ]
-        else:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Error cancelling task {task_id}: HTTP {response.status_code} — {response.text}",
-                )
-            ]
+        ]
     except Exception as e:
         return [
             TextContent(
