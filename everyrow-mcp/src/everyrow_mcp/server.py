@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
+import httpx
 import pandas as pd
 from everyrow.api_utils import create_client, handle_response
 from everyrow.generated.api.billing.get_billing_balance_billing_get import (
@@ -30,7 +31,7 @@ from everyrow.ops import (
     rank_async,
     screen_async,
 )
-from everyrow.session import create_session, get_session_url
+from everyrow.session import Session, create_session, get_session_url
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
@@ -69,6 +70,28 @@ async def lifespan(_server: FastMCP):
 
 
 mcp = FastMCP("everyrow_mcp", lifespan=lifespan)
+
+# If EVERYROW_SESSION_ID is set, reuse that session for all operations
+# instead of creating a new one each time.
+_fixed_session_id: UUID | None = None
+_env_session_id = os.environ.get("EVERYROW_SESSION_ID")
+if _env_session_id:
+    try:
+        _fixed_session_id = UUID(_env_session_id)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            f"Invalid EVERYROW_SESSION_ID: {_env_session_id}, ignoring"
+        )
+
+
+@asynccontextmanager
+async def _get_session(client: AuthenticatedClient):
+    """Get a session — reuses fixed session if EVERYROW_SESSION_ID is set, else creates new."""
+    if _fixed_session_id is not None:
+        yield Session(client=client, session_id=_fixed_session_id)
+    else:
+        async with create_session(client=client) as session:
+            yield session
 
 
 def _clear_task_state() -> None:
@@ -261,6 +284,14 @@ class ResultsInput(BaseModel):
         return v
 
 
+class CancelInput(BaseModel):
+    """Input for cancelling a running task."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task_id: str = Field(..., description="The task ID to cancel.")
+
+
 @mcp.tool(name="everyrow_agent", structured_output=False)
 async def everyrow_agent(params: AgentInput) -> list[TextContent]:
     """Run web research agents on each row of a CSV.
@@ -285,7 +316,7 @@ async def everyrow_agent(params: AgentInput) -> list[TextContent]:
     if params.response_schema:
         response_model = _schema_to_model("AgentResult", params.response_schema)
 
-    async with create_session(client=_client) as session:
+    async with _get_session(_client) as session:
         session_url = session.get_url()
         kwargs: dict[str, Any] = {"task": params.task, "session": session, "input": df}
         if response_model:
@@ -347,7 +378,7 @@ async def everyrow_rank(params: RankInput) -> list[TextContent]:
     if params.response_schema:
         response_model = _schema_to_model("RankResult", params.response_schema)
 
-    async with create_session(client=_client) as session:
+    async with _get_session(_client) as session:
         session_url = session.get_url()
         cohort_task = await rank_async(
             task=params.task,
@@ -414,7 +445,7 @@ async def everyrow_screen(params: ScreenInput) -> list[TextContent]:
     if params.response_schema:
         response_model = _schema_to_model("ScreenResult", params.response_schema)
 
-    async with create_session(client=_client) as session:
+    async with _get_session(_client) as session:
         session_url = session.get_url()
         cohort_task = await screen_async(
             task=params.task,
@@ -478,7 +509,7 @@ async def everyrow_dedupe(params: DedupeInput) -> list[TextContent]:
     _clear_task_state()
     df = pd.read_csv(params.input_csv)
 
-    async with create_session(client=_client) as session:
+    async with _get_session(_client) as session:
         session_url = session.get_url()
         cohort_task = await dedupe_async(
             equivalence_relation=params.equivalence_relation,
@@ -541,7 +572,7 @@ async def everyrow_merge(params: MergeInput) -> list[TextContent]:
     left_df = pd.read_csv(params.left_csv)
     right_df = pd.read_csv(params.right_csv)
 
-    async with create_session(client=_client) as session:
+    async with _get_session(_client) as session:
         session_url = session.get_url()
         cohort_task = await merge_async(
             task=params.task,
@@ -753,6 +784,67 @@ async def everyrow_results(params: ResultsInput) -> list[TextContent]:
 
     except Exception as e:
         return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
+
+
+@mcp.tool(name="everyrow_cancel", structured_output=False)
+async def everyrow_cancel(params: CancelInput) -> list[TextContent]:
+    """Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."""
+    if _client is None:
+        return [TextContent(type="text", text="Error: MCP server not initialized.")]
+
+    task_id = params.task_id
+    try:
+        base_url = str(_client._base_url).rstrip("/")
+        cancel_url = f"{base_url}/tasks/{task_id}/cancel"
+
+        async with httpx.AsyncClient() as http:
+            response = await http.post(
+                cancel_url,
+                headers={
+                    f"{_client.auth_header_name}": f"{_client.prefix} {_client.token}"
+                },
+                timeout=30.0,
+            )
+
+        if response.status_code == 200:
+            _clear_task_state()
+            data = response.json()
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Cancelled task {task_id}. Status: {data.get('status', 'REVOKED')}.",
+                )
+            ]
+        elif response.status_code == 409:
+            _clear_task_state()
+            detail = response.json().get("detail", "already terminated")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Task {task_id} is already finished: {detail}",
+                )
+            ]
+        elif response.status_code == 404:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Task {task_id} not found. Check the task ID and try again.",
+                )
+            ]
+        else:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error cancelling task {task_id}: HTTP {response.status_code} — {response.text}",
+                )
+            ]
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error cancelling task {task_id}: {e!r}",
+            )
+        ]
 
 
 JSON_TYPE_MAP = {
