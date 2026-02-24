@@ -1,41 +1,6 @@
-"""MCP App UI HTML templates for progress, results, and session widgets."""
+"""MCP App UI HTML templates for results and session widgets."""
 
 _APP_SCRIPT_SRC = "https://unpkg.com/@modelcontextprotocol/ext-apps@1.0.1/app-with-deps"
-UI_CSP_META = {"ui": {"csp": {"resourceDomains": ["https://unpkg.com"]}}}
-
-PROGRESS_HTML = """<!DOCTYPE html>
-<html><head><meta name="color-scheme" content="light dark">
-<style>
-body{font-family:system-ui;margin:16px;color:#333}
-@media(prefers-color-scheme:dark){body{color:#ddd}}
-.bar-bg{width:100%;background:#e0e0e0;border-radius:6px;overflow:hidden;height:28px;margin:12px 0}
-.bar{height:100%;background:#4caf50;transition:width .3s;display:flex;align-items:center;padding:0 8px;color:#fff;font-size:13px;white-space:nowrap}
-.stats{font-size:14px;margin:8px 0}
-.status{font-weight:600;font-size:16px;margin-bottom:8px}
-</style></head><body>
-<div id="c">Waiting for data...</div>
-<script type="module">
-import{App}from"SCRIPT_SRC";
-const app=new App({name:"EveryRow Progress",version:"1.0.0"});
-const el=document.getElementById("c");
-app.ontoolresult=({content})=>{
-  const t=content?.find(c=>c.type==="text");
-  if(!t)return;
-  try{const d=JSON.parse(t.text);render(d)}catch{el.textContent=t.text}
-};
-function render(d){
-  const pct=d.total>0?Math.round(d.completed/d.total*100):0;
-  el.innerHTML=`
-    <div class="status">${d.status}</div>
-    <div class="bar-bg"><div class="bar" style="width:${pct}%">${pct}%</div></div>
-    <div class="stats">
-      ${d.completed}/${d.total} complete${d.failed?`, ${d.failed} failed`:""}${d.running?`, ${d.running} running`:""}
-      &mdash; ${d.elapsed_s}s elapsed
-    </div>
-    ${d.session_url?`<a href="${d.session_url}" target="_blank">Open session</a>`:""}`;
-}
-await app.connect();
-</script></body></html>""".replace("SCRIPT_SRC", _APP_SCRIPT_SRC)
 
 RESULTS_HTML = """<!DOCTYPE html>
 <html><head><meta name="color-scheme" content="light dark">
@@ -144,7 +109,6 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   <span id="sum">Loading...</span>
   <button id="selAllBtn">Select all</button>
   <button id="copyBtn" disabled>Copy (0)</button>
-  <span class="export-btns"><button id="exportLink" title="Copy CSV download link to clipboard">Copy link</button></span>
   <span class="settings-wrap"><button id="settingsBtn" title="Settings">Settings</button><div id="settingsDrop" class="settings-drop"><div class="drop-hdr">Copy format</div><label><input type="radio" name="cfmt" value="tsv" checked> TSV (tabs)</label><label><input type="radio" name="cfmt" value="csv"> CSV</label><label><input type="radio" name="cfmt" value="json"> JSON</label><div class="drop-sep"></div><div class="drop-hdr">Table height</div><label><input type="radio" name="tsize" value="250"> Small</label><label><input type="radio" name="tsize" value="420" checked> Medium</label><label><input type="radio" name="tsize" value="700"> Large</label></div></span>
   <button id="expandBtn" title="Toggle fullscreen">&#x2922;</button>
 </div>
@@ -197,6 +161,7 @@ app.onhostcontextchanged=(ctx)=>{
 /* --- helpers --- */
 function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
+function linkify(s){return esc(s).replace(/https?:\\/\\/[^\\s<)\\]]+/g,m=>'<a href="'+escAttr(m)+'" target="_blank">'+m+'</a>');}
 
 /* --- data processing --- */
 function flat(obj,pre){
@@ -294,9 +259,8 @@ function renderTable(){
       const v=row.display[c],cls=hasR?' class="has-research"':"",dc=' data-col="'+escAttr(c)+'"';
       if(v==null){h+="<td"+cls+dc+"></td>";}
       else{const s=String(v);
-        if(s.match(/^https?:\\/\\//))h+='<td'+cls+dc+'><a href="'+escAttr(s)+'" target="_blank">'+esc(s)+'</a></td>';
-        else if(s.length>TRUNC)h+='<td'+cls+dc+'><span class="cell-text">'+esc(s.slice(0,TRUNC))+'</span><span class="cell-more">&hellip; more</span></td>';
-        else h+='<td'+cls+dc+'>'+esc(s)+'</td>';
+        if(s.length>TRUNC)h+='<td'+cls+dc+'><span class="cell-text">'+linkify(s.slice(0,TRUNC))+'</span><span class="cell-more">&hellip; more</span></td>';
+        else h+='<td'+cls+dc+'>'+linkify(s)+'</td>';
       }
     }
     h+='</tr>';
@@ -342,7 +306,7 @@ tbl.addEventListener("click",e=>{
     const td=more.closest("td"),tr=td.closest("tr");
     const idx=parseInt(tr.dataset.idx,10),col=td.dataset.col;
     const full=String(S.rows[idx].display[col]);
-    td.querySelector(".cell-text").textContent=full;
+    td.querySelector(".cell-text").innerHTML=linkify(full);
     more.textContent="less";more.className="cell-less";
     return;
   }
@@ -352,7 +316,7 @@ tbl.addEventListener("click",e=>{
     const td=less.closest("td"),tr=td.closest("tr");
     const idx=parseInt(tr.dataset.idx,10),col=td.dataset.col;
     const full=String(S.rows[idx].display[col]);
-    td.querySelector(".cell-text").textContent=full.slice(0,TRUNC);
+    td.querySelector(".cell-text").innerHTML=linkify(full.slice(0,TRUNC));
     less.textContent="\\u2026 more";less.className="cell-more";
     return;
   }
@@ -445,7 +409,7 @@ function showPopover(td){
   const row=S.rows[idx];if(!row)return;
   const text=getResearch(row,col);if(text==null)return;
   popHdr.textContent="research."+col.replace(/^research\\./,"");
-  popBody.textContent=text;
+  popBody.innerHTML=linkify(text);
   const rect=td.getBoundingClientRect();
   let left=rect.left,top=rect.bottom+4;
   pop.classList.add("visible");popVisible=true;
@@ -457,7 +421,7 @@ function showPopover(td){
 }
 function hidePopover(){pop.classList.remove("visible");popVisible=false;popTarget=null;}
 
-document.addEventListener("mouseenter",e=>{
+document.addEventListener("mouseover",e=>{
   if(pop.contains(e.target)){clearTimeout(popTimer);return;}
   const td=e.target.closest?e.target.closest("td"):null;
   if(td&&tbl.contains(td)&&td.classList.contains("has-research")){
@@ -620,11 +584,7 @@ async function copyToClipboard(text){
   return false;
 }
 
-document.getElementById("exportLink").addEventListener("click",async()=>{
-  if(!csvUrl){showToast("No download link available");return;}
-  if(await copyToClipboard(csvUrl))showToast("Download link copied \u2014 paste in a new tab");
-  else{copyArea.value=csvUrl;copyModal.classList.add("show");copyArea.focus();copyArea.select();}
-});
+function updateDownloadLink(){updateSessionLink();}
 
 /* --- row resize (drag bottom border) --- */
 let rowResizing=false,rowResizeTr=null,rowStartY=0,rowStartH=0;
@@ -665,9 +625,18 @@ function onRowResizeUp(){
 
 /* --- session URL display --- */
 function updateSessionLink(){
-  if(sessionUrl){
-    sessionLinkEl.innerHTML='<a href="'+escAttr(sessionUrl)+'" target="_blank">Open everyrow session &#x2197;</a>';
-  }
+  let h="";
+  if(sessionUrl)h+='<a href="#" id="sessionOpenLink">Open everyrow session &#x2197;</a>';
+  if(csvUrl){if(h)h+=" &nbsp;|&nbsp; ";h+='<a href="#" id="csvOpenLink">Download CSV &#x2913;</a>';}
+  sessionLinkEl.innerHTML=h;
+  document.getElementById("sessionOpenLink")?.addEventListener("click",e=>{
+    e.preventDefault();
+    app.openLink({url:sessionUrl}).catch(()=>window.open(sessionUrl,"_blank"));
+  });
+  document.getElementById("csvOpenLink")?.addEventListener("click",e=>{
+    e.preventDefault();
+    app.openLink({url:csvUrl}).catch(()=>window.open(csvUrl,"_blank"));
+  });
 }
 
 /* --- data loading --- */
@@ -688,7 +657,7 @@ app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
   let meta;try{meta=JSON.parse(t.text);}catch{sum.textContent=t.text;return;}
   if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
-  if(meta.csv_url)csvUrl=meta.csv_url;
+  if(meta.csv_url){csvUrl=meta.csv_url;updateDownloadLink();}
   if(meta.results_url){
     if(meta.preview)processData(meta.preview);
     const opts=meta.download_token?{headers:{"Authorization":"Bearer "+meta.download_token}}:{};
@@ -752,7 +721,7 @@ function render(d){
   const url=d.session_url||sessionUrl;
   const elapsed=d.elapsed_s||0;
 
-  let h=url?`<a href="${url}" target="_blank">Open everyrow session &#x2197;</a>`:"";
+  let h=url?`<a href="#" class="session-open">Open everyrow session &#x2197;</a>`:"";
 
   if(tot>0){
     const pDone=comp/tot*100,pRun=run/tot*100,pFail=fail/tot*100;
@@ -789,6 +758,12 @@ function render(d){
   }
 
   el.innerHTML=h;
+
+  const link=el.querySelector(".session-open");
+  if(link){link.addEventListener("click",e=>{
+    e.preventDefault();
+    app.openLink({url:url}).catch(()=>window.open(url,"_blank"));
+  });}
 
   if(done&&!wasDone){wasDone=true;el.classList.add("flash")}
   if(done&&pollTimer){clearInterval(pollTimer);pollTimer=null}

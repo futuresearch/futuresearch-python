@@ -1,0 +1,28 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  mcp-server:
+    build:
+      context: ../..
+      dockerfile: everyrow-mcp/deploy/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      MCP_SERVER_URL: "${MCP_SERVER_URL:?Set MCP_SERVER_URL to your cloudflare tunnel URL}"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "13"
+      EVERYROW_API_URL: "https://everyrow.io/api/v0"

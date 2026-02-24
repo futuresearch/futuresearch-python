@@ -5,6 +5,7 @@ from __future__ import annotations
 # Set env vars for HttpSettings before any everyrow imports
 import os
 
+os.environ.setdefault("EVERYROW_API_KEY", "test-api-key")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("MCP_SERVER_URL", "https://mcp.example.com")
@@ -13,14 +14,17 @@ os.environ.setdefault("REDIS_PORT", "6380")
 import socket
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 import redis.asyncio as aioredis
 from everyrow.api_utils import create_client
 
-from everyrow_mcp import app
+from everyrow_mcp.config import settings
+from everyrow_mcp.tool_helpers import SessionContext
 
 _REDIS_PORT = 16379  # non-default port to avoid clashing with local Redis
 
@@ -69,19 +73,37 @@ async def fake_redis(_redis_server) -> aioredis.Redis:
     await r.aclose()
 
 
+def make_test_context(client):
+    """Create a mock MCP Context with a SessionContext for testing."""
+    ctx = MagicMock()
+    ctx.request_context.lifespan_context = SessionContext(client_factory=lambda: client)
+    return ctx
+
+
+@contextmanager
+def override_settings(**overrides):
+    """Temporarily override Settings fields and restore after the block.
+
+    Usage::
+
+        with override_settings(transport="streamable-http"):
+            ...
+    """
+    orig = {k: getattr(settings, k) for k in overrides}
+    for k, v in overrides.items():
+        setattr(settings, k, v)
+    try:
+        yield
+    finally:
+        for k, v in orig.items():
+            setattr(settings, k, v)
+
+
 @pytest.fixture
 async def everyrow_client():
-    """Initialize the everyrow client.
-
-    This fixture sets up the global _client in the server module,
-    which is normally initialized by the MCP server's lifespan context.
-    """
-    try:
-        with create_client() as client:
-            app._client = client
-            yield client
-    finally:
-        app._client = None
+    """Provide a real everyrow SDK client for integration tests."""
+    with create_client() as client:
+        yield client
 
 
 @pytest.fixture

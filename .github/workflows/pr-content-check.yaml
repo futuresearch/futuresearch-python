@@ -81,8 +81,8 @@ jobs:
           echo "::group::Checking commit messages"
           gh api "repos/${REPO}/pulls/${PR_NUMBER}/commits" --paginate \
             -q '.[].commit.message' > /tmp/commits.txt
-          if grep -qi 'seo' /tmp/commits.txt; then
-            MATCH=$(grep -i 'seo' /tmp/commits.txt | head -1)
+          if grep -Evi 'mouseover' /tmp/commits.txt | grep -qi 'seo'; then
+            MATCH=$(grep -Evi 'mouseover' /tmp/commits.txt | grep -i 'seo' | head -1)
             add_violation "Commit message contains 'SEO': \`$MATCH\`"
             echo "::error::Commit message contains banned term"
           else
@@ -154,7 +154,7 @@ jobs:
           if ! gh pr diff "$PR_NUMBER" --repo "$REPO" > /tmp/pr_diff.txt; then
             add_violation "Failed to fetch PR diff (may be too large to check)"
             echo "::error::Failed to fetch PR diff"
-          elif grep -E '^\+' /tmp/pr_diff.txt | grep -Ev '^\+\+\+' | grep -Ev '^.*"image/png"' | grep -qi 'seo'; then
+          elif grep -E '^\+' /tmp/pr_diff.txt | grep -Ev '^\+\+\+' | grep -Ev '^.*"image/png"' | grep -Evi 'mouseover' | grep -qi 'seo'; then
             add_violation "Added lines in diff contain 'SEO'"
             echo "::error::Added code contains banned term"
           else
