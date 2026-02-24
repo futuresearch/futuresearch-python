@@ -1,0 +1,180 @@
+name: Deploy MCP Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy from"
+        type: string
+        required: false
+        default: "main"
+  push:
+    branches: ["main"]
+    paths:
+      - "everyrow-mcp/**"
+      - "src/everyrow/**"
+      - ".github/workflows/deploy-mcp.yaml"
+      - "pyproject.toml"
+      - "uv.lock"
+  pull_request:
+    paths:
+      - "everyrow-mcp/**"
+      - "src/everyrow/**"
+      - ".github/workflows/deploy-mcp.yaml"
+      - "pyproject.toml"
+      - "uv.lock"
+
+env:
+  GKE_ZONE: ${{ vars.BETA_CLUSTER_REGION }}
+  GKE_NAME: ${{ vars.BETA_CLUSTER_NAME }}
+  MCP_IMAGE_NAME: ${{ vars.GCP_REGISTRY_NAME }}/${{ vars.GCP_PROJECT_NAME }}/delphos/everyrow-mcp
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Export SHA of the commit
+        id: sha
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "sha_short=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          else
+            echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          fi
+    outputs:
+      sha_short: ${{ steps.sha.outputs.sha_short }}
+
+  checks:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: everyrow-mcp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || '' }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install deps
+        run: cd .. && uv sync --package everyrow-mcp
+      - name: Run ruff
+        run: cd .. && uv run ruff check everyrow-mcp/
+      - name: Run tests
+        run: cd .. && uv run pytest everyrow-mcp/tests
+      - name: Run basedpyright
+        run: cd .. && uv run basedpyright everyrow-mcp/src
+
+  build-and-push:
+    needs: [setup]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || '' }}
+      - name: Set up Docker Builder
+        uses: useblacksmith/setup-docker-builder@v1
+      - name: Log in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS_GLOBAL }}
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          skip_install: false
+      - name: Configure docker for GAR
+        run: gcloud auth configure-docker ${{ vars.GCP_REGISTRY_NAME }} --quiet
+      - name: Set tags
+        id: tags
+        run: |
+          TAGS="${{ env.MCP_IMAGE_NAME }}:${{ needs.setup.outputs.sha_short }}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAGS="${TAGS},${{ env.MCP_IMAGE_NAME }}:latest"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+      - name: Build and push
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: everyrow-mcp/deploy/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [setup, build-and-push]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || '' }}
+
+      - name: Log in to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS_GLOBAL }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_NAME }}
+          location: ${{ env.GKE_ZONE }}
+
+      - name: Install helm
+        uses: azure/setup-helm@v4.3.0
+        with:
+          version: 'latest'
+
+      - name: Install sops
+        uses: nhedger/setup-sops@v2
+        with:
+          version: '3.11.0'
+
+      - name: Decrypt secrets
+        run: sops -d everyrow-mcp/deploy/chart/secrets.enc.yaml > everyrow-mcp/deploy/chart/values.secrets.yaml
+
+      - name: Deploy Helm chart
+        working-directory: everyrow-mcp/deploy/chart
+        run: |
+          helm upgrade --install everyrow-mcp . \
+            -n everyrow-mcp \
+            -f values.yaml \
+            -f values.secrets.yaml \
+            --set-string releaseId="${{ needs.setup.outputs.sha_short }}" \
+            --create-namespace \
+            --wait \
+            --atomic \
+            --timeout 5m
+
+  on-failure:
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.deploy.result == 'failure' }}
+    needs:
+      - deploy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_USERNAME: Github Actions
+          SLACK_TITLE: MCP Server deployment failed
+          MSG_MINIMAL: actions url
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: "#FF0000"
+          SLACK_ICON: https://github.gallerycdn.vsassets.io/extensions/github/vscode-github-actions/0.27.1/1738268153156/Microsoft.VisualStudio.Services.Icons.Default

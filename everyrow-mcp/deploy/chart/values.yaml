@@ -1,0 +1,59 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: us-central1-docker.pkg.dev/varuna-400921/delphos/everyrow-mcp
+  pullPolicy: IfNotPresent
+
+# Release identifier (tag). The workflow sets this via --set-string releaseId=<sha>
+releaseId: "latest"
+
+# OAuth state is stored in Redis. Multiple replicas are possible.
+replicaCount: 1
+
+service:
+  port: 80
+  targetPort: 8000
+
+resources:
+  limits:
+    cpu: "1000m"
+    memory: 2Gi
+  requests:
+    cpu: "200m"
+    memory: 512Mi
+
+env:
+  MCP_SERVER_URL: "https://mcp.everyrow.io"
+  SUPABASE_URL: "https://iliivszxpymuffgrwsws.supabase.co"
+  EVERYROW_API_URL: "https://everyrow.io/api/v0"
+  REDIS_SENTINEL_ENDPOINTS: "redis.utils.svc.cluster.local:26379"
+  REDIS_SENTINEL_MASTER_NAME: "mymaster"
+  REDIS_DB: "13"
+
+httproute:
+  host: mcp.everyrow.io
+
+deployment:
+  maxSurge: "50%"
+  maxUnavailable: "25%"
+
+secrets:
+  enabled: true
+
+tolerations:
+  - key: "hyperdiskonly"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: hyperdiskonly
+              operator: In
+              values:
+                - "true"
