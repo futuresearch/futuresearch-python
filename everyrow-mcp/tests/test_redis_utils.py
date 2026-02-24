@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from everyrow_mcp.redis_utils import REDIS_DB, build_key, create_redis_client
+from everyrow_mcp.redis_store import REDIS_DB, build_key, create_redis_client
 
 
 class TestBuildKey:
@@ -29,7 +29,7 @@ class TestBuildKey:
 class TestCreateRedisClient:
     """Tests for create_redis_client factory."""
 
-    @patch("everyrow_mcp.redis_utils.Redis")
+    @patch("everyrow_mcp.redis_store.Redis")
     def test_direct_mode(self, mock_redis_cls):
         """Test direct Redis connection (no Sentinel)."""
         mock_client = MagicMock()
@@ -46,7 +46,7 @@ class TestCreateRedisClient:
         assert call_kwargs["password"] == "secret"
         assert call_kwargs["decode_responses"] is True
 
-    @patch("everyrow_mcp.redis_utils.Sentinel")
+    @patch("everyrow_mcp.redis_store.Sentinel")
     def test_sentinel_mode(self, mock_sentinel_cls):
         """Test Sentinel-based Redis connection."""
         mock_sentinel = MagicMock()

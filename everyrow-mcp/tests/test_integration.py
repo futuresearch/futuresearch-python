@@ -13,26 +13,29 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from everyrow.generated.client import AuthenticatedClient
 
-from everyrow_mcp.server import (
+from everyrow_mcp.models import (
     AgentInput,
     DedupeInput,
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
+)
+from everyrow_mcp.tools import (
     everyrow_agent,
     everyrow_dedupe,
     everyrow_merge,
     everyrow_progress,
     everyrow_rank,
-    everyrow_results,
+    everyrow_results_stdio,
     everyrow_screen,
     everyrow_single_agent,
 )
+from tests.conftest import make_test_context
+from tests.test_stdio_content import assert_stdio_clean
 
 # Skip all tests in this module unless environment variable is set
 pytestmark = pytest.mark.skipif(
@@ -43,13 +46,21 @@ pytestmark = pytest.mark.skipif(
 # CSV fixtures are defined in conftest.py
 
 
-async def poll_until_complete(task_id: str, max_polls: int = 30) -> str:
+@pytest.fixture
+def real_ctx(everyrow_client):
+    """Create a test Context wrapping the real everyrow client."""
+    return make_test_context(everyrow_client)
+
+
+async def poll_until_complete(task_id: str, ctx, max_polls: int = 30) -> str:
     """Poll everyrow_progress until task completes or fails.
 
-    Returns the final status text from everyrow_progress.
+    Returns the final human-readable status text from everyrow_progress.
     """
     for _ in range(max_polls):
-        result = await everyrow_progress(ProgressInput(task_id=task_id))
+        result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
+        assert_stdio_clean(result, tool_name="everyrow_progress")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         text = result[0].text
         print(f"  Progress: {text.splitlines()[0]}")
 
@@ -63,7 +74,7 @@ async def poll_until_complete(task_id: str, max_polls: int = 30) -> str:
 
 
 def extract_task_id(submit_text: str) -> str:
-    """Extract task_id from submit tool response."""
+    """Extract task_id from submit tool response (human-readable TextContent)."""
     match = re.search(r"Task ID: ([a-f0-9-]+)", submit_text)
     if not match:
         raise ValueError(f"Could not extract task_id from: {submit_text}")
@@ -76,7 +87,7 @@ class TestScreenIntegration:
     @pytest.mark.asyncio
     async def test_screen_jobs(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         jobs_csv: Path,
         tmp_path: Path,
     ):
@@ -92,20 +103,23 @@ class TestScreenIntegration:
             input_csv=str(jobs_csv),
         )
 
-        result = await everyrow_screen(params)
+        result = await everyrow_screen(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_screen")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "screened_jobs.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -125,7 +139,7 @@ class TestRankIntegration:
     @pytest.mark.asyncio
     async def test_rank_companies(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         companies_csv: Path,
         tmp_path: Path,
     ):
@@ -139,20 +153,23 @@ class TestRankIntegration:
             ascending_order=False,  # Highest first
         )
 
-        result = await everyrow_rank(params)
+        result = await everyrow_rank(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_rank")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "ranked_companies.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -171,7 +188,7 @@ class TestDedupeIntegration:
     @pytest.mark.asyncio
     async def test_dedupe_contacts(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         contacts_csv: Path,
         tmp_path: Path,
     ):
@@ -186,20 +203,23 @@ class TestDedupeIntegration:
             input_csv=str(contacts_csv),
         )
 
-        result = await everyrow_dedupe(params)
+        result = await everyrow_dedupe(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_dedupe")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "deduped_contacts.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -225,7 +245,7 @@ class TestMergeIntegration:
     @pytest.mark.asyncio
     async def test_merge_products_suppliers(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         products_csv: Path,
         suppliers_csv: Path,
         tmp_path: Path,
@@ -241,20 +261,23 @@ class TestMergeIntegration:
             right_csv=str(suppliers_csv),
         )
 
-        result = await everyrow_merge(params)
+        result = await everyrow_merge(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_merge")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "merged_products.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -273,7 +296,7 @@ class TestAgentIntegration:
     @pytest.mark.asyncio
     async def test_agent_company_research(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         tmp_path: Path,
     ):
         """Test agent researching companies."""
@@ -306,20 +329,23 @@ class TestAgentIntegration:
             },
         )
 
-        result = await everyrow_agent(params)
+        result = await everyrow_agent(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_agent")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "agent_companies.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -339,7 +365,7 @@ class TestSingleAgentIntegration:
     @pytest.mark.asyncio
     async def test_single_agent_basic(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         tmp_path: Path,
     ):
         """Test single agent researching one question."""
@@ -362,20 +388,23 @@ class TestSingleAgentIntegration:
             },
         )
 
-        result = await everyrow_single_agent(params)
+        result = await everyrow_single_agent(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_single_agent")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "single_agent_result.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output
@@ -390,7 +419,7 @@ class TestSingleAgentIntegration:
     @pytest.mark.asyncio
     async def test_single_agent_no_input_data(
         self,
-        everyrow_client: AuthenticatedClient,  # noqa: ARG002
+        real_ctx,
         tmp_path: Path,
     ):
         """Test single agent with no input_data (pure question)."""
@@ -398,20 +427,23 @@ class TestSingleAgentIntegration:
             task="What is the current market cap of Apple Inc?",
         )
 
-        result = await everyrow_single_agent(params)
+        result = await everyrow_single_agent(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_single_agent")
+        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
         submit_text = result[0].text
         print(f"\nSubmit result: {submit_text}")
 
         task_id = extract_task_id(submit_text)
 
         # 2. Poll until complete
-        await poll_until_complete(task_id)
+        await poll_until_complete(task_id, real_ctx)
 
         # 3. Retrieve results
         output_file = tmp_path / "single_agent_no_input.csv"
-        results = await everyrow_results(
-            ResultsInput(task_id=task_id, output_path=str(output_file))
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
         )
+        assert_stdio_clean(results, tool_name="everyrow_results")
         print(f"Results: {results[0].text}")
 
         # 4. Verify output

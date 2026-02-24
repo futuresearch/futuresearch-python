@@ -1,12 +1,31 @@
 """Input models and schema helpers for everyrow MCP tools."""
 
+from pathlib import Path
 from typing import Any, Literal
+from uuid import UUID
 
 from jsonschema import SchemaError
 from jsonschema.validators import validator_for
-from pydantic import BaseModel, ConfigDict, Field, create_model, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    create_model,
+    field_validator,
+    model_validator,
+)
 
-from everyrow_mcp.utils import validate_csv_output_path, validate_csv_path
+from everyrow_mcp.config import settings
+from everyrow_mcp.utils import validate_csv_path
+
+JSON_TYPE_MAP = {
+    "string": str,
+    "integer": int,
+    "number": float,
+    "boolean": bool,
+    "array": list,
+    "object": dict,
+}
 
 
 def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -32,6 +51,12 @@ def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] |
     if not isinstance(properties, dict) or not properties:
         raise ValueError(
             "response_schema must include a non-empty top-level 'properties' object"
+        )
+
+    if len(properties) > settings.max_schema_properties:
+        raise ValueError(
+            f"response_schema has {len(properties)} properties "
+            f"(max {settings.max_schema_properties})"
         )
 
     for field_name, field_def in properties.items():
@@ -60,16 +85,6 @@ def _validate_screen_response_schema(
         raise ValueError("response_schema must include at least one boolean property")
 
     return validated_schema
-
-
-JSON_TYPE_MAP = {
-    "string": str,
-    "integer": int,
-    "number": float,
-    "boolean": bool,
-    "array": list,
-    "object": dict,
-}
 
 
 def _schema_to_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
@@ -103,7 +118,66 @@ def _schema_to_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
     return create_model(name, **fields)
 
 
-class AgentInput(BaseModel):
+def _check_exactly_one(
+    *,
+    values: tuple[Any | None, ...],
+    field_names: tuple[str, ...],
+    label: str | None = None,
+):
+    count = sum(1 for v in values if v is not None)
+    if count != 1:
+        fields = ", ".join(field_names)
+        prefix = f"{label}: " if label else ""
+        raise ValueError(f"{prefix}Provide exactly one of {fields}.")
+
+
+class _SingleSourceInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    input_csv: str | None = Field(
+        default=None,
+        description="Absolute path to CSV file (local/stdio mode only).",
+    )
+    data: str | list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Inline data — CSV string or JSON array of objects.",
+    )
+
+    @field_validator("input_csv")
+    @classmethod
+    def validate_input_csv(cls, v: str | None) -> str | None:
+        if v is not None:
+            validate_csv_path(v)
+        return v
+
+    @field_validator("data")
+    @classmethod
+    def validate_data_size(
+        cls, v: str | list[dict[str, Any]] | None
+    ) -> str | list[dict[str, Any]] | None:
+        if v is None:
+            return v
+        if isinstance(v, str) and len(v) > settings.max_inline_data_bytes:
+            raise ValueError(
+                f"Inline data exceeds {settings.max_inline_data_bytes // (1024 * 1024)} MB limit"
+            )
+        if isinstance(v, list) and len(v) > settings.max_inline_rows:
+            raise ValueError(
+                f"Inline data has {len(v)} rows (max {settings.max_inline_rows})"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def check_input_source(self):
+        _check_exactly_one(
+            values=(self.input_csv, self.data),
+            field_names=("input_csv", "data"),
+            label="Input",
+        )
+        return self
+
+
+class AgentInput(_SingleSourceInput):
     """Input for the agent operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
@@ -111,17 +185,10 @@ class AgentInput(BaseModel):
     task: str = Field(
         ..., description="Natural language task to perform on each row.", min_length=1
     )
-    input_csv: str = Field(..., description="Absolute path to the input CSV file.")
     response_schema: dict[str, Any] | None = Field(
         default=None,
         description="Optional JSON schema for the agent's response per row.",
     )
-
-    @field_validator("input_csv")
-    @classmethod
-    def validate_input_csv(cls, v: str) -> str:
-        validate_csv_path(v)
-        return v
 
     @field_validator("response_schema")
     @classmethod
@@ -131,7 +198,7 @@ class AgentInput(BaseModel):
         return _validate_response_schema(v)
 
 
-class RankInput(BaseModel):
+class RankInput(_SingleSourceInput):
     """Input for the rank operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
@@ -141,7 +208,6 @@ class RankInput(BaseModel):
         description="Natural language instructions for scoring a single row.",
         min_length=1,
     )
-    input_csv: str = Field(..., description="Absolute path to the input CSV file.")
     field_name: str = Field(..., description="Name of the field to sort by.")
     field_type: Literal["float", "int", "str", "bool"] = Field(
         default="float",
@@ -155,12 +221,6 @@ class RankInput(BaseModel):
         description="Optional JSON schema for the response model.",
     )
 
-    @field_validator("input_csv")
-    @classmethod
-    def validate_input_csv(cls, v: str) -> str:
-        validate_csv_path(v)
-        return v
-
     @field_validator("response_schema")
     @classmethod
     def validate_response_schema(
@@ -169,7 +229,7 @@ class RankInput(BaseModel):
         return _validate_response_schema(v)
 
 
-class ScreenInput(BaseModel):
+class ScreenInput(_SingleSourceInput):
     """Input for the screen operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
@@ -177,18 +237,11 @@ class ScreenInput(BaseModel):
     task: str = Field(
         ..., description="Natural language screening criteria.", min_length=1
     )
-    input_csv: str = Field(..., description="Absolute path to the input CSV file.")
     response_schema: dict[str, Any] | None = Field(
         default=None,
         description="Optional JSON schema for the response model. "
         "Must include at least one boolean property — screen uses the boolean field to filter rows into pass/fail.",
     )
-
-    @field_validator("input_csv")
-    @classmethod
-    def validate_input_csv(cls, v: str) -> str:
-        validate_csv_path(v)
-        return v
 
     @field_validator("response_schema")
     @classmethod
@@ -198,7 +251,7 @@ class ScreenInput(BaseModel):
         return _validate_screen_response_schema(v)
 
 
-class DedupeInput(BaseModel):
+class DedupeInput(_SingleSourceInput):
     """Input for the dedupe operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
@@ -209,13 +262,6 @@ class DedupeInput(BaseModel):
         "The LLM will use this to identify which rows represent the same entity.",
         min_length=1,
     )
-    input_csv: str = Field(..., description="Absolute path to the input CSV file.")
-
-    @field_validator("input_csv")
-    @classmethod
-    def validate_input_csv(cls, v: str) -> str:
-        validate_csv_path(v)
-        return v
 
 
 class MergeInput(BaseModel):
@@ -228,59 +274,78 @@ class MergeInput(BaseModel):
         description="Natural language description of how to match rows.",
         min_length=1,
     )
-    left_csv: str = Field(
-        ...,
-        description="Absolute path to the left CSV. Works like a LEFT JOIN: ALL rows from this table are kept in the output. This should be the table being enriched.",
+
+    # LEFT table
+    left_csv: str | None = Field(
+        default=None,
+        description="Absolute path to the left CSV (local/stdio mode only).",
     )
-    right_csv: str = Field(
-        ...,
-        description="Absolute path to the right CSV. This is the lookup/reference table. Its columns are added to matching left rows; unmatched left rows get nulls.",
+    left_data: str | list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Inline data for the left table — CSV string or JSON array of objects.",
     )
+
+    # RIGHT table
+    right_csv: str | None = Field(
+        default=None,
+        description="Absolute path to the right CSV (local/stdio mode only).",
+    )
+    right_data: str | list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Inline data for the right table — CSV string or JSON array of objects.",
+    )
+
     merge_on_left: str | None = Field(
         default=None,
-        description="Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
+        description="Column name in the left table to match on.",
     )
     merge_on_right: str | None = Field(
         default=None,
-        description="Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
+        description="Column name in the right table to match on.",
     )
+
     use_web_search: Literal["auto", "yes", "no"] | None = Field(
-        default=None, description='Control web search: "auto", "yes", or "no".'
+        default=None,
+        description='Control web search: "auto", "yes", or "no".',
     )
     relationship_type: Literal["many_to_one", "one_to_one"] | None = Field(
         default=None,
-        description="Leave unset for the default many_to_one, which is correct in most cases. many_to_one: multiple left rows can match one right row (e.g. products → companies). one_to_one: each left row matches at most one right row AND vice versa. Only use one_to_one when both tables represent unique entities of the same kind.",
+        description="Relationship type: many_to_one (default) or one_to_one.",
     )
 
     @field_validator("left_csv", "right_csv")
     @classmethod
-    def validate_csv_paths(cls, v: str) -> str:
-        validate_csv_path(v)
+    def validate_csv_paths(cls, v: str | None) -> str | None:
+        if v is not None:
+            validate_csv_path(v)
         return v
 
+    @model_validator(mode="after")
+    def check_sources(self) -> "MergeInput":
+        _check_exactly_one(
+            values=(self.left_csv, self.left_data),
+            field_names=("left_csv", "left_data"),
+            label="Left table",
+        )
+        _check_exactly_one(
+            values=(self.right_csv, self.right_data),
+            field_names=("right_csv", "right_data"),
+            label="Right table",
+        )
+        return self
 
-class ForecastInput(BaseModel):
+
+class ForecastInput(_SingleSourceInput):
     """Input for the forecast operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
-    input_csv: str = Field(
-        ...,
-        description="Absolute path to the input CSV file containing a binary "
-        "question and optional resolution criteria on each row.",
-    )
     context: str | None = Field(
         default=None,
         description="Optional batch-level context or instructions that apply to every row "
         "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
         "Leave empty when the rows are self-contained.",
     )
-
-    @field_validator("input_csv")
-    @classmethod
-    def validate_input_csv(cls, v: str) -> str:
-        validate_csv_path(v)
-        return v
 
 
 class SingleAgentInput(BaseModel):
@@ -310,6 +375,15 @@ class SingleAgentInput(BaseModel):
         return _validate_response_schema(v)
 
 
+def _validate_task_id(v: str) -> str:
+    """Validate task_id is a valid UUID."""
+    try:
+        UUID(v)
+    except ValueError as exc:
+        raise ValueError("task_id must be a valid UUID") from exc
+    return v
+
+
 class ProgressInput(BaseModel):
     """Input for checking task progress."""
 
@@ -317,9 +391,41 @@ class ProgressInput(BaseModel):
 
     task_id: str = Field(..., description="The task ID returned by the operation tool.")
 
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
 
-class ResultsInput(BaseModel):
-    """Input for retrieving completed task results."""
+
+class CancelInput(BaseModel):
+    """Input for cancelling a running task."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task_id: str = Field(..., description="The task ID to cancel.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
+
+def _validate_output_path(v: str | None) -> str | None:
+    """Validate output_path ends in .csv and parent directory exists."""
+    if v is not None:
+        if not v.lower().endswith(".csv"):
+            raise ValueError("output_path must end in .csv")
+        parent = Path(v).parent
+        if not parent.exists():
+            raise ValueError(
+                f"Parent directory does not exist: {parent}. "
+                "Create it first or use a different path."
+            )
+    return v
+
+
+class StdioResultsInput(BaseModel):
+    """Input for retrieving completed task results in stdio mode."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -329,16 +435,54 @@ class ResultsInput(BaseModel):
         description="Full absolute path to the output CSV file (must end in .csv).",
     )
 
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
     @field_validator("output_path")
     @classmethod
     def validate_output(cls, v: str) -> str:
-        validate_csv_output_path(v)
-        return v
+        result = _validate_output_path(v)
+        assert result is not None
+        return result
 
 
-class CancelInput(BaseModel):
-    """Input for cancelling a running task."""
+class HttpResultsInput(BaseModel):
+    """Input for retrieving completed task results in HTTP mode."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
-    task_id: str = Field(..., description="The task ID to cancel.")
+    task_id: str = Field(..., description="The task ID of the completed task.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
+    output_path: str | None = Field(
+        default=None,
+        description="Full absolute path to the output CSV file (must end in .csv). "
+        "Optional — results are returned as a paginated preview by default.",
+    )
+    offset: int = Field(
+        default=0,
+        description="Row offset for pagination. Default 0 returns the first page.",
+        ge=0,
+    )
+    page_size: int = Field(
+        default=1000,
+        description="Number of rows per page. Default 1000. Max 10000.",
+        ge=1,
+        le=10000,
+    )
+
+    @field_validator("output_path")
+    @classmethod
+    def validate_output(cls, v: str | None) -> str | None:
+        # Only check file extension, not parent directory existence.
+        # In HTTP mode the path comes from a remote client whose filesystem
+        # is not visible to the server.
+        if v is not None and not v.lower().endswith(".csv"):
+            raise ValueError("output_path must end in .csv")
+        return v

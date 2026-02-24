@@ -1,24 +1,17 @@
-"""MCP tool implementations for everyrow operations."""
+"""MCP tool functions for the everyrow MCP server."""
 
 import asyncio
-from datetime import UTC, datetime
+import json
+import logging
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 from uuid import UUID
 
-import pandas as pd
 from everyrow.api_utils import handle_response
 from everyrow.constants import EveryrowError
-from everyrow.generated.api.tasks import (
-    get_task_result_tasks_task_id_result_get,
-    get_task_status_tasks_task_id_status_get,
-)
+from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from everyrow.generated.models.public_task_type import PublicTaskType
-from everyrow.generated.models.task_result_response_data_type_1 import (
-    TaskResultResponseDataType1,
-)
-from everyrow.generated.models.task_status import TaskStatus
-from everyrow.generated.types import Unset
 from everyrow.ops import (
     agent_map_async,
     dedupe_async,
@@ -33,34 +26,39 @@ from everyrow.task import cancel_task
 from mcp.types import TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
 
-import everyrow_mcp.app as _app
-from everyrow_mcp.app import (
-    PROGRESS_POLL_DELAY,
-    _clear_task_state,
-    _write_task_state,
-    mcp,
-)
+from everyrow_mcp import redis_store
+from everyrow_mcp.app import _clear_task_state, mcp
 from everyrow_mcp.models import (
     AgentInput,
     CancelInput,
     DedupeInput,
     ForecastInput,
+    HttpResultsInput,
     MergeInput,
     ProgressInput,
     RankInput,
-    ResultsInput,
     ScreenInput,
     SingleAgentInput,
+    StdioResultsInput,
     _schema_to_model,
 )
-from everyrow_mcp.utils import save_result_to_csv
+from everyrow_mcp.result_store import (
+    _sanitize_records,
+    try_cached_result,
+    try_store_result,
+)
+from everyrow_mcp.tool_helpers import (
+    EveryRowContext,
+    TaskNotReady,
+    TaskState,
+    _fetch_task_result,
+    _get_client,
+    create_tool_response,
+    write_initial_task_state,
+)
+from everyrow_mcp.utils import load_data, save_result_to_csv
 
-
-def _get_client():
-    """Get the singleton client, raising if not initialized."""
-    if _app._client is None:
-        raise RuntimeError("MCP server not initialized.")
-    return _app._client
+logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
@@ -74,7 +72,7 @@ def _get_client():
         openWorldHint=True,
     ),
 )
-async def everyrow_agent(params: AgentInput) -> list[TextContent]:
+async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextContent]:
     """Run web research agents on each row of a CSV file.
 
     The dispatched agents will search the web, read pages, and return the
@@ -91,10 +89,10 @@ async def everyrow_agent(params: AgentInput) -> list[TextContent]:
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     _clear_task_state()
-    df = pd.read_csv(params.input_csv)
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -107,29 +105,21 @@ async def everyrow_agent(params: AgentInput) -> list[TextContent]:
             kwargs["response_model"] = response_model
         cohort_task = await agent_map_async(**kwargs)
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.AGENT,
             session_url=session_url,
             total=len(df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(df)} agents starting.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} agents starting.",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -143,7 +133,9 @@ async def everyrow_agent(params: AgentInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_single_agent(params: SingleAgentInput) -> list[TextContent]:
+async def everyrow_single_agent(
+    params: SingleAgentInput, ctx: EveryRowContext
+) -> list[TextContent]:
     """Run a single web research agent on a task, optionally with context data.
 
     Unlike everyrow_agent (which processes many CSV rows), this dispatches ONE agent
@@ -160,7 +152,7 @@ async def everyrow_single_agent(params: SingleAgentInput) -> list[TextContent]:
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     _clear_task_state()
 
@@ -184,29 +176,21 @@ async def everyrow_single_agent(params: SingleAgentInput) -> list[TextContent]:
             kwargs["response_model"] = response_model
         cohort_task = await single_agent_async(**kwargs)
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.AGENT,
             session_url=session_url,
             total=1,
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: single agent starting.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label="Submitted: single agent starting.",
+        token=client.token,
+        total=1,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -220,7 +204,7 @@ async def everyrow_single_agent(params: SingleAgentInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_rank(params: RankInput) -> list[TextContent]:
+async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextContent]:
     """Score and sort rows in a CSV file based on any criteria.
 
     Dispatches web agents to research the criteria to rank the entities in the
@@ -244,10 +228,10 @@ async def everyrow_rank(params: RankInput) -> list[TextContent]:
         Success message containing session_url (for the user to open) and
         task_id (for monitoring progress)
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     _clear_task_state()
-    df = pd.read_csv(params.input_csv)
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -265,29 +249,21 @@ async def everyrow_rank(params: RankInput) -> list[TextContent]:
             ascending_order=params.ascending_order,
         )
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.RANK,
             session_url=session_url,
             total=len(df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(df)} rows for ranking.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} rows for ranking.",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -301,7 +277,9 @@ async def everyrow_rank(params: RankInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_screen(params: ScreenInput) -> list[TextContent]:
+async def everyrow_screen(
+    params: ScreenInput, ctx: EveryRowContext
+) -> list[TextContent]:
     """Filter rows in a CSV file based on any criteria.
 
     Dispatches web agents to research the criteria to filter the entities in the
@@ -330,10 +308,10 @@ async def everyrow_screen(params: ScreenInput) -> list[TextContent]:
         Success message containing session_url (for the user to open) and
         task_id (for monitoring progress)
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     _clear_task_state()
-    df = pd.read_csv(params.input_csv)
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -348,29 +326,21 @@ async def everyrow_screen(params: ScreenInput) -> list[TextContent]:
             response_model=response_model,
         )
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.SCREEN,
             session_url=session_url,
             total=len(df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(df)} rows for screening.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} rows for screening.",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -384,7 +354,9 @@ async def everyrow_screen(params: ScreenInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_dedupe(params: DedupeInput) -> list[TextContent]:
+async def everyrow_dedupe(
+    params: DedupeInput, ctx: EveryRowContext
+) -> list[TextContent]:
     """Remove duplicate rows from a CSV file using semantic equivalence.
 
     Dedupe identifies rows that represent the same entity even when they
@@ -409,10 +381,10 @@ async def everyrow_dedupe(params: DedupeInput) -> list[TextContent]:
         Success message containing session_url (for the user to open) and
         task_id (for monitoring progress)
     """
-    client = _get_client()
-
+    client = _get_client(ctx)
     _clear_task_state()
-    df = pd.read_csv(params.input_csv)
+
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -422,29 +394,21 @@ async def everyrow_dedupe(params: DedupeInput) -> list[TextContent]:
             input=df,
         )
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.DEDUPE,
             session_url=session_url,
             total=len(df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(df)} rows for deduplication.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} rows for deduplication.",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -458,7 +422,7 @@ async def everyrow_dedupe(params: DedupeInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_merge(params: MergeInput) -> list[TextContent]:
+async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextContent]:
     """Join two CSV files using intelligent entity matching.
 
     Merge combines two tables even when keys don't match exactly. Uses LLM web
@@ -494,11 +458,11 @@ async def everyrow_merge(params: MergeInput) -> list[TextContent]:
         Success message containing session_url (for the user to open) and
         task_id (for monitoring progress)
     """
-    client = _get_client()
-
+    client = _get_client(ctx)
     _clear_task_state()
-    left_df = pd.read_csv(params.left_csv)
-    right_df = pd.read_csv(params.right_csv)
+
+    left_df = load_data(data=params.left_data, input_csv=params.left_csv)
+    right_df = load_data(data=params.right_data, input_csv=params.right_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -513,29 +477,21 @@ async def everyrow_merge(params: MergeInput) -> list[TextContent]:
             relationship_type=params.relationship_type,
         )
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.MERGE,
             session_url=session_url,
             total=len(left_df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(left_df)} left rows for merging.\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(left_df)} left rows for merging.",
+        token=client.token,
+        total=len(left_df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -549,7 +505,9 @@ async def everyrow_merge(params: MergeInput) -> list[TextContent]:
         openWorldHint=True,
     ),
 )
-async def everyrow_forecast(params: ForecastInput) -> list[TextContent]:
+async def everyrow_forecast(
+    params: ForecastInput, ctx: EveryRowContext
+) -> list[TextContent]:
     """Forecast the probability of binary questions from a CSV file.
 
     Each row is forecast using an approach validated against FutureSearch's
@@ -572,10 +530,10 @@ async def everyrow_forecast(params: ForecastInput) -> list[TextContent]:
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     _clear_task_state()
-    df = pd.read_csv(params.input_csv)
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -585,29 +543,21 @@ async def everyrow_forecast(params: ForecastInput) -> list[TextContent]:
             input=df,
         )
         task_id = str(cohort_task.task_id)
-        _write_task_state(
+        write_initial_task_state(
             task_id,
             task_type=PublicTaskType.FORECAST,
             session_url=session_url,
             total=len(df),
-            completed=0,
-            failed=0,
-            running=0,
-            status=TaskStatus.RUNNING,
-            started_at=datetime.now(UTC),
         )
 
-    return [
-        TextContent(
-            type="text",
-            text=(
-                f"Submitted: {len(df)} rows for forecasting (6 research dimensions + dual forecaster per row).\n"
-                f"Session: {session_url}\n"
-                f"Task ID: {task_id}\n\n"
-                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
-            ),
-        )
-    ]
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} rows for forecasting (6 research dimensions + dual forecaster per row).",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
 
 
 @mcp.tool(
@@ -621,21 +571,22 @@ async def everyrow_forecast(params: ForecastInput) -> list[TextContent]:
         openWorldHint=False,
     ),
 )
-async def everyrow_progress(  # noqa: PLR0912
+async def everyrow_progress(
     params: ProgressInput,
+    ctx: EveryRowContext,
 ) -> list[TextContent]:
-    """Check progress of a running task. Blocks for a time to limit the polling rate.
+    """Check progress of a running task. Blocks briefly to limit the polling rate.
 
     After receiving a status update, immediately call everyrow_progress again
     unless the task is completed or failed. The tool handles pacing internally.
     Do not add commentary between progress calls, just call again immediately.
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     task_id = params.task_id
 
     # Block server-side before polling — controls the cadence
-    await asyncio.sleep(PROGRESS_POLL_DELAY)
+    await asyncio.sleep(redis_store.PROGRESS_POLL_DELAY)
 
     try:
         status_response = handle_response(
@@ -644,188 +595,139 @@ async def everyrow_progress(  # noqa: PLR0912
                 client=client,
             )
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to poll task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error polling task: {e!r}\nRetry: call everyrow_progress(task_id='{task_id}').",
+                text=dedent(f"""\
+                    Error polling task {task_id}. Please try again.
+                    Retry: call everyrow_progress(task_id='{task_id}')."""),
             )
         ]
 
-    status = status_response.status
-    progress = status_response.progress
-    is_terminal = status in (
-        TaskStatus.COMPLETED,
-        TaskStatus.FAILED,
-        TaskStatus.REVOKED,
-    )
-    is_screen = status_response.task_type == PublicTaskType.SCREEN
-    session_url = get_session_url(status_response.session_id)
+    ts = TaskState(status_response)
+    ts.write_file(task_id)
 
-    completed = progress.completed if progress else 0
-    failed = progress.failed if progress else 0
-    running = progress.running if progress else 0
-    total = progress.total if progress else 0
+    return [TextContent(type="text", text=ts.progress_message(task_id))]
 
-    # Calculate elapsed time from API timestamps.
-    # For terminal states, use updated_at - created_at (actual task duration).
-    # For running/pending, use now - created_at (ongoing elapsed time).
-    if status_response.created_at:
-        created_at = status_response.created_at
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=UTC)
-        started_at = created_at
 
-        if is_terminal and status_response.updated_at:
-            updated_at = status_response.updated_at
-            if updated_at.tzinfo is None:
-                updated_at = updated_at.replace(tzinfo=UTC)
-            elapsed_s = round((updated_at - created_at).total_seconds())
-        else:
-            now = datetime.now(UTC)
-            elapsed_s = round((now - created_at).total_seconds())
-    else:
-        elapsed_s = 0
-        started_at = datetime.now(UTC)
+async def everyrow_results_stdio(
+    params: StdioResultsInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Retrieve results from a completed everyrow task and save them to a CSV.
 
-    _write_task_state(
-        task_id,
-        task_type=status_response.task_type,
-        session_url=session_url,
-        total=total,
-        completed=completed,
-        failed=failed,
-        running=running,
-        status=status,
-        started_at=started_at,
-    )
+    Only call this after everyrow_progress reports status 'completed'.
+    Pass output_path (ending in .csv) to save results as a local CSV file.
+    """
+    client = _get_client(ctx)
+    task_id = params.task_id
 
-    if is_terminal:
-        error = status_response.error
-        if error and not isinstance(error, Unset):
-            return [TextContent(type="text", text=f"Task {status.value}: {error}")]
-        if status == TaskStatus.COMPLETED:
-            if is_screen:
-                completed_msg = f"Screening complete ({elapsed_s}s)."
-            else:
-                completed_msg = (
-                    f"Completed: {completed}/{total} ({failed} failed) in {elapsed_s}s."
-                )
-            return [
-                TextContent(
-                    type="text",
-                    text=(
-                        f"{completed_msg}\n"
-                        f"Call everyrow_results(task_id='{task_id}', output_path='/path/to/output.csv') to save the output."
-                    ),
-                )
-            ]
-        return [
-            TextContent(
-                type="text", text=f"Task {status.value}. Report the error to the user."
-            )
-        ]
-
-    if is_screen:
+    try:
+        df, _session_id = await _fetch_task_result(client, task_id)
+    except TaskNotReady as e:
         return [
             TextContent(
                 type="text",
-                text=(
-                    f"Screen running ({elapsed_s}s elapsed).\n"
-                    f"Immediately call everyrow_progress(task_id='{task_id}')."
-                ),
+                text=dedent(f"""\
+                    Task status is {e.status}. Cannot fetch results yet.
+                    Call everyrow_progress(task_id='{task_id}') to check again."""),
+            )
+        ]
+    except Exception:
+        logger.exception("Failed to retrieve results for task %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text=f"Error retrieving results for task {task_id}. Please try again.",
             )
         ]
 
-    fail_part = f", {failed} failed" if failed else ""
+    output_file = Path(params.output_path)
+    save_result_to_csv(df, output_file)
     return [
         TextContent(
             type="text",
-            text=(
-                f"Running: {completed}/{total} complete, {running} running{fail_part} ({elapsed_s}s elapsed)\n"
-                f"Immediately call everyrow_progress(task_id='{task_id}')."
-            ),
+            text=dedent(f"""\
+                Saved {len(df)} rows to {output_file}
+
+                Tip: For multi-step pipelines or custom response models, \
+                use the everyrow Python SDK directly."""),
         )
     ]
 
 
-@mcp.tool(
-    name="everyrow_results",
-    structured_output=False,
-    annotations=ToolAnnotations(
-        title="Save Task Results",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=False,
-    ),
-)
-async def everyrow_results(params: ResultsInput) -> list[TextContent]:
-    """Retrieve results from a completed everyrow task and save them to a CSV.
+async def everyrow_results_http(
+    params: HttpResultsInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    The output_path must be a full file path ending in .csv.
+    Results are returned as a paginated preview with a download link.
     """
-    client = _get_client()
-
+    client = _get_client(ctx)
     task_id = params.task_id
-    output_file = Path(params.output_path)
+    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
 
+    # ── Return from cache if available ───────────────────────────
+    cached = await try_cached_result(
+        task_id, params.offset, params.page_size, mcp_server_url=mcp_server_url
+    )
+    if cached is not None:
+        return cached
+
+    # ── Fetch from API ────────────────────────────────────────────
     try:
-        status_response = handle_response(
-            await get_task_status_tasks_task_id_status_get.asyncio(
-                task_id=UUID(task_id),
-                client=client,
-            )
-        )
-        status = status_response.status
-        if status not in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.REVOKED):
-            return [
-                TextContent(
-                    type="text",
-                    text=(
-                        f"Task status is {status.value}. Cannot fetch results yet.\n"
-                        f"Call everyrow_progress(task_id='{task_id}') to check again."
-                    ),
-                )
-            ]
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error checking task status: {e!r}")]
-
-    try:
-        result_response = handle_response(
-            await get_task_result_tasks_task_id_result_get.asyncio(
-                task_id=UUID(task_id),
-                client=client,
-            )
-        )
-
-        if isinstance(result_response.data, list):
-            records = [item.additional_properties for item in result_response.data]
-            df = pd.DataFrame(records)
-        elif isinstance(result_response.data, TaskResultResponseDataType1):
-            df = pd.DataFrame([result_response.data.additional_properties])
-        else:
-            return [
-                TextContent(type="text", text="Error: Task result has no table data.")
-            ]
-
-        save_result_to_csv(df, output_file)
-        # Task state file deleted by PostToolUse hook (everyrow-track-results.sh)
-
+        df, session_id = await _fetch_task_result(client, task_id)
+        session_url = get_session_url(session_id) if session_id else ""
+    except TaskNotReady as e:
         return [
             TextContent(
                 type="text",
-                text=(
-                    f"Saved {len(df)} rows to {output_file}\n\n"
-                    "Tip: For multi-step pipelines, custom response models, or preview mode, "
-                    "ask your AI assistant to write Python using the everyrow SDK."
-                ),
+                text=dedent(f"""\
+                    Task status is {e.status}. Cannot fetch results yet.
+                    Call everyrow_progress(task_id='{task_id}') to check again."""),
+            )
+        ]
+    except Exception:
+        logger.exception("Failed to retrieve results for task %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text=f"Error retrieving results for task {task_id}. Please try again.",
             )
         ]
 
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
+    # output_path is accepted by the schema but ignored in HTTP mode —
+    # the server must not write to its own filesystem on remote request.
+
+    # ── Store in Redis and return paginated response ──────────────
+    store_response = await try_store_result(
+        task_id,
+        df,
+        params.offset,
+        params.page_size,
+        session_url,
+        mcp_server_url=mcp_server_url,
+    )
+    if store_response is not None:
+        return store_response
+
+    # ── Fallback: return inline preview when Redis is unavailable ──
+    page_df = df.iloc[params.offset : params.offset + params.page_size]
+    preview = _sanitize_records(page_df.to_dict(orient="records"))
+    cols = ", ".join(df.columns)
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps({"preview": preview, "total": len(df)}),
+        ),
+        TextContent(
+            type="text",
+            text=f"Results: {len(df)} rows, {len(df.columns)} columns ({cols}). "
+            f"Showing {len(page_df)} rows inline (Redis unavailable, no download link).",
+        ),
+    ]
 
 
 @mcp.tool(
@@ -839,13 +741,13 @@ async def everyrow_results(params: ResultsInput) -> list[TextContent]:
         openWorldHint=False,
     ),
 )
-async def everyrow_list_sessions() -> list[TextContent]:
+async def everyrow_list_sessions(ctx: EveryRowContext) -> list[TextContent]:
     """List all everyrow sessions owned by the authenticated user.
 
     Returns session names, IDs, timestamps, and dashboard URLs.
     Use this to find past sessions or check what's been run.
     """
-    client = _get_client()
+    client = _get_client(ctx)
 
     try:
         sessions = await list_sessions(client=client)
@@ -878,11 +780,11 @@ async def everyrow_list_sessions() -> list[TextContent]:
         openWorldHint=False,
     ),
 )
-async def everyrow_cancel(params: CancelInput) -> list[TextContent]:
+async def everyrow_cancel(
+    params: CancelInput, ctx: EveryRowContext
+) -> list[TextContent]:
     """Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."""
-    if _app._client is None:
-        return [TextContent(type="text", text="Error: MCP server not initialized.")]
-    client = _app._client
+    client = _get_client(ctx)
 
     task_id = params.task_id
     try:
@@ -894,18 +796,39 @@ async def everyrow_cancel(params: CancelInput) -> list[TextContent]:
                 text=f"Cancelled task {task_id}.",
             )
         ]
-    except EveryrowError as e:
-        _clear_task_state()
+    except EveryrowError:
+        logger.exception("Failed to cancel task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error cancelling task {task_id}: {e!r}",
+                text=f"Failed to cancel task {task_id}. The task may have already completed.",
             )
         ]
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to cancel task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error cancelling task {task_id}: {e!r}",
+                text=f"Error cancelling task {task_id}. Please try again.",
             )
         ]
+
+
+# Default registration: stdio variant. server.main() re-registers the HTTP
+# variant when --http is used.  This ensures list_tools() always finds the
+# tool, even in test modules that import tools.py without calling main().
+_RESULTS_ANNOTATIONS = ToolAnnotations(
+    title="Save Task Results",
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+)
+_RESULTS_META = {"ui": {"resourceUri": "ui://everyrow/results.html"}}
+
+mcp.tool(
+    name="everyrow_results",
+    structured_output=False,
+    annotations=_RESULTS_ANNOTATIONS,
+    meta=_RESULTS_META,
+)(everyrow_results_stdio)

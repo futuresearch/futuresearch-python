@@ -1,0 +1,72 @@
+name: Claude Code Review
+
+on:
+  # Interactive @claude mentions
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Interactive @claude responses
+  interactive:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for PR checkout
+
+      # When commenting on a PR, checkout the PR branch instead of default branch
+      - name: Checkout PR branch (for PR comments)
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        run: gh pr checkout ${{ github.event.issue.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+
+            IMPORTANT CONTEXT:
+            - You are running in GitHub Actions, not a local dev environment
+            - Focus on static code analysis, not runtime verification
+
+            REVIEW APPROACH:
+            - Use inline comments with code suggestions that authors can accept directly
+            - Focus on actionable feedback, not nitpicks
+            - Check for security issues, correctness, and adherence to existing patterns
+
+            STYLE:
+            - Please try to discard outdated comments from previous runs and keep the discussions in threads
+            - Update the comment message with the summary continuously, instead of adding more and more of these
+              per each review
+
+          claude_args: |
+            --model claude-opus-4-6
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh issue view:*),Bash(gh pr checks:*),Read,Glob,Grep,Task,WebSearch,WebFetch"
