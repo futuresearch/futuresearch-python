@@ -386,8 +386,8 @@ function updateCopyBtn(){const n=S.selected.size;const fl=copyFmt.toUpperCase();
 
 /* --- select all --- */
 selAllBtn.addEventListener("click",()=>{
-  if(S.selected.size===S.filteredIdx.length)S.selected.clear();
-  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));}
+  if(S.selected.size===S.filteredIdx.length){S.selected.clear();showToast("Selection cleared");}
+  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));showToast("Selected all "+S.filteredIdx.length+" rows");}
   updateSelection();updateCopyBtn();
 });
 
