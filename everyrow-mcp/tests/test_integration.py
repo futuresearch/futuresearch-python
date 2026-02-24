@@ -7,6 +7,7 @@ Note: These tests take time and cost money (on the order of 1 minute and $0.10 p
 case), so they are skipped by default. Set RUN_INTEGRATION_TESTS=1 to run them.
 """
 
+import json
 import os
 import re
 from pathlib import Path
@@ -23,6 +24,7 @@ from everyrow_mcp.models import (
     ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
+    UploadDataInput,
 )
 from everyrow_mcp.tools import (
     everyrow_agent,
@@ -33,6 +35,7 @@ from everyrow_mcp.tools import (
     everyrow_results_stdio,
     everyrow_screen,
     everyrow_single_agent,
+    everyrow_upload_data,
 )
 from tests.conftest import make_test_context
 from tests.test_stdio_content import assert_stdio_clean
@@ -505,3 +508,66 @@ class TestSingleAgentIntegration:
         print(output_df)
 
         assert len(output_df) == 1
+
+
+class TestUploadThenProcessIntegration:
+    """Integration tests for the two-step upload_data → artifact_id flow."""
+
+    @pytest.mark.asyncio
+    async def test_upload_then_screen(
+        self,
+        real_ctx,
+        tmp_path: Path,
+    ):
+        """Test uploading a CSV via upload_data, then screening with the artifact_id."""
+        # 1. Write CSV to disk and upload via upload_data
+        csv_file = tmp_path / "jobs.csv"
+        pd.DataFrame(JOBS_DATA).to_csv(csv_file, index=False)
+
+        upload_result = await everyrow_upload_data(
+            UploadDataInput(source=str(csv_file)), real_ctx
+        )
+        assert_stdio_clean(upload_result, tool_name="everyrow_upload_data")
+        upload_response = json.loads(upload_result[0].text)
+        artifact_id = upload_response["artifact_id"]
+        print(f"\nUpload result: {upload_response}")
+        assert upload_response["rows"] == 5
+
+        # 2. Screen using the artifact_id
+        params = ScreenInput(
+            task="""
+                Filter for positions that meet ALL criteria:
+                1. Remote-friendly (location says Remote)
+                2. Senior-level (title includes Senior, Staff, Principal, or Lead)
+                3. Salary disclosed (specific dollar amount, not "Competitive")
+            """,
+            artifact_id=artifact_id,
+        )
+
+        result = await everyrow_screen(params, real_ctx)
+        assert_stdio_clean(result, tool_name="everyrow_screen")
+        submit_text = result[0].text
+        print(f"\nSubmit result: {submit_text}")
+        assert "artifact" in submit_text.lower()  # artifact path label
+
+        task_id = extract_task_id(submit_text)
+
+        # 3. Poll until complete
+        await poll_until_complete(task_id, real_ctx)
+
+        # 4. Retrieve results
+        output_file = tmp_path / "screened_via_artifact.csv"
+        results = await everyrow_results_stdio(
+            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
+        )
+        assert_stdio_clean(results, tool_name="everyrow_results")
+        print(f"Results: {results[0].text}")
+
+        # 5. Verify output
+        assert output_file.exists()
+        output_df = pd.read_csv(output_file)
+        print(f"\nScreen via artifact result: {len(output_df)} rows")
+        print(output_df)
+
+        # Same assertion as inline test — Airtable and Descript should pass
+        assert len(output_df) <= 3
