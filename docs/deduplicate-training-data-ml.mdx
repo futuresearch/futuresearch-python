@@ -1,0 +1,186 @@
+---
+title: Deduplicate Training Data
+metadataTitle: How We Use Claude Code to Find Hidden Duplicates in Training Data
+description: Identify paraphrases, reformatted text, and near-copies that share the same underlying content. Semantic deduplication for cleaner training sets.
+---
+
+# Deduplicate Training Data
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code handles exact deduplication natively by writing Python to hash and compare rows. Scaling to 3,000 sentences where the duplicates are paraphrases needs an approach where each pair is evaluated for semantic equivalence. "The cat sat on the mat" and "On the mat, the cat was sitting" share no exact n-grams but mean the same thing.
+
+Here, we get Claude Code to deduplicate 3,000 sentences from the PAWS paraphrase dataset, finding sentences that mean the same thing even when phrased differently.
+
+| Metric             | Value        |
+| ------------------ | ------------ |
+| Input rows         | 3,000        |
+| Unique after dedupe| 2,027        |
+| Duplicates removed | 973 (32.4%)  |
+| Time               | 28.2 minutes |
+| Cost               | $13.27       |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+The dataset is 3,000 sentences extracted from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset, where many sentence pairs convey the same fact with different word order. With the CSV in your working directory, tell Claude:
+
+```
+Deduplicate this dataset of sentences. Two sentences are duplicates if they
+convey the same meaning, even if phrased differently. This includes paraphrases,
+minor grammatical variations, and sentences about the same fact that would be
+redundant in a training set. They are NOT duplicates if they describe different
+facts, even if they share many words.
+```
+
+Claude calls everyrow's `dedupe` MCP tool with your equivalence relation:
+
+```
+Tool: everyrow_dedupe
+├─ equivalence_relation: "Two sentences are duplicates if they convey the same meaning..."
+└─ input_csv: "/Users/you/paws_sentences.csv"
+
+→ Submitted: 3,000 rows for deduplication.
+  Session: https://everyrow.io/sessions/8eac50da-f318-49cf-9f00-67b35700eb8a
+  Task ID: 8eac...
+
+Tool: everyrow_progress
+├─ task_id: "8eac..."
+→ Running: 0/3000 complete (30s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 3000/3000 (0 failed) in 1691s.
+
+Tool: everyrow_results
+├─ task_id: "8eac..."
+├─ output_path: "/Users/you/paws_deduplicated.csv"
+→ Saved 3000 rows to /Users/you/paws_deduplicated.csv
+```
+
+973 duplicates found and removed (32.4% reduction). [View the session](https://everyrow.io/sessions/8eac50da-f318-49cf-9f00-67b35700eb8a).
+
+Examples of duplicates the system found:
+
+| Cluster | Variants |
+|---------|----------|
+| Nick Smith and Duncan become friends | "Chris Egan (Nick Smith) settles down with his family..." / "Nick Smith (Chris Egan) settles in Summer Bay..." |
+| WORHP software library description | "WORHP, also referred to as eNLP (European NLP Solver)..." / "WORHP, also referred to by ESA as eNLP..." |
+| Baseball series in Havana | "Another series was played in Havana between Cincinnati Reds..." / "In Havana, another series was played between..." |
+
+These are semantic duplicates that exact-match deduplication would miss entirely. The sentences have different word order, name variations, and grammatical structure, but they describe the same facts and would be redundant in a training set. The output includes `equivalence_class_id`, `equivalence_class_name`, and `selected` columns. Filter to `selected == True` to get the deduplicated dataset.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+Near-duplicates in ML training data cause data leakage, overfitting, and memorization. The everyrow SDK finds and removes semantically similar examples that aren't exact matches: paraphrases, reformatted text, or records conveying the same information with different words.
+
+| Metric             | Value                                                                     |
+| ------------------ | ------------------------------------------------------------------------- |
+| Input rows         | 3,000                                                                     |
+| Unique after dedupe| 1,928                                                                     |
+| Duplicates removed | 1,072 (35.7%)                                                             |
+| Time               | 5.3 minutes                                                               |
+| Cost               | $4.21                                                                     |
+| Session            | [view](https://everyrow.io/sessions/ccaa306d-ef68-499b-a684-c0b08f9bfef3) |
+
+Standard deduplication with `pandas.drop_duplicates()` only catches exact matches. MinHash/LSH (datasketch) works for near-exact text but not semantic similarity. Libraries like dedupe.io require labeled training data. None handle "same meaning, different words" without manual setup.
+
+```bash
+pip install everyrow datasets
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from datasets import load_dataset
+from everyrow.ops import dedupe
+
+# Load a dataset with potential semantic duplicates
+# Using PAWS - paraphrase pairs from Wikipedia
+dataset = load_dataset(
+    "google-research-datasets/paws",
+    "labeled_final",
+    split="train"
+)
+
+# Extract sentences into a dataframe
+sentences = []
+seen = set()
+for row in dataset:
+    for s in [row["sentence1"], row["sentence2"]]:
+        if s not in seen:
+            seen.add(s)
+            sentences.append(s)
+        if len(sentences) >= 3000:
+            break
+    if len(sentences) >= 3000:
+        break
+
+df = pd.DataFrame({"text": sentences})
+print(f"Training examples: {len(df)}")
+
+async def dedupe_training_data():
+    result = await dedupe(
+        input=df,
+        equivalence_relation="""
+            Two sentences are duplicates if they convey the same meaning,
+            even if phrased differently. This includes:
+            - Paraphrases (same meaning, different words or word order)
+            - Minor grammatical variations
+            - Sentences about the same fact that would be redundant
+
+            NOT duplicates if they describe different facts, even if
+            they share many words.
+        """,
+    )
+
+    # Get deduplicated dataset
+    clean_df = result.data[result.data["selected"] == True]
+    print(f"After deduplication: {len(clean_df)}")
+
+    return clean_df
+
+clean_data = asyncio.run(dedupe_training_data())
+```
+
+The output includes three columns added to your data: `equivalence_class_id` groups duplicates together, `equivalence_class_name` gives each cluster a readable label, and `selected` marks the canonical example to keep. Filter to `selected == True` to get your deduplicated dataset.
+
+Here are examples of duplicates the system found:
+
+```
+Cluster: "Glenn Howard's Ontario Championship win"
+  ✓ Glenn Howard won the Ontario Championship for the 17th time as either third or skip.
+    For the 17th time the Glenn Howard won the Ontario Championship as third or skip.
+
+Cluster: "Chananian village location"
+  ✓ Chananian is a village in Azad Kashmir, the Leepa Valley, Hattian Bala District, Pakistan.
+    Chananian is a village in Leepa Valley, Hattian Bala District of Azad Kashmir, Pakistan.
+    Chananian is a village in the Leepa Valley, Hattian Bala district of Azad Kashmir, Pakistan.
+
+Cluster: "Person's birth and death details"
+  ✓ David Spurlock was born on 18 November 1959 in Dallas, Texas, and moved to Memphis...
+    J. David Spurlock was born on November 18, 1959 in Dallas, Texas. He moved to Memphis...
+```
+
+The 35.7% reduction rate is typical for datasets that weren't explicitly deduplicated during creation. The cost scales linearly: roughly $1.40 per 1,000 rows for text data of this complexity.
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [dedupe documentation](/docs/reference/DEDUPE) for more options including equivalence relation design.

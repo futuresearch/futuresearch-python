@@ -308,6 +308,30 @@ class MergeInput(BaseModel):
         return self
 
 
+class ForecastInput(BaseModel):
+    """Input for the forecast operation."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    input_csv: str = Field(
+        ...,
+        description="Absolute path to the input CSV file containing a binary "
+        "question and optional resolution criteria on each row.",
+    )
+    context: str | None = Field(
+        default=None,
+        description="Optional batch-level context or instructions that apply to every row "
+        "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
+        "Leave empty when the rows are self-contained.",
+    )
+
+    @field_validator("input_csv")
+    @classmethod
+    def validate_input_csv(cls, v: str) -> str:
+        validate_csv_path(v)
+        return v
+
+
 class SingleAgentInput(BaseModel):
     """Input for a single agent operation (no CSV)."""
 
@@ -341,6 +365,14 @@ class ProgressInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     task_id: str = Field(..., description="The task ID returned by the operation tool.")
+
+
+class CancelInput(BaseModel):
+    """Input for cancelling a running task."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task_id: str = Field(..., description="The task ID to cancel.")
 
 
 def _validate_output_path(v: str | None) -> str | None:

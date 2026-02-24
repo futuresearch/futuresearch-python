@@ -11,6 +11,7 @@ from everyrow.generated.api.artifacts import create_artifact_artifacts_post
 from everyrow.generated.api.operations import (
     agent_map_operations_agent_map_post,
     dedupe_operations_dedupe_post,
+    forecast_operations_forecast_post,
     merge_operations_merge_post,
     rank_operations_rank_post,
     screen_operations_screen_post,
@@ -26,6 +27,8 @@ from everyrow.generated.models import (
     DedupeOperation,
     DedupeOperationInputType1Item,
     DedupeOperationStrategy,
+    ForecastOperation,
+    ForecastOperationInputType1Item,
     LLMEnumPublic,
     MergeOperation,
     MergeOperationLeftInputType1Item,
@@ -45,7 +48,7 @@ from everyrow.generated.models import (
 from everyrow.generated.types import UNSET
 from everyrow.result import MergeResult, Result, ScalarResult, TableResult
 from everyrow.session import Session, create_session
-from everyrow.task import LLM, EffortLevel, EveryrowTask, MergeTask
+from everyrow.task import LLM, EffortLevel, EveryrowTask, MergeTask, print_progress
 
 T = TypeVar("T", bound=BaseModel)
 InputData = UUID | list[dict[str, Any]] | dict[str, Any]
@@ -763,5 +766,90 @@ async def dedupe_async(
     response = handle_response(response)
 
     cohort_task = EveryrowTask(response_model=BaseModel, is_map=True, is_expand=False)
+    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    return cohort_task
+
+
+# --- Forecast ---
+
+
+async def forecast(
+    input: DataFrame | UUID | TableResult,
+    context: str | None = None,
+    session: Session | None = None,
+) -> TableResult:
+    """Forecast the probability of binary questions resolving YES or NO.
+
+    Each row is forecast using an approach validated against FutureSearch's
+    past-casting environment of 1500 hard forecasting questions and 15M research
+    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
+    and https://arxiv.org/abs/2506.21558.
+
+    The input table should contain at minimum a ``question`` column with the binary
+    question to forecast.  Recommended additional columns: ``resolution_criteria``,
+    ``resolution_date``, ``background``.  All columns are passed to the research
+    agents and forecasters.
+
+    Args:
+        input: The input table.  Each row should contain the question/scenario to
+            forecast.
+        context: Optional batch-level context or instructions that apply to every
+            row (e.g. "Focus on EU regulatory sources" or "Assume resolution by
+            end of 2027").  Leave *None* when the rows are self-contained.
+        session: Optional session. If not provided, one will be created automatically.
+
+    Returns:
+        TableResult with ``probability`` (int, 0-100) and ``rationale`` (str) columns
+        added to each input row.
+    """
+    task = context or ""
+    if session is None:
+        async with create_session() as internal_session:
+            cohort_task = await forecast_async(
+                task=task,
+                session=internal_session,
+                input=input,
+            )
+            result = await cohort_task.await_result(on_progress=print_progress)
+            if isinstance(result, TableResult):
+                return result
+            raise EveryrowError("Forecast task did not return a table result")
+    cohort_task = await forecast_async(
+        task=task,
+        session=session,
+        input=input,
+    )
+    result = await cohort_task.await_result(on_progress=print_progress)
+    if isinstance(result, TableResult):
+        return result
+    raise EveryrowError("Forecast task did not return a table result")
+
+
+async def forecast_async(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+) -> EveryrowTask[BaseModel]:
+    """Submit a forecast task asynchronously.
+
+    Returns:
+        EveryrowTask that resolves to a TableResult with `probability` and `rationale` columns.
+    """
+    input_data = _prepare_table_input(input, ForecastOperationInputType1Item)
+
+    body = ForecastOperation(
+        input_=input_data,  # type: ignore
+        task=task,
+        session_id=session.session_id,
+    )
+
+    response = await forecast_operations_forecast_post.asyncio(
+        client=session.client, body=body
+    )
+    response = handle_response(response)
+
+    cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
+        response_model=BaseModel, is_map=True, is_expand=False
+    )
     cohort_task.set_submitted(response.task_id, response.session_id, session.client)
     return cohort_task

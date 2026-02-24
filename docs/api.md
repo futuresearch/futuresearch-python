@@ -1,11 +1,11 @@
 ---
 title: API Reference
-description: Complete API reference for everyrow — screen, rank, dedupe, merge, and research operations powered by LLM web research agents.
+description: Complete API reference for everyrow — screen, rank, dedupe, merge, forecast, and research operations powered by LLM web research agents.
 ---
 
 # API Reference
 
-Five operations for processing data with LLM-powered web research agents. Each takes a DataFrame and a natural-language instruction.
+Six operations for processing data with LLM-powered web research agents. Each takes a DataFrame and a natural-language instruction.
 
 ## screen
 
@@ -54,6 +54,17 @@ result = await merge(task=..., left_table=df1, right_table=df2)
 [Full reference →](/docs/reference/MERGE)
 Guides: [Fuzzy Join Without Matching Keys](/docs/fuzzy-join-without-keys)
 Case Studies: [LLM Merging at Scale](/docs/case-studies/llm-powered-merging-at-scale), [Match Software Vendors to Requirements](/docs/case-studies/match-software-vendors-to-requirements)
+
+## forecast
+
+```python
+result = await forecast(input=questions_df)
+```
+
+`forecast` takes a DataFrame of binary questions and produces a calibrated probability estimate (0–100) and rationale for each row. Each question is researched across six dimensions in parallel, then synthesized by an ensemble of forecasters. Validated against 1500 hard forecasting questions and 15M research documents.
+
+[Full reference →](/docs/reference/FORECAST)
+Blog posts: [Automating Forecasting Questions](https://futuresearch.ai/automating-forecasting-questions/), [arXiv paper](https://arxiv.org/abs/2506.21558)
 
 ## agent_map / single_agent
 

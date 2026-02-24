@@ -7,17 +7,20 @@ from typing import Any
 from uuid import UUID
 
 from everyrow.api_utils import handle_response
+from everyrow.constants import EveryrowError
 from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.ops import (
     agent_map_async,
     dedupe_async,
+    forecast_async,
     merge_async,
     rank_async,
     screen_async,
     single_agent_async,
 )
 from everyrow.session import create_session, get_session_url
+from everyrow.task import cancel_task
 from mcp.types import TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
 
@@ -25,7 +28,9 @@ from everyrow_mcp import redis_store
 from everyrow_mcp.app import _clear_task_state, mcp
 from everyrow_mcp.models import (
     AgentInput,
+    CancelInput,
     DedupeInput,
+    ForecastInput,
     HttpResultsInput,
     MergeInput,
     ProgressInput,
@@ -482,6 +487,72 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
 
 
 @mcp.tool(
+    name="everyrow_forecast",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Probability Forecast",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def everyrow_forecast(
+    params: ForecastInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Forecast the probability of binary questions from a CSV file.
+
+    Each row is forecast using an approach validated against FutureSearch's
+    past-casting environment of 1500 hard forecasting questions and 15M research
+    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
+    and https://arxiv.org/abs/2506.21558.
+
+    The CSV should contain at minimum a ``question`` column.  Recommended additional
+    columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
+    columns are passed to the research agents and forecasters.
+
+    The optional ``context`` parameter provides batch-level instructions that apply
+    to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
+    rows are self-contained.
+
+    Output columns added: ``rationale`` (str) and ``probability`` (int, 0-100).
+
+    This function submits the task and returns immediately with a task_id and session_url.
+    After receiving a result from this tool, share the session_url with the user.
+    Then immediately call everyrow_progress(task_id) to monitor.
+    Once the task is completed, call everyrow_results to save the output.
+    """
+    client = _get_client(ctx)
+
+    _clear_task_state()
+    df = load_data(input_csv=params.input_csv)
+
+    async with create_session(client=client) as session:
+        session_url = session.get_url()
+        cohort_task = await forecast_async(
+            task=params.context or "",
+            session=session,
+            input=df,
+        )
+        task_id = str(cohort_task.task_id)
+        write_initial_task_state(
+            task_id,
+            task_type=PublicTaskType.FORECAST,
+            session_url=session_url,
+            total=len(df),
+        )
+
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {len(df)} rows for forecasting (6 research dimensions + dual forecaster per row).",
+        token=client.token,
+        total=len(df),
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+    )
+
+
+@mcp.tool(
     name="everyrow_progress",
     structured_output=False,
     annotations=ToolAnnotations(
@@ -629,6 +700,50 @@ async def everyrow_results_http(
             text=f"Error: failed to store results for task {task_id}.",
         )
     ]
+
+
+@mcp.tool(
+    name="everyrow_cancel",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Cancel a Running Task",
+        readOnlyHint=False,
+        destructiveHint=True,
+        idempotentHint=False,
+        openWorldHint=False,
+    ),
+)
+async def everyrow_cancel(
+    params: CancelInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."""
+    client = _get_client(ctx)
+
+    task_id = params.task_id
+    try:
+        await cancel_task(task_id=UUID(task_id), client=client)
+        _clear_task_state()
+        return [
+            TextContent(
+                type="text",
+                text=f"Cancelled task {task_id}.",
+            )
+        ]
+    except EveryrowError as e:
+        _clear_task_state()
+        return [
+            TextContent(
+                type="text",
+                text=f"Error cancelling task {task_id}: {e!r}",
+            )
+        ]
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error cancelling task {task_id}: {e!r}",
+            )
+        ]
 
 
 # Default registration: stdio variant. server.main() re-registers the HTTP

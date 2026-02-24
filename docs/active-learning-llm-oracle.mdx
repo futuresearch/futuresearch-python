@@ -1,0 +1,175 @@
+---
+title: LLM-Powered Data Labeling
+metadataTitle: Using Claude Code to Label Data Instead of Hiring Annotators
+description: High-quality labels for classification, tagging, and annotation tasks. LLM-powered labeling that matches human annotator accuracy at a fraction of the time and cost.
+---
+
+# LLM-Powered Data Labeling
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code's interactive classification works for labeling a dozen items in conversation. When an active learning loop requests hundreds of labels programmatically, with consistent schema and structured output every time, you need a labeling service that can run on demand.
+
+Here, we get Claude Code to label 200 text samples from the DBpedia-14 dataset into 14 ontology categories, achieving 98.5% accuracy.
+
+| Metric                | Value        |
+| --------------------- | ------------ |
+| Labels produced       | 200          |
+| Strict accuracy       | 96.0%        |
+| Normalized accuracy   | 98.5%        |
+| Time                  | 4.7 minutes  |
+| Cost                  | $3.35        |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Prepare a CSV with 200 text samples from the [DBpedia-14 dataset](https://huggingface.co/datasets/fancyzhx/dbpedia_14). Tell Claude:
+
+```
+Classify each text in dbpedia_samples.csv into exactly one DBpedia ontology
+category: Company, Educational Institution, Artist, Athlete, Office Holder,
+Mean Of Transportation, Building, Natural Place, Village, Animal, Plant,
+Album, Film, or Written Work.
+```
+
+Claude calls everyrow's `agent` MCP tool with the classification schema:
+
+```
+Tool: everyrow_agent
+├─ task: "Classify this text into exactly one DBpedia ontology category."
+├─ input_csv: "/Users/you/dbpedia_samples.csv"
+└─ response_schema: {"category": "enum of 14 DBpedia categories"}
+
+→ Submitted: 200 rows for processing.
+  Session: https://everyrow.io/sessions/5f5a052a-c240-43d8-91a4-ad7ad274f6e1
+  Task ID: 5f5a...
+
+Tool: everyrow_progress
+├─ task_id: "5f5a..."
+→ Running: 0/200 complete, 200 running (15s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 200/200 (0 failed) in 279s.
+
+Tool: everyrow_results
+├─ task_id: "5f5a..."
+├─ output_path: "/Users/you/dbpedia_classified.csv"
+→ Saved 200 rows to /Users/you/dbpedia_classified.csv
+```
+
+200 labels in 4.7 minutes. [View the session](https://everyrow.io/sessions/5f5a052a-c240-43d8-91a4-ad7ad274f6e1).
+
+| Category | Count |
+|----------|-------|
+| Building | 22 |
+| Artist | 20 |
+| Mean Of Transportation | 18 |
+| Animal | 15 |
+| Educational Institution | 15 |
+| Company | 13 |
+| Album | 13 |
+| Office Holder | 12 |
+| Film | 12 |
+| Natural Place | 11 |
+
+Of the 8 "strict" mismatches against ground truth, 5 were formatting variants (e.g., "WrittenWork" vs "Written Work"), not true errors. Only 3 were genuinely incorrect classifications: a Village labeled as Settlement, an Educational Institution labeled as University, and an Artist labeled as Writer. These are semantic near-misses, not random errors.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+Human data labeling is slow and expensive. The everyrow SDK can replace the human annotator in an active learning loop, producing structured labels at scale. 200 labels in under 5 minutes for $0.26.
+
+![Active Learning: Ground Truth vs LLM Oracle](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs-site/public/images/learning_curve_accuracy.png)
+
+| Metric                     | Value              |
+| -------------------------- | ------------------ |
+| Labels per run             | 200                |
+| Cost per run               | $0.26              |
+| Cost per labeled item      | $0.0013            |
+| Final accuracy (LLM)       | 80.7% ± 0.8%      |
+| Final accuracy (human)     | 80.6% ± 1.0%      |
+| LLM-human label agreement  | 96.1% ± 1.6%      |
+| Repeats                    | 10                 |
+| Dataset                    | DBpedia-14 (14-class text classification) |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+We used a TF-IDF + LightGBM classifier with entropy-based uncertainty sampling. Each iteration selects the 20 most uncertain examples, sends them to the LLM for annotation, and retrains. 10 iterations, 200 labels total. We ran 10 independent repeats with different seeds, comparing the LLM oracle against ground truth labels.
+
+```python
+from typing import Literal
+
+import pandas as pd
+from pydantic import BaseModel, Field
+
+from everyrow import create_session
+from everyrow.ops import agent_map
+from everyrow.task import EffortLevel
+
+
+LABEL_NAMES = {
+    0: "Company", 1: "Educational Institution", 2: "Artist",
+    3: "Athlete", 4: "Office Holder", 5: "Mean Of Transportation",
+    6: "Building", 7: "Natural Place", 8: "Village",
+    9: "Animal", 10: "Plant", 11: "Album", 12: "Film", 13: "Written Work",
+}
+CATEGORY_TO_ID = {v: k for k, v in LABEL_NAMES.items()}
+
+
+class DBpediaClassification(BaseModel):
+    category: Literal[
+        "Company", "Educational Institution", "Artist",
+        "Athlete", "Office Holder", "Mean Of Transportation",
+        "Building", "Natural Place", "Village",
+        "Animal", "Plant", "Album", "Film", "Written Work",
+    ] = Field(description="The DBpedia ontology category")
+
+
+async def query_llm_oracle(texts_df: pd.DataFrame) -> list[int]:
+    async with create_session(name="Active Learning Oracle") as session:
+        result = await agent_map(
+            session=session,
+            task="Classify this text into exactly one DBpedia ontology category.",
+            input=texts_df[["text"]],
+            response_model=DBpediaClassification,
+            effort_level=EffortLevel.LOW,
+        )
+        return [CATEGORY_TO_ID.get(result.data["category"].iloc[i], -1)
+                for i in range(len(texts_df))]
+```
+
+The learning curves overlap almost perfectly. Final test accuracies averaged over 10 repeats:
+
+| Data Labeling Method             | Final Accuracy (mean ± std) |
+| -------------------------------- | --------------------------- |
+| Human annotation (ground truth)  | 80.6% ± 1.0%               |
+| LLM annotation (everyrow)       | 80.7% ± 0.8%               |
+
+The LLM oracle is within noise of the ground truth baseline. The LLM agreed with ground truth labels 96.1% ± 1.6% of the time. Roughly 1 in 25 labels disagrees, but that does not hurt the downstream classifier.
+
+The low cost ($0.26 per run) comes from using `EffortLevel.LOW`, which selects a small, fast model without web research. For more ambiguous tasks, use `EffortLevel.MEDIUM` or `EffortLevel.HIGH` for higher quality labels.
+
+The full pipeline is available as a [companion notebook on Kaggle](https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle). See also the [full blog post](https://futuresearch.ai/active-learning-llm-oracle).
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). Related guides: [Classify DataFrame Rows](/classify-dataframe-rows-llm) (label data at scale), [Deduplicate Training Data](/deduplicate-training-data-ml) (clean ML datasets before training).

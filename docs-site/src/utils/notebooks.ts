@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import matter from "gray-matter";
 
 const NOTEBOOKS_DIR = path.join(process.cwd(), "src", "notebooks");
 const SOURCE_NOTEBOOKS_DIR = path.join(process.cwd(), "..", "docs", "case_studies");
@@ -71,19 +72,43 @@ function slugToTitle(slug: string): string {
 }
 
 export function getAllNotebooks(): NotebookMeta[] {
-  if (!fs.existsSync(NOTEBOOKS_DIR)) {
-    return [];
+  const slugSet = new Set<string>();
+  const results: NotebookMeta[] = [];
+
+  // Discover from HTML notebook files
+  if (fs.existsSync(NOTEBOOKS_DIR)) {
+    const files = fs.readdirSync(NOTEBOOKS_DIR);
+    for (const f of files) {
+      if (!f.endsWith(".html")) continue;
+      const slug = f.replace(/\.html$/, "");
+      slugSet.add(slug);
+    }
   }
 
-  const files = fs.readdirSync(NOTEBOOKS_DIR);
-  return files
-    .filter((f) => f.endsWith(".html"))
-    .map((f) => {
-      const slug = f.replace(/\.html$/, "");
+  // Discover from case study directories with content.mdx
+  if (fs.existsSync(SOURCE_NOTEBOOKS_DIR)) {
+    const dirs = fs.readdirSync(SOURCE_NOTEBOOKS_DIR, { withFileTypes: true });
+    for (const dir of dirs) {
+      if (!dir.isDirectory()) continue;
+      const mdxPath = path.join(SOURCE_NOTEBOOKS_DIR, dir.name, "content.mdx");
+      if (fs.existsSync(mdxPath)) {
+        slugSet.add(dir.name);
+      }
+    }
+  }
+
+  for (const slug of slugSet) {
+    // Prefer MDX frontmatter for title/description
+    const mdx = getCaseStudyMdx(slug);
+    if (mdx) {
+      results.push({ slug, title: mdx.title, description: mdx.description });
+    } else {
       const { title, description } = extractMetadataFromSource(slug);
-      return { slug, title, description };
-    })
-    .sort((a, b) => a.title.localeCompare(b.title));
+      results.push({ slug, title, description });
+    }
+  }
+
+  return results.sort((a, b) => a.title.localeCompare(b.title));
 }
 
 export function getNotebookBySlug(slug: string): Notebook | null {
@@ -106,4 +131,29 @@ export function getNotebookBySlug(slug: string): Notebook | null {
 
 export function getNotebookSlugs(): string[] {
   return getAllNotebooks().map((n) => n.slug);
+}
+
+export interface CaseStudyMdx {
+  title: string;
+  metadataTitle?: string;
+  description: string;
+  content: string;
+}
+
+export function getCaseStudyMdx(slug: string): CaseStudyMdx | null {
+  const mdxPath = path.join(SOURCE_NOTEBOOKS_DIR, slug, "content.mdx");
+
+  if (!fs.existsSync(mdxPath)) {
+    return null;
+  }
+
+  const fileContent = fs.readFileSync(mdxPath, "utf-8");
+  const { data, content } = matter(fileContent);
+
+  return {
+    title: data.title || slugToTitle(slug),
+    metadataTitle: data.metadataTitle,
+    description: data.description || "",
+    content,
+  };
 }

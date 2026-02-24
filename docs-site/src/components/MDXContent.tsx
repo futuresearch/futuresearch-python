@@ -1,6 +1,7 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { InstallationTabs, TabContent } from "./InstallationTabs";
 import { ChainedOpsTabs, StepContent } from "./ChainedOpsTabs";
+import { GuideTabs, GuideTabContent } from "./GuideTabs";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 
@@ -9,6 +10,8 @@ const components = {
   TabContent,
   ChainedOpsTabs,
   StepContent,
+  GuideTabs,
+  GuideTabContent,
 };
 
 interface MDXContentProps {

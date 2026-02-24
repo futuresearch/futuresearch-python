@@ -113,6 +113,9 @@ async with create_session(name="Background Ranking") as session:
 
     # Wait for result when ready
     result = await task.await_result()
+
+    # Or cancel if no longer needed
+    await task.cancel()
 ```
 
 **Print the task ID.** If your script crashes, recover the result later:

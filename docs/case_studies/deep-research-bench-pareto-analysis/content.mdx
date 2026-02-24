@@ -1,0 +1,100 @@
+---
+title: LLM Cost vs. Accuracy
+metadataTitle: "Cost vs. Accuracy: Claude, Gemini, and GPT Models in Web Research"
+description: Pareto frontier analysis across 26 LLM configurations on agentic web research tasks. Optimal model selection at each price point for maximum accuracy per dollar.
+---
+
+# LLM Cost vs. Accuracy
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code can compare model benchmarks. But what if you need to compute Pareto frontiers across 26 model configurations, mapping cost, speed, and accuracy tradeoffs, to understand which models everyrow selects at each effort level?
+
+Here, we analyze results from the Deep Research Bench (DRB), which evaluates models on agentic web-research tasks.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Models evaluated | 26        |
+| everyrow cost  | $0.00       |
+
+This analysis doesn't use everyrow's MCP tools. It fetches benchmark data from the DRB public API and computes Pareto frontiers locally.
+
+The cost Pareto frontier (7 models that achieve the best accuracy for their price):
+
+| Model | Cost | DRB Score |
+|-------|------|-----------|
+| GPT-5.1 (low) | $0.040 | 0.428 |
+| Gemini 3 Flash (low) | $0.051 | 0.499 |
+| Gemini 3 Flash (minimal) | $0.103 | 0.504 |
+| Claude 4.6 Opus (low) | $0.243 | 0.531 |
+| Claude 4.5 Opus (low) | $0.312 | 0.549 |
+| Claude 4.6 Sonnet (high) | $0.456 | 0.549 |
+| Claude 4.6 Opus (high) | $0.553 | 0.550 |
+
+everyrow's effort levels map directly to models on or near these frontiers:
+
+| Effort Level | Model | DRB Score | Cost |
+|-------------|-------|-----------|------|
+| LOW | Gemini 3 Flash (minimal) | 0.504 | $0.103 |
+| MEDIUM | Gemini 3 Flash (low) | 0.499 | $0.051 |
+| HIGH | Claude 4.6 Opus (low) | 0.531 | $0.243 |
+
+The bulk of accuracy (0.531 out of 0.550 max) comes at less than half the cost of the best model. Going from HIGH to the absolute best (Claude 4.6 Opus high) doubles the cost for only a 3.6% accuracy improvement.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+This notebook analyzes model performance on the Deep Research Bench to understand everyrow's model selection and effort level mapping.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Models evaluated | 26        |
+
+```bash
+pip install everyrow requests pandas
+```
+
+```python
+import requests
+import pandas as pd
+
+url = "https://rguraxphqescakvvzmju.supabase.co/rest/v1/rpc/get_average_scores_by_model"
+PUBLIC_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+headers = {
+    "apikey": PUBLIC_API_KEY,
+    "authorization": f"Bearer {PUBLIC_API_KEY}",
+    "content-type": "application/json",
+}
+
+response = requests.post(url, headers=headers, json={"min_num_of_distinct_instances": 150})
+df = pd.DataFrame(response.json())
+```
+
+To override everyrow's default model selection:
+
+```python
+from everyrow.ops import agent_map
+from everyrow.task import LLM
+
+result = await agent_map(
+    task="Find each company's latest funding round",
+    input=companies_df,
+    effort_level=None,
+    llm=LLM.CLAUDE_4_6_OPUS_HIGH,
+    iteration_budget=10,
+    include_research=True,
+)
+```
+
+| Effort Level | Model | DRB Score | Cost | Runtime |
+|-------------|-------|-----------|------|---------|
+| LOW | Gemini 3 Flash (minimal) | 0.504 | $0.103 | 116s |
+| MEDIUM | Gemini 3 Flash (low) | 0.499 | $0.051 | 96s |
+| HIGH | Claude 4.6 Opus (low) | 0.531 | $0.243 | 73s |
+
+Claude 4.6 Opus (high) achieves the top score (0.550) but at 2x the cost and 2.5x the runtime of the HIGH effort level. For most tasks, the HIGH effort level captures the bulk of accuracy at a fraction of the cost.
+
+</GuideTabContent>
+</GuideTabs>

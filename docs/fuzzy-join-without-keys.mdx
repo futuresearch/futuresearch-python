@@ -1,0 +1,150 @@
+---
+title: Join Tables Without Shared Keys
+metadataTitle: Can Claude Code Join Two Tables Without a Common Column?
+description: Semantic matching for tables with different naming conventions, abbreviations, and formats. Accurate joins across datasets with no shared identifier.
+---
+
+# Join Tables Without Shared Keys
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code can merge two CSVs when they share a key column. But what if one table has company names and the other has stock tickers, and there's no shared column to join on?
+
+Here, we get Claude Code to join two S&P 500 tables (438 rows) where one has company names and the other has stock tickers. No merge key exists.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Rows processed | 438         |
+| Matched        | 437 (99.8%) |
+| Cost           | $0.82       |
+| Time           | ~10.9 minutes |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) (company names, price, market cap) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv) (tickers, fair value). With both files in your working directory, tell Claude:
+
+```
+Merge company_info.csv with valuations.csv. The first table has company names,
+the second has stock tickers. Match companies to their stock tickers.
+```
+
+Claude calls everyrow's `merge` MCP tool to match the tables using semantic understanding:
+
+```
+Tool: everyrow_merge
+├─ task: "Match companies to their stock tickers"
+├─ left_csv: "/Users/you/company_info.csv"
+└─ right_csv: "/Users/you/valuations.csv"
+
+→ Submitted: 438 rows for merging.
+  Session: https://everyrow.io/sessions/5c33bade-f142-44b0-bed5-9e5a846cdc3c
+  Task ID: 5c33...
+
+Tool: everyrow_progress
+├─ task_id: "5c33..."
+→ Running: 0/438 complete (18s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 438/438 (0 failed) in 653s.
+
+Tool: everyrow_results
+├─ task_id: "5c33..."
+├─ output_path: "/Users/you/merged_companies.csv"
+→ Saved 438 rows to /Users/you/merged_companies.csv
+```
+
+437 of 438 companies matched. [View the session](https://everyrow.io/sessions/5c33bade-f142-44b0-bed5-9e5a846cdc3c).
+
+| Company | Ticker | Fair Value |
+|---------|--------|------------|
+| 3M | MMM | 39.18 |
+| Abbott Laboratories | ABT | 119.19 |
+| AbbVie | ABBV | 180.95 |
+| Accenture | ACN | 107.79 |
+| A. O. Smith | AOS | 6.59 |
+
+The system figures out that "3M" corresponds to ticker "MMM", "Alphabet Inc." to "GOOGL", and so on. The single unmatched row was Block, Inc. (formerly Square, Inc.), where the 2021 rebrand made the name-to-ticker match difficult.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+When you need to join two pandas DataFrames but there's no shared ID column, `pd.merge()` won't help. The everyrow SDK uses LLM-powered semantic matching to join tables even when names are spelled differently across sources.
+
+In this example, we join two S&P 500 tables (438 rows) where one has company names and the other has stock tickers.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Rows processed | 438         |
+| Accuracy       | 100%        |
+| Cost           | $1.00       |
+| Time           | ~30 seconds |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io
+```
+
+Download [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv), or run the [full notebook](case-studies/match-software-vendors-to-requirements).
+
+```python
+import asyncio
+import pandas as pd
+from everyrow.ops import merge
+
+# Two tables from different sources - no shared column
+companies = pd.read_csv("company_info.csv")    # has: company, price, mkt_cap, shares
+valuations = pd.read_csv("valuations.csv")      # has: ticker, fair_value
+
+async def main():
+    result = await merge(
+        task="Match companies to their stock tickers",
+        left_table=companies,
+        right_table=valuations,
+    )
+
+    # The result is a DataFrame with all columns joined
+    print(result.data.head())
+
+    #                company   price      mkt_cap     shares  ticker  fair_value
+    # 0                   3M  101.74  61.70678828  606514530     MMM       39.18
+    # 1          A. O. Smith   32.38  4.904416495  151464376     AOS        6.59
+    # 2  Abbott Laboratories   34.87  51.22933139 1469152033     ABT      119.19
+
+asyncio.run(main())
+```
+
+The SDK figures out that "3M" corresponds to ticker "MMM", "Alphabet Inc." to "GOOGL", and so on. No merge columns are specified because there's nothing to match on directly.
+
+The merge operation uses a cascade of matching strategies, stopping at the simplest one that works for each row:
+
+| Strategy    | When Used                               | Cost        |
+| ----------- | --------------------------------------- | ----------- |
+| Exact match | Identical strings                       | Free        |
+| Fuzzy match | Typos, case differences                 | Free        |
+| LLM match   | Semantic equivalence (company → ticker) | ~$0.002/row |
+| Web search  | Stale or obscure data                   | ~$0.01/row  |
+
+For the company-to-ticker merge above, 99.8% of rows matched via LLM reasoning alone. The remaining 0.2% required a quick web lookup.
+
+This approach works well when your tables represent the same entities but use different identifiers: company names vs tickers, product names vs SKUs, subsidiary names vs parent companies. For tables that do share a common column, the SDK will use exact matching first and only escalate to more expensive methods when needed.
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the full analysis with multiple experiments in the [merge tutorial notebook](case-studies/match-software-vendors-to-requirements).

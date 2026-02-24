@@ -1,0 +1,193 @@
+---
+title: Filter a Dataset Intelligently
+metadataTitle: How to Use Claude Code to Intelligently Filter a Large Dataset
+description: Screen rows by nuanced, subjective rules applied in parallel across an entire dataset. Structured pass/fail results with full audit trails.
+---
+
+# Filter a Dataset Intelligently
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Ask Claude Code to filter job postings for remote, senior roles and it will write solid Python with keyword matching. But "remote-friendly" is not always a keyword. A posting might say "team distributed across three time zones" or "occasional office visits in SF." Screening 3,616 rows with that level of judgment needs per-row LLM evaluation.
+
+Here, we get Claude Code to screen 3,616 job postings for "remote-friendly, senior-level roles with disclosed salary": three rules that require reading each posting.
+
+| Metric              | Value        |
+| ------------------- | ------------ |
+| Rows processed      | 3,616        |
+| Rows passing filter | 232 (6.4%)   |
+| Total cost          | $11.02       |
+| Time                | 8.0 minutes  |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download the dataset: [hn_jobs_screen.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026). With the CSV in your working directory, tell Claude:
+
+```
+Screen hn_jobs_screen.csv to find job postings that meet ALL THREE criteria:
+
+1. Remote-friendly: explicitly allows remote work, hybrid, WFH, distributed
+   teams, or "work from anywhere"
+2. Senior-level: title contains Senior/Staff/Lead/Principal/Architect, OR
+   requires 5+ years experience, OR mentions "founding engineer"
+3. Salary disclosed: specific compensation numbers are mentioned.
+   "$150K-200K" qualifies. "Competitive" or "DOE" does not.
+```
+
+Claude calls everyrow's `screen` MCP tool with your criteria, then polls for progress until the operation completes:
+
+```
+Tool: everyrow_screen
+├─ task: "Find job postings that meet ALL THREE criteria: 1. Remote-friendly..."
+├─ input_csv: "/Users/you/hn_jobs_screen.csv"
+└─ response_schema: null
+
+→ Submitted: 3,616 rows for screening.
+  Session: https://everyrow.io/sessions/b47f3d3d-...
+  Task ID: 8a2f...
+
+Tool: everyrow_progress
+├─ task_id: "8a2f..."
+→ Running: 0/3616 complete, 3616 running (18s elapsed)
+
+Tool: everyrow_progress
+→ Running: 1204/3616 complete, 2412 running (142s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 3616/3616 (0 failed) in 478s.
+
+Tool: everyrow_results
+├─ task_id: "8a2f..."
+├─ output_path: "/Users/you/qualified_jobs.csv"
+→ Saved 232 rows to /Users/you/qualified_jobs.csv
+```
+
+Under the hood, everyrow runs a two-pass pipeline: a fast first pass triages all 3,616 rows (gemini-3-flash-preview, 12.7M tokens, $10.89), then a careful second pass re-evaluates the borderline cases with a stronger model (claude-sonnet-4, 224K tokens, $0.13).
+
+232 of 3,616 postings passed (6.4%). [View the session](https://everyrow.io/sessions/b47f3d3d-ca3d-4dc7-9994-e14edea9d2ea).
+
+The data reveals a clear trend in tech hiring over the pandemic years:
+
+| Year | Qualified | Total | Pass Rate |
+| ---- | --------- | ----- | --------- |
+| 2020 | 10        | 594   | 1.7%      |
+| 2021 | 27        | 1,033 | 2.6%      |
+| 2022 | 36        | 758   | 4.7%      |
+| 2023 | 39        | 412   | 9.5%      |
+| 2024 | 39        | 387   | 10.1%     |
+| 2025 | 59        | 406   | 14.5%     |
+| 2026 | 6         | 26    | 23.1%     |
+
+In early 2020, only 1.7% of postings met all three criteria. By 2025, 14.5% did. More companies now offer remote work, disclose salaries upfront, and hire senior engineers through Hacker News.
+
+Sample qualified postings:
+
+```
+Bloomberg | Senior Software Engineer | Hybrid (NYC) | $160k - $240k USD + bonus
+KoBold Metals | Senior Infrastructure Engineer | Remote (USA) | $170k - $230k
+EnergyHub | Director of Engineering | Remote (US) | Salary $225k
+Gladly | Staff Software Engineer | Remote (US, Colombia) | $60k–$215k + Equity
+```
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow Python SDK orchestrates thousands of parallel LLM evaluations in a single function call, for filter criteria that require judgment on every row.
+
+Here, we screen 3,616 job postings for "remote-friendly, senior-level roles with disclosed salary": three criteria that can't be reduced to pattern matching.
+
+| Metric              | Value        |
+| ------------------- | ------------ |
+| Rows processed      | 3,616        |
+| Rows passing filter | 216 (6.0%)   |
+| Total cost          | $4.24        |
+| Time                | 9.9 minutes  |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+To follow along, [right click this link](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) and save the CSV file to your computer (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026).
+
+```python
+import asyncio
+import pandas as pd
+from pydantic import BaseModel, Field
+from everyrow.ops import screen
+
+jobs = pd.read_csv("hn_jobs_screen.csv")  # 3,616 job postings
+
+class JobScreenResult(BaseModel):
+    qualifies: bool = Field(description="True if meets ALL criteria")
+
+async def main():
+    result = await screen(
+        task="""
+        A job posting qualifies if it meets ALL THREE criteria:
+
+        1. Remote-friendly: Explicitly allows remote work, hybrid, WFH,
+           distributed teams, or "work from anywhere".
+
+        2. Senior-level: Title contains Senior/Staff/Lead/Principal/Architect,
+           OR requires 5+ years experience, OR mentions "founding engineer".
+
+        3. Salary disclosed: Specific compensation numbers are mentioned.
+           "$150K-200K" qualifies. "Competitive" or "DOE" does not.
+        """,
+        input=jobs,
+        response_model=JobScreenResult,
+    )
+
+    qualified = result.data
+    print(f"Qualified: {len(qualified)} of {len(jobs)}")
+    return qualified
+
+qualified_jobs = asyncio.run(main())
+```
+
+216 of 3,616 postings passed (6.0%). [View the session](https://everyrow.io/sessions/6f742040-7a17-46c3-87fd-419062e69bf2).
+
+The data reveals a clear trend in tech hiring over the pandemic years:
+
+| Year | Qualified | Total | Pass Rate |
+| ---- | --------- | ----- | --------- |
+| 2020 | 10        | 594   | 1.7%      |
+| 2021 | 27        | 1,033 | 2.6%      |
+| 2022 | 36        | 758   | 4.7%      |
+| 2023 | 39        | 412   | 9.5%      |
+| 2024 | 39        | 387   | 10.1%     |
+| 2025 | 59        | 406   | 14.5%     |
+| 2026 | 6         | 26    | 23.1%     |
+
+In early 2020, only 1.7% of postings met all three criteria. By 2025, 14.5% did. More companies now offer remote work, disclose salaries upfront, and hire senior engineers through Hacker News.
+
+Sample qualified postings:
+
+```
+Bloomberg | Senior Software Engineer | Hybrid (NYC) | $160k - $240k USD + bonus
+KoBold Metals | Senior Infrastructure Engineer | Remote (USA) | $170k - $230k
+EnergyHub | Director of Engineering | Remote (US) | Salary $225k
+Gladly | Staff Software Engineer | Remote (US, Colombia) | $60k–$215k + Equity
+```
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [screen documentation](/docs/reference/SCREEN) for more options including batch size tuning and async execution.

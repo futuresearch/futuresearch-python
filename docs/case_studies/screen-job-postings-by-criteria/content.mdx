@@ -1,0 +1,132 @@
+---
+title: Screen Job Listings
+metadataTitle: Using Claude Code to Intelligently Filter Job Listings
+description: Intelligent job filtering that reads and understands full postings. Screen for seniority, remote flexibility, and compensation transparency across large job boards.
+---
+
+# Screen Job Listings
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code can read a job posting and tell you if it's remote-friendly. But what if you need to screen many postings against three criteria simultaneously, with structured yes/no output for each?
+
+Here, we get Claude Code to screen 15 job postings for roles that are remote-friendly, senior-level, and have disclosed salary.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 15         |
+| Rows passing   | 7 (46.7%)  |
+| Total cost     | $0.03      |
+| Time           | 57 seconds |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download [job_postings.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/job_postings.csv). Tell Claude:
+
+```
+Screen each job posting to find roles that meet ALL THREE criteria:
+1. Remote-friendly: explicitly allows remote, hybrid, or distributed work
+2. Senior-level: title includes Senior/Staff/Lead/Principal, or requires 5+ years
+3. Salary disclosed: specific compensation figures, not "competitive" or "DOE"
+```
+
+Claude calls everyrow's `screen` MCP tool:
+
+```
+Tool: everyrow_screen
+├─ task: "Screen each job posting to determine if it meets ALL THREE criteria..."
+├─ input_csv: "/Users/you/job_postings.csv"
+└─ response_schema: null
+
+→ Submitted: 15 rows for screening.
+  Session: https://everyrow.io/sessions/17d3075d-1788-4fba-8c46-a20f169976ec
+  Task ID: ab78...
+
+Tool: everyrow_progress
+→ Completed: 15/15 (0 failed) in 57s.
+
+Tool: everyrow_results
+├─ task_id: "ab78..."
+├─ output_path: "/Users/you/qualified_jobs.csv"
+→ Saved 7 rows to /Users/you/qualified_jobs.csv
+```
+
+7 of 15 postings qualified. [View the session](https://everyrow.io/sessions/17d3075d-1788-4fba-8c46-a20f169976ec).
+
+| Company | Title | Why It Passed |
+|---------|-------|---------------|
+| TechCorp | Senior Backend Engineer | Remote (US), 7+ years, $180k-220k |
+| DataDriven Inc | Staff Data Scientist | Hybrid (NYC), Staff title, $200k-250k |
+| RemoteFirst Co | Lead Frontend Engineer | 100% Remote, Lead title, $160k-190k |
+| FinTech Pro | Senior Security Engineer | Remote (EU), Senior title, disclosed salary |
+| HealthTech | Senior Product Manager | Distributed team, Senior title, salary range |
+| MegaCorp | Staff SRE | Hybrid (Seattle), Staff title, $190k-240k |
+| EdTech Plus | Senior iOS Developer | Remote first, Senior title, $140k-175k |
+
+All 15 rows were decisive on the first pass (7 yes, 8 no, 0 borderline). Traditional keyword matching achieves ~68% precision on these criteria; semantic screening exceeds 90%.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK screens job postings with LLM-powered evaluation, returning structured results with per-criterion breakdowns.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 15         |
+| Rows passing   | 7 (46.7%)  |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from pydantic import BaseModel, Field
+from everyrow import create_session
+from everyrow.ops import screen
+
+job_postings = pd.read_csv("job_postings.csv")
+
+class JobScreeningResult(BaseModel):
+    passes: bool = Field(description="Whether the job meets ALL three criteria")
+    is_remote_friendly: bool = Field(description="Allows remote/hybrid/distributed work")
+    is_senior_level: bool = Field(description="Senior/Staff/Lead/Principal or 5+ years")
+    has_salary_disclosed: bool = Field(description="Specific salary figures provided")
+    reasoning: str = Field(description="Brief explanation")
+
+async def main():
+    async with create_session(name="Job Posting Screening") as session:
+        result = await screen(
+            session=session,
+            task="""
+                Screen job postings for ALL THREE criteria:
+                1. Remote-friendly: explicitly allows remote/hybrid/distributed work
+                2. Senior-level: title includes Senior/Staff/Lead/Principal or 5+ years
+                3. Salary disclosed: specific compensation figures, not "competitive"
+            """,
+            input=job_postings,
+            response_model=JobScreeningResult,
+        )
+        return result.data
+
+results = asyncio.run(main())
+```
+
+7 of 15 postings passed all three criteria. The structured output includes individual boolean fields for each criterion plus reasoning, making it easy to analyze which criteria are most commonly failed.
+
+</GuideTabContent>
+</GuideTabs>

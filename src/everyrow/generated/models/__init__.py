@@ -16,6 +16,9 @@ from .dedupe_operation_input_type_2 import DedupeOperationInputType2
 from .dedupe_operation_strategy import DedupeOperationStrategy
 from .error_response import ErrorResponse
 from .error_response_details_type_0 import ErrorResponseDetailsType0
+from .forecast_operation import ForecastOperation
+from .forecast_operation_input_type_1_item import ForecastOperationInputType1Item
+from .forecast_operation_input_type_2 import ForecastOperationInputType2
 from .health_response import HealthResponse
 from .http_validation_error import HTTPValidationError
 from .insufficient_balance_error import InsufficientBalanceError
@@ -70,6 +73,9 @@ __all__ = (
     "DedupeOperationStrategy",
     "ErrorResponse",
     "ErrorResponseDetailsType0",
+    "ForecastOperation",
+    "ForecastOperationInputType1Item",
+    "ForecastOperationInputType2",
     "HealthResponse",
     "HTTPValidationError",
     "InsufficientBalanceError",

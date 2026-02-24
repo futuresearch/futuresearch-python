@@ -1,0 +1,144 @@
+---
+title: Resolve Duplicate Entities
+metadataTitle: How to Do Entity Resolution at Scale in Claude Code
+description: Consolidate records where the same entity appears under different spellings, abbreviations, and nicknames. Accurate entity resolution across messy, real-world datasets.
+---
+
+# Resolve Duplicate Entities
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code is great at writing normalization code to standardize company names. Stripping "Inc." and lowercasing gets you some matches. But "AbbVie Inc.", "AbbVie Pharmaceutical", "Abbvie", and "Abvie Inc" need more than normalization. Two of those are typos, one is a brand variant, and one is a division name.
+
+Here, we get Claude Code to resolve 500 messy CRM records down to their unique entities.
+
+| Metric              | Value           |
+| ------------------- | --------------- |
+| Records processed   | 500             |
+| Unique entities     | 156             |
+| Duplicates resolved | 344 (68.8%)     |
+| Cost                | $2.02           |
+| Time                | 15.3 minutes    |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download the dataset: [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) (500 messy company records with typos, abbreviations, and missing fields). With the CSV in your working directory, tell Claude:
+
+```
+Deduplicate this CRM dataset. Two entries are duplicates if they represent
+the same company.
+```
+
+Claude calls everyrow's `dedupe` MCP tool:
+
+```
+Tool: everyrow_dedupe
+├─ equivalence_relation: "Two entries are duplicates if they represent the same company."
+└─ input_csv: "/Users/you/case_01_crm_data.csv"
+
+→ Submitted: 500 rows for deduplication.
+  Session: https://everyrow.io/sessions/d5d1ef67-653e-4dd9-90e7-9653cda2af85
+  Task ID: d5d1...
+
+Tool: everyrow_progress
+├─ task_id: "d5d1..."
+→ Running: 0/500 complete (30s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 500/500 (0 failed) in 920s.
+
+Tool: everyrow_results
+├─ task_id: "d5d1..."
+├─ output_path: "/Users/you/crm_deduplicated.csv"
+→ Saved 500 rows to /Users/you/crm_deduplicated.csv
+```
+
+500 records resolved to 156 unique entities. [View the session](https://everyrow.io/sessions/d5d1ef67-653e-4dd9-90e7-9653cda2af85).
+
+| Cluster | Records | Variants |
+|---------|---------|----------|
+| Palo Alto Networks | 8 | Pallow Alto, PANW, Palo Alto Net Inc, Paloalto Networks |
+| Walmart Inc. | 8 | W-Mart, Wall-Mart, WMT Corp, Walmart Corporation |
+| Uber Technologies | 8 | Ubar, Ubr, Uber Tech, Uber Corporation |
+| ServiceNow | 6 | Service Now, Service-Now, SerivceNow, Service Now Inc |
+
+The system handles cases that string similarity misses entirely. "AAPL" matches to "Apple Inc." because the model knows the ticker symbol. "Big Blue" matches to "IBM Corporation" because that's IBM's nickname. The output includes `equivalence_class_id` and `selected` columns. Filter to `selected == True` to get one record per entity.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+Identifying matching records that represent the same entity across messy data typically requires labeled training data, manual blocking rules, or extensive threshold tuning. The everyrow SDK uses LLMs to solve this at high accuracy in a single method call.
+
+| Metric              | Value                                                                     |
+| ------------------- | ------------------------------------------------------------------------- |
+| Records processed   | 500                                                                       |
+| Unique entities     | 131                                                                       |
+| Duplicates resolved | 369                                                                       |
+| Cost                | $0.74                                                                     |
+| Time                | ~100 seconds                                                              |
+| Session             | [view](https://everyrow.io/sessions/d073ee5a-b25b-4129-8b43-b97347b50459) |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io
+```
+
+We'll use a messy CRM dataset with 500 company records. To follow along, [right click this link](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) and save the CSV file to your computer.
+
+```python
+import asyncio
+import pandas as pd
+from everyrow.ops import dedupe
+
+data = pd.read_csv("case_01_crm_data.csv").fillna("")
+
+async def main():
+    result = await dedupe(
+        input=data,
+        equivalence_relation="Two entries are duplicates if they represent the same company.",
+    )
+
+    # Filter to keep only the best record per entity
+    unique = result.data[result.data["selected"] == True]
+    print(f"Reduced {len(data)} records to {len(unique)} unique entities")
+
+asyncio.run(main())
+```
+
+The input data contains variations like these, all representing the same company:
+
+| company_name          | contact_name     | email_address       |
+| --------------------- | ---------------- | ------------------- |
+| AbbVie Inc.           | Richard Gonzales | info@abbvie-bio.com |
+| AbbVie Pharmaceutical | Richard Gonzales |                     |
+| Abbvie                |                  | info@abbvie-bio.com |
+| Abvie Inc             | Richard Gonzales |                     |
+
+The SDK clusters these into a single entity and selects the most complete record. The output DataFrame includes `equivalence_class_id` and `equivalence_class_name` columns showing which records were grouped together, plus a `selected` boolean indicating which record to keep.
+
+This approach handles cases that string similarity misses entirely. "AAPL" matches to "Apple Inc." because the model knows the ticker symbol. "Big Blue" matches to "IBM Corporation" because that's IBM's nickname. "W-Mart" and "Wallmart" match to "Walmart Inc." despite having different typos.
+
+The equivalence relation is flexible. For matching people: "Two entries are duplicates if they refer to the same person, accounting for name variations and nicknames." For products: "Two entries represent the same product if they're the same item sold under different names or SKUs."
+
+See the [full notebook](case-studies/dedupe-crm-company-records) for additional examples including how to merge the clustered records into consolidated entries.
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [dedupe documentation](/docs/reference/DEDUPE) for more options.

@@ -24,8 +24,7 @@ REPO_BLOB_PREFIX = "https://github.com/futuresearch/everyrow-sdk/blob/main/"
 
 # Colab URLs pointing into this repo are checked as local files
 REPO_COLAB_PREFIX = (
-    "https://colab.research.google.com/github/"
-    "futuresearch/everyrow-sdk/blob/main/"
+    "https://colab.research.google.com/github/futuresearch/everyrow-sdk/blob/main/"
 )
 
 # Git LFS media URLs — the correct way to link to LFS-tracked files.
@@ -65,11 +64,13 @@ SKIPPED_URLS: set[str] = {
     "https://github.com/futuresearch/everyrow-sdk",
     "https://github.com/futuresearch/everyrow-sdk/releases",
     "https://huggingface.co/datasets/fancyzhx/dbpedia_14",
+    "https://huggingface.co/datasets/google-research-datasets/paws",
     "https://hugovk.github.io/top-pypi-packages/",
     "https://jqlang.org/",
     "https://pip.pypa.io/en/stable/",
     "https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle",
     "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
+    "https://arxiv.org/abs/2506.21558",
 }
 
 
