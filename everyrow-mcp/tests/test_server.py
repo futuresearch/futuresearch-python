@@ -30,6 +30,7 @@ from mcp.types import TextContent
 from pydantic import ValidationError
 
 from everyrow_mcp import redis_store
+from everyrow_mcp.app import mcp as mcp_app
 from everyrow_mcp.models import (
     AgentInput,
     CancelInput,
@@ -44,6 +45,8 @@ from everyrow_mcp.models import (
     _schema_to_model,
 )
 from everyrow_mcp.tools import (
+    _RESULTS_ANNOTATIONS,
+    _RESULTS_META,
     everyrow_agent,
     everyrow_cancel,
     everyrow_progress,
@@ -1034,6 +1037,43 @@ class TestResultsInputValidation:
         """Test that non-CSV output_path is rejected in HTTP mode too."""
         with pytest.raises(ValidationError, match=r"must end in \.csv"):
             HttpResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
+
+
+class TestHttpResultsToolOverride:
+    """Verify that the HTTP override replaces the stdio results tool schema."""
+
+    def test_default_registration_uses_stdio_schema(self):
+        """Before override, everyrow_results uses StdioResultsInput."""
+        tool = mcp_app._tool_manager.get_tool("everyrow_results")
+        assert tool is not None
+        assert "StdioResultsInput" in tool.parameters["$defs"]
+
+    def test_http_override_replaces_schema(self):
+        """After remove + re-register, everyrow_results uses HttpResultsInput."""
+        # Simulate what server.py does for HTTP mode
+        mcp_app._tool_manager.remove_tool("everyrow_results")
+        mcp_app.tool(
+            name="everyrow_results",
+            structured_output=False,
+            annotations=_RESULTS_ANNOTATIONS,
+            meta=_RESULTS_META,
+        )(everyrow_results_http)
+
+        tool = mcp_app._tool_manager.get_tool("everyrow_results")
+        assert tool is not None
+        assert "HttpResultsInput" in tool.parameters["$defs"]
+        assert "output_path" not in tool.parameters["$defs"]["HttpResultsInput"].get(
+            "required", []
+        )
+
+        # Restore stdio default for other tests
+        mcp_app._tool_manager.remove_tool("everyrow_results")
+        mcp_app.tool(
+            name="everyrow_results",
+            structured_output=False,
+            annotations=_RESULTS_ANNOTATIONS,
+            meta=_RESULTS_META,
+        )(everyrow_results_stdio)
 
 
 class TestInputModelsUnchanged:
