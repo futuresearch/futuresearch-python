@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
 import { getAllNotebooks } from "./notebooks";
-import { getAllBlogPosts } from "./blog";
 
 // Path to the docs content directory (relative to project root)
 const DOCS_DIR = path.join(process.cwd(), "..", "docs");
@@ -46,7 +45,7 @@ export function getAllDocs(): DocMeta[] {
 
       if (entry.isDirectory()) {
         // Skip directories served by other routes or not documentation
-        if (["data", "case_studies", "claude-code-runs", "blog"].includes(entry.name)) continue;
+        if (["data", "case_studies", "claude-code-runs"].includes(entry.name)) continue;
         scanDir(fullPath, path.join(prefix, entry.name));
       } else if (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) {
         const isMdx = entry.name.endsWith(".mdx");
@@ -116,7 +115,6 @@ export interface NavSection {
 export function getNavigation(): NavSection[] {
   const docs = getAllDocs();
   const notebooks = getAllNotebooks();
-  const blogPosts = getAllBlogPosts();
 
   const guides = docs.filter((d) => d.category === "Guides");
   const reference = docs.filter((d) => d.category === "Reference");
@@ -167,14 +165,6 @@ export function getNavigation(): NavSection[] {
       items: notebooks.map((n) => ({
         slug: `case-studies/${n.slug}`,
         title: n.title,
-      })),
-    },
-    {
-      title: "Blog",
-      href: "/blog",
-      items: blogPosts.map((p) => ({
-        slug: `blog/${p.slug}`,
-        title: p.title,
       })),
     },
   ];

@@ -24,21 +24,18 @@ const SECTION_ICONS: Record<string, string> = {
   Guides: "book",
   "API Reference": "code",
   "Case Studies": "lightbulb",
-  Blog: "pencil",
 };
 
 const SECTION_DESCRIPTIONS: Record<string, string> = {
   Guides: "Step-by-step tutorials for common data processing tasks",
   "API Reference": "Detailed documentation for all everyrow functions",
   "Case Studies": "Real-world examples with Jupyter notebooks",
-  Blog: "Technical posts from the Everyrow team",
 };
 
 const SECTION_LINKS: Record<string, string> = {
   "API Reference": "/api",
   Guides: "/guides",
   "Case Studies": "/case-studies",
-  Blog: "/blog",
 };
 
 function SectionCard({ section }: { section: NavSection }) {
@@ -85,19 +82,7 @@ function SectionCard({ section }: { section: NavSection }) {
             <path d="M9 18h6" />
             <path d="M10 22h4" />
           </svg>
-        )}
-        {icon === "pencil" && (
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-            <path d="m15 5 4 4" />
-          </svg>
-        )}
-      </div>
+        )}      </div>
       <h2 className="landing-card-title">{section.title}</h2>
       <p className="landing-card-description">{description}</p>
       <div className="landing-card-count">
