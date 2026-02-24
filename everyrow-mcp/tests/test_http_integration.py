@@ -26,6 +26,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from everyrow_mcp import redis_store
+from everyrow_mcp.config import settings
 from everyrow_mcp.routes import api_progress
 from tests.conftest import override_settings
 
@@ -174,7 +175,7 @@ class TestProgressEndpoint:
         assert body["elapsed_s"] >= 0
         assert "session_url" in body
         # CORS header
-        assert resp.headers["access-control-allow-origin"] == "*"
+        assert resp.headers["access-control-allow-origin"] == settings.mcp_server_url
 
     @pytest.mark.asyncio
     async def test_completed_task_cleans_up_tokens(self, client: httpx.AsyncClient):

@@ -6,27 +6,31 @@ import logging
 import time
 
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from everyrow_mcp.config import settings
 from everyrow_mcp.redis_store import build_key
 
 logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request: Request) -> str | None:
-    """Extract client IP, preferring proxy headers when behind a reverse proxy.
+    """Extract client IP, preferring proxy headers only when trusted.
 
-    Priority: CF-Connecting-IP (Cloudflare) > X-Forwarded-For > request.client.
-    Returns None if the IP cannot be determined.
+    Only reads CF-Connecting-IP / X-Forwarded-For when
+    ``settings.trust_proxy_headers`` is True (i.e. running behind a known
+    reverse proxy like Cloudflare). Otherwise uses the direct connection IP.
     """
-    cf_ip = request.headers.get("cf-connecting-ip")
-    if cf_ip:
-        return cf_ip.strip()
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    if settings.trust_proxy_headers:
+        cf_ip = request.headers.get("cf-connecting-ip")
+        if cf_ip:
+            return cf_ip.strip()
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return request.client.host if request.client else None
 
 
@@ -52,10 +56,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._window_seconds = window_seconds
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        if request.url.path == "/health":
+            return await call_next(request)
+
         client_ip = get_client_ip(request)
         if client_ip is None:
-            logger.warning("Could not determine client IP, skipping rate limit")
-            return await call_next(request)
+            logger.warning(
+                "Could not determine client IP, using shared fallback bucket"
+            )
+            client_ip = "__unknown__"
         window_id = str(int(time.time()) // self._window_seconds)
         key = build_key("rate", client_ip, window_id)
 
@@ -73,7 +82,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     status_code=429,
                     headers={"Retry-After": str(retry_after)},
                 )
-        except Exception:
-            logger.warning("Rate-limit check failed (Redis unavailable)", exc_info=True)
+        except (RedisError, OSError):
+            logger.warning("Rate-limit check failed (Redis unavailable)")
 
         return await call_next(request)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
 from enum import StrEnum
-from functools import lru_cache
 from pathlib import Path
 
 from redis.asyncio import Redis, Sentinel
@@ -33,9 +33,12 @@ class Transport(StrEnum):
 # ── Redis infrastructure ──────────────────────────────────────
 
 
+_KEY_UNSAFE = re.compile(r"[^a-zA-Z0-9._\-]")
+
+
 def build_key(*parts: str) -> str:
-    """Build a namespaced Redis key, sanitising embedded colons."""
-    sanitized = [p.replace(":", "_") for p in parts]
+    """Build a namespaced Redis key, sanitising user-controlled characters."""
+    sanitized = [_KEY_UNSAFE.sub("_", p) for p in parts]
     return "mcp:" + ":".join(sanitized)
 
 
@@ -90,16 +93,27 @@ def create_redis_client(
     return client
 
 
-@lru_cache
+_redis_client: Redis | None = None
+
+
 def get_redis_client() -> Redis:
-    return create_redis_client(
-        host=settings.redis_host,
-        port=settings.redis_port,
-        db=settings.redis_db,
-        password=settings.redis_password,
-        sentinel_endpoints=settings.redis_sentinel_endpoints,
-        sentinel_master_name=settings.redis_sentinel_master_name,
-    )
+    global _redis_client  # noqa: PLW0603
+    if _redis_client is None:
+        _redis_client = create_redis_client(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            db=settings.redis_db,
+            password=settings.redis_password,
+            sentinel_endpoints=settings.redis_sentinel_endpoints,
+            sentinel_master_name=settings.redis_sentinel_master_name,
+        )
+    return _redis_client
+
+
+def set_redis_client(client: Redis | None) -> None:
+    """Override the Redis client (for testing)."""
+    global _redis_client  # noqa: PLW0603
+    _redis_client = client
 
 
 async def get_result_meta(task_id: str) -> str | None:
@@ -133,7 +147,20 @@ async def store_result_page(
 # ── CSV result storage ────────────────────────────────────────
 
 
+MAX_CSV_CACHE_CHARS = (
+    50 * 1024 * 1024
+)  # 50M characters — skip Redis cache for oversized results
+
+
 async def store_result_csv(task_id: str, csv_text: str) -> None:
+    if len(csv_text) > MAX_CSV_CACHE_CHARS:
+        logger.warning(
+            "Skipping Redis cache for task %s: CSV is %d chars (limit %d)",
+            task_id,
+            len(csv_text),
+            MAX_CSV_CACHE_CHARS,
+        )
+        return
     await get_redis_client().setex(
         name=build_key("result", task_id, "csv"), time=CSV_CACHE_TTL, value=csv_text
     )

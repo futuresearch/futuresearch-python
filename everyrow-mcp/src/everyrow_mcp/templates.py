@@ -55,13 +55,16 @@ td{border-bottom:1px solid var(--border-light);max-width:400px;vertical-align:to
 td:hover{background:var(--bg-hover)}
 td.has-research::after{content:"";position:absolute;top:6px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--research-dot);opacity:.7}
 tr.selected td{background:var(--bg-selected)!important}
+td.cell-focused{outline:2px solid var(--accent);outline-offset:-2px;z-index:2}
 tr:nth-child(even) td{background:var(--bg-alt)}
 tr:nth-child(even).selected td{background:var(--bg-selected)!important}
 a{color:var(--accent);text-decoration:none;word-break:break-all}
 a:hover{text-decoration:underline}
-td:first-child{position:sticky;left:0;background:inherit;z-index:1;font-weight:500}
-.hdr-row th:first-child{position:sticky;left:0;z-index:4}
-.flt-row th:first-child{position:sticky;left:0;z-index:4}
+.row-num{position:sticky;left:0;z-index:1;background:var(--bg);width:40px;min-width:40px;max-width:40px;text-align:center;color:var(--text-dim);font-size:11px;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;padding:6px 4px;box-shadow:2px 0 4px rgba(0,0,0,.06)}
+tr:nth-child(even) .row-num{background:var(--bg-alt)}
+.hdr-row .row-num{z-index:4;font-weight:600;color:var(--text-sec);cursor:default;background:var(--bg-toolbar)}
+.flt-row .row-num{z-index:4;cursor:default;background:var(--bg-toolbar)}
+tr.selected .row-num{background:var(--bg-selected)!important}
 .popover{position:fixed;background:var(--pop-bg);border:1px solid var(--border);border-radius:8px;box-shadow:var(--pop-shadow);max-width:420px;min-width:200px;z-index:100;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s;pointer-events:none}
 .popover.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .pop-hdr{padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-sec);border-bottom:1px solid var(--border-light);background:var(--bg-alt)}
@@ -108,7 +111,8 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 <div id="toolbar">
   <span id="sum">Loading...</span>
   <button id="selAllBtn">Select all</button>
-  <button id="copyBtn" disabled>Copy (0)</button>
+  <button id="copyBtn" disabled>Copy TSV (0)</button>
+  <span class="export-btns"><button id="exportLink" title="Copy CSV download link to clipboard">Copy link</button></span>
   <span class="settings-wrap"><button id="settingsBtn" title="Settings">Settings</button><div id="settingsDrop" class="settings-drop"><div class="drop-hdr">Copy format</div><label><input type="radio" name="cfmt" value="tsv" checked> TSV (tabs)</label><label><input type="radio" name="cfmt" value="csv"> CSV</label><label><input type="radio" name="cfmt" value="json"> JSON</label><div class="drop-sep"></div><div class="drop-hdr">Table height</div><label><input type="radio" name="tsize" value="250"> Small</label><label><input type="radio" name="tsize" value="420" checked> Medium</label><label><input type="radio" name="tsize" value="700"> Large</label></div></span>
   <button id="expandBtn" title="Toggle fullscreen">&#x2922;</button>
 </div>
@@ -145,7 +149,7 @@ let didDrag=false;
 let copyFmt="tsv";
 const settingsBtn=document.getElementById("settingsBtn");
 const settingsDrop=document.getElementById("settingsDrop");
-const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},selected:new Set(),lastClick:null,isFullscreen:false};
+const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},selected:new Set(),lastClick:null,isFullscreen:false,focusedCell:null};
 
 /* --- theming & display mode --- */
 app.onhostcontextchanged=(ctx)=>{
@@ -161,7 +165,8 @@ app.onhostcontextchanged=(ctx)=>{
 /* --- helpers --- */
 function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
-function linkify(s){return esc(s).replace(/https?:\\/\\/[^\\s<)\\]]+/g,m=>'<a href="'+escAttr(m)+'" target="_blank">'+m+'</a>');}
+function truncSafe(s,len){if(s.length<=len)return s;let t=s.slice(0,len);const urlRe=/(https?:\\/\\/[^\\s<>"'\\]]+)$/;const m=t.match(urlRe);if(m){const full=s.slice(m.index).match(/^https?:\\/\\/[^\\s<>"'\\]]+/);if(full&&full[0].length>m[1].length)t=s.slice(0,m.index+full[0].length);}return t;}
+function linkify(s){const re=/(https?:\\/\\/[^\\s<>"'\\]]+)/g;let last=0,out="",m;while((m=re.exec(s))!==null){let url=m[1];while(url.endsWith(")")&&(url.split("(").length-1)<(url.split(")").length-1))url=url.slice(0,-1);re.lastIndex=m.index+url.length;if(m.index>last)out+=esc(s.slice(last,m.index));out+='<a href="'+escAttr(url)+'" target="_blank">'+esc(url)+"</a>";last=re.lastIndex;}if(last<s.length)out+=esc(s.slice(last));return out;}
 
 /* --- data processing --- */
 function flat(obj,pre){
@@ -240,26 +245,34 @@ function renderTable(){
   const activeFilterCol=activeEl&&activeEl.matches&&activeEl.matches('.flt-row input')?activeEl.dataset.col:null;
   const cursorPos=activeFilterCol?activeEl.selectionStart:0;
 
-  let h='<thead><tr class="hdr-row">';
+  /* clear focusedCell if its row is no longer visible */
+  if(S.focusedCell){const fs=new Set(S.filteredIdx);if(!fs.has(S.focusedCell.idx))S.focusedCell=null;}
+
+  let h='<thead><tr class="hdr-row"><th class="row-num">#</th>';
   for(const c of cols){
     let arrow='<span class="sort-arrow">&#9650;</span>';
     if(S.sortCol===c)arrow=S.sortDir===1?'<span class="sort-arrow active">&#9650;</span>':'<span class="sort-arrow active">&#9660;</span>';
     h+='<th data-col="'+escAttr(c)+'" style="position:relative">'+esc(c)+arrow+'<div class="col-resize-handle"></div></th>';
   }
-  h+='</tr><tr class="flt-row">';
+  h+='</tr><tr class="flt-row"><th class="row-num"></th>';
   for(const c of cols){
     h+='<th><input data-col="'+escAttr(c)+'" placeholder="Filter..." value="'+escAttr(S.filters[c]||"")+'"></th>';
   }
   h+='</tr></thead><tbody>';
+  let rowNum=0;
   for(const i of S.filteredIdx){
+    rowNum++;
     const row=S.rows[i],sel=S.selected.has(i)?' class="selected"':"";
-    h+='<tr data-idx="'+i+'"'+sel+'>';
+    h+='<tr data-idx="'+i+'"'+sel+'><td class="row-num">'+rowNum+'</td>';
     for(const c of cols){
       const hasR=getResearch(row,c)!=null;
-      const v=row.display[c],cls=hasR?' class="has-research"':"",dc=' data-col="'+escAttr(c)+'"';
+      const focused=S.focusedCell&&S.focusedCell.idx===i&&S.focusedCell.col===c;
+      const v=row.display[c];
+      let cls=hasR?(focused?' class="has-research cell-focused"':' class="has-research"'):(focused?' class="cell-focused"':"");
+      const dc=' data-col="'+escAttr(c)+'"';
       if(v==null){h+="<td"+cls+dc+"></td>";}
       else{const s=String(v);
-        if(s.length>TRUNC)h+='<td'+cls+dc+'><span class="cell-text">'+linkify(s.slice(0,TRUNC))+'</span><span class="cell-more">&hellip; more</span></td>';
+        if(s.length>TRUNC)h+='<td'+cls+dc+'><span class="cell-text">'+linkify(truncSafe(s,TRUNC))+'</span><span class="cell-more">&hellip; more</span></td>';
         else h+='<td'+cls+dc+'>'+linkify(s)+'</td>';
       }
     }
@@ -292,7 +305,7 @@ tbl.addEventListener("click",e=>{
   if(e.target.closest(".col-resize-handle"))return;
   const th=e.target.closest(".hdr-row th");
   if(!th)return;
-  const col=th.dataset.col;
+  const col=th.dataset.col;if(!col)return;
   if(S.sortCol===col){S.sortDir=S.sortDir===1?-1:S.sortDir===-1?0:1;if(S.sortDir===0)S.sortCol=null;}
   else{S.sortCol=col;S.sortDir=1;}
   applyFilterAndSort();
@@ -316,24 +329,52 @@ tbl.addEventListener("click",e=>{
     const td=less.closest("td"),tr=td.closest("tr");
     const idx=parseInt(tr.dataset.idx,10),col=td.dataset.col;
     const full=String(S.rows[idx].display[col]);
-    td.querySelector(".cell-text").innerHTML=linkify(full.slice(0,TRUNC));
+    td.querySelector(".cell-text").innerHTML=linkify(truncSafe(full,TRUNC));
     less.textContent="\\u2026 more";less.className="cell-more";
     return;
   }
 });
 
-/* --- selection (click toggles, shift extends range) --- */
+/* --- selection (# column click toggles, shift extends range) --- */
 tbl.addEventListener("click",e=>{
-  if(e.target.closest(".hdr-row")||e.target.closest(".flt-row")||e.target.closest("a")||e.target.closest(".cell-more")||e.target.closest(".cell-less"))return;
-  const tr=e.target.closest("tbody tr");if(!tr)return;
+  if(e.target.closest(".hdr-row")||e.target.closest(".flt-row"))return;
+  const td=e.target.closest("td");if(!td)return;
+  const tr=td.closest("tbody tr");if(!tr)return;
   const idx=parseInt(tr.dataset.idx,10);if(isNaN(idx))return;
-  if(e.shiftKey&&S.lastClick!=null){
-    const posA=S.filteredIdx.indexOf(S.lastClick),posB=S.filteredIdx.indexOf(idx);
-    if(posA>=0&&posB>=0){const lo=Math.min(posA,posB),hi=Math.max(posA,posB);for(let p=lo;p<=hi;p++)S.selected.add(S.filteredIdx[p]);}
-  }else{
-    if(S.selected.has(idx))S.selected.delete(idx);else S.selected.add(idx);
+
+  if(td.classList.contains("row-num")){
+    /* row selection via # column */
+    if(S.focusedCell){S.focusedCell=null;tbl.querySelectorAll("td.cell-focused").forEach(c=>c.classList.remove("cell-focused"));}
+    if(e.shiftKey&&S.lastClick!=null){
+      const posA=S.filteredIdx.indexOf(S.lastClick),posB=S.filteredIdx.indexOf(idx);
+      if(posA>=0&&posB>=0){const lo=Math.min(posA,posB),hi=Math.max(posA,posB);for(let p=lo;p<=hi;p++)S.selected.add(S.filteredIdx[p]);}
+    }else{
+      if(S.selected.has(idx))S.selected.delete(idx);else S.selected.add(idx);
+    }
+    S.lastClick=idx;updateSelection();updateCopyBtn();
+    return;
   }
-  S.lastClick=idx;updateSelection();updateCopyBtn();
+
+  /* cell focus click — skip links and expand toggles */
+  if(e.target.closest("a")||e.target.closest(".cell-more")||e.target.closest(".cell-less"))return;
+  const col=td.dataset.col;if(!col)return;
+  /* toggle focus */
+  const prev=S.focusedCell;
+  if(prev){const oldTd=tbl.querySelector('tbody tr[data-idx="'+prev.idx+'"] td[data-col="'+CSS.escape(prev.col)+'"]');if(oldTd)oldTd.classList.remove("cell-focused");}
+  if(prev&&prev.idx===idx&&prev.col===col){S.focusedCell=null;}
+  else{S.focusedCell={idx,col};td.classList.add("cell-focused");}
+});
+
+/* --- double-click data cell to copy value --- */
+tbl.addEventListener("dblclick",e=>{
+  if(e.target.closest(".col-resize-handle"))return;
+  if(e.target.closest(".hdr-row")||e.target.closest(".flt-row"))return;
+  const td=e.target.closest("tbody td");if(!td||td.classList.contains("row-num"))return;
+  const tr=td.closest("tr");if(!tr)return;
+  const idx=parseInt(tr.dataset.idx,10),col=td.dataset.col;
+  if(isNaN(idx)||!col)return;
+  const v=S.rows[idx]?.display[col];if(v==null)return;
+  copyToClipboard(String(v)).then(ok=>{if(ok)showToast("Cell copied");});
 });
 
 function updateSelection(){
@@ -341,12 +382,12 @@ function updateSelection(){
     const idx=parseInt(tr.dataset.idx,10);tr.classList.toggle("selected",S.selected.has(idx));
   });
 }
-function updateCopyBtn(){const n=S.selected.size;const fl=copyFmt.toUpperCase();copyBtn.textContent=n>0?"Copy ("+n+")":"Copy";copyBtn.title="Copy selected rows as "+fl;copyBtn.disabled=n===0;}
+function updateCopyBtn(){const n=S.selected.size;const fl=copyFmt.toUpperCase();copyBtn.textContent=n>0?"Copy "+fl+" ("+n+")":"Copy "+fl;copyBtn.disabled=n===0;}
 
 /* --- select all --- */
 selAllBtn.addEventListener("click",()=>{
-  if(S.selected.size===S.filteredIdx.length)S.selected.clear();
-  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));}
+  if(S.selected.size===S.filteredIdx.length){S.selected.clear();showToast("Selection cleared");}
+  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));showToast("Selected all "+S.filteredIdx.length+" rows");}
   updateSelection();updateCopyBtn();
 });
 
@@ -434,7 +475,33 @@ document.addEventListener("mouseover",e=>{
   }
 });
 pop.addEventListener("mouseleave",()=>{clearTimeout(popTimer);hidePopover();});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(copyModal.classList.contains("show"))copyModal.classList.remove("show");else if(popVisible)hidePopover();}});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){
+    if(copyModal.classList.contains("show")){copyModal.classList.remove("show");return;}
+    if(S.focusedCell){S.focusedCell=null;tbl.querySelectorAll("td.cell-focused").forEach(c=>c.classList.remove("cell-focused"));return;}
+    if(popVisible)hidePopover();
+    return;
+  }
+  /* Cmd+C / Ctrl+C — skip if inside input/textarea or copy modal */
+  if((e.metaKey||e.ctrlKey)&&e.key==="c"){
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;
+    if(copyModal.classList.contains("show"))return;
+    /* priority: selected rows > focused cell */
+    if(S.selected.size>0){
+      e.preventDefault();
+      const text=buildCopyText();
+      const msg="Copied "+S.selected.size+" row"+(S.selected.size>1?"s":"")+" as "+copyFmt.toUpperCase();
+      copyToClipboard(text).then(ok=>{if(ok)showToast(msg);else showCopyModal(text);});
+      return;
+    }
+    if(S.focusedCell){
+      e.preventDefault();
+      const v=S.rows[S.focusedCell.idx]?.display[S.focusedCell.col];
+      if(v!=null)copyToClipboard(String(v)).then(ok=>{if(ok)showToast("Cell copied");});
+    }
+  }
+});
 
 /* --- resize handle --- */
 let resizing=false,startY=0,startH=0;
@@ -528,7 +595,7 @@ tbl.addEventListener("mousedown",e=>{
   if(e.target.closest(".col-resize-handle"))return;
   const th=e.target.closest(".hdr-row th");
   if(!th)return;
-  dragCol=th.dataset.col;dragStartX=e.clientX;dragStartY=e.clientY;colDragging=false;
+  dragCol=th.dataset.col;if(!dragCol)return;dragStartX=e.clientX;dragStartY=e.clientY;colDragging=false;
   document.addEventListener("mousemove",onColDragMove);
   document.addEventListener("mouseup",onColDragUp);
 });
@@ -544,7 +611,7 @@ function onColDragMove(e){
   }
   if(colDragging){
     dragGhost.style.left=(e.clientX+12)+"px";dragGhost.style.top=(e.clientY-12)+"px";
-    const hdrs=[...tbl.querySelectorAll(".hdr-row th")];
+    const hdrs=[...tbl.querySelectorAll(".hdr-row th")].filter(h=>h.dataset.col);
     hdrs.forEach(h=>h.classList.remove("drag-over-left","drag-over-right"));
     const target=hdrs.find(h=>{const r=h.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});
     if(target&&target.dataset.col!==dragCol){
@@ -557,7 +624,7 @@ function onColDragUp(e){
   document.removeEventListener("mousemove",onColDragMove);
   document.removeEventListener("mouseup",onColDragUp);
   if(colDragging){
-    const hdrs=[...tbl.querySelectorAll(".hdr-row th")];
+    const hdrs=[...tbl.querySelectorAll(".hdr-row th")].filter(h=>h.dataset.col);
     hdrs.forEach(h=>h.classList.remove("drag-over-left","drag-over-right"));
     const target=hdrs.find(h=>{const r=h.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});
     if(target&&target.dataset.col!==dragCol){
@@ -585,6 +652,10 @@ async function copyToClipboard(text){
 }
 
 function updateDownloadLink(){updateSessionLink();}
+document.getElementById("exportLink")?.addEventListener("click",()=>{
+  if(!csvUrl){showToast("No download link yet");return;}
+  copyToClipboard(csvUrl).then(ok=>{if(ok)showToast("Link copied");});
+});
 
 /* --- row resize (drag bottom border) --- */
 let rowResizing=false,rowResizeTr=null,rowStartY=0,rowStartH=0;
@@ -705,6 +776,7 @@ import{App}from"SCRIPT_SRC";
 const app=new App({name:"EveryRow Session",version:"1.0.0"});
 const el=document.getElementById("c");
 let pollUrl=null,pollTimer=null,sessionUrl="",wasDone=false;
+function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 
 app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
@@ -734,7 +806,7 @@ function render(d){
     h+=`<div class="info">`;
     if(done){
       const cls=d.status==="completed"?"status-done":"status-fail";
-      h+=`<span class="${cls}">${d.status}</span>`;
+      h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
       h+=`<span>${comp}/${tot}${fail?` (${fail} failed)`:""}</span>`;
       if(elapsed)h+=`<span>${fmtTime(elapsed)}</span>`;
     }else{
@@ -754,7 +826,7 @@ function render(d){
       h+=`</div>`;
     }
   }else if(d.status){
-    h+=`<div class="info">${d.status}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
+    h+=`<div class="info">${esc(d.status)}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
   }
 
   el.innerHTML=h;

@@ -15,6 +15,7 @@ from everyrow.generated.models.task_status import TaskStatus
 from everyrow.generated.models.task_status_response import TaskStatusResponse
 
 from everyrow_mcp import redis_store
+from everyrow_mcp.config import settings
 from everyrow_mcp.routes import api_progress
 
 # ── Helpers ────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ class TestApiProgress:
         req = FakeRequest(method="OPTIONS", path_params={"task_id": "abc"})
         resp = await api_progress(req)
         assert resp.status_code == 204
-        assert resp.headers["Access-Control-Allow-Origin"] == "*"
+        assert resp.headers["Access-Control-Allow-Origin"] == settings.mcp_server_url
 
     @pytest.mark.asyncio
     async def test_invalid_poll_token_returns_403(self):
@@ -159,7 +160,7 @@ class TestApiProgress:
         assert body["running"] == 2
         assert "elapsed_s" in body
         assert "session_url" in body
-        assert resp.headers["Access-Control-Allow-Origin"] == "*"
+        assert resp.headers["Access-Control-Allow-Origin"] == settings.mcp_server_url
 
     @pytest.mark.asyncio
     async def test_completed_task_pops_tokens(self):

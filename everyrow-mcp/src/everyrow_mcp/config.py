@@ -13,6 +13,18 @@ class Settings(BaseSettings):
 
     everyrow_api_url: str = Field(default="https://everyrow.io/api/v0")
     preview_size: int = Field(default=1000)
+    max_inline_rows: int = Field(
+        default=50_000,
+        description="Maximum number of rows allowed in inline JSON data",
+    )
+    max_inline_data_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        description="Maximum size in bytes for inline CSV string data (10 MB)",
+    )
+    max_schema_properties: int = Field(
+        default=50,
+        description="Maximum number of properties allowed in a response schema",
+    )
     token_budget: int = Field(
         default=20000,
         description="Target token budget per page of inline results",
@@ -26,6 +38,12 @@ class Settings(BaseSettings):
         default=None, description="Comma-separated host:port pairs"
     )
     redis_sentinel_master_name: str | None = Field(default=None)
+
+    trust_proxy_headers: bool = Field(
+        default=False,
+        description="Trust X-Forwarded-For and CF-Connecting-IP headers for client IP. "
+        "Enable only when behind a trusted reverse proxy (e.g. Cloudflare).",
+    )
 
     # HTTP-only settings — unused in stdio mode
     mcp_server_url: str = Field(default="")

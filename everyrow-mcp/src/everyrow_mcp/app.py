@@ -17,6 +17,8 @@ from everyrow_mcp.tool_helpers import SessionContext
 
 
 def _clear_task_state() -> None:
+    if settings.is_http:
+        return
     if TASK_STATE_FILE.exists():
         TASK_STATE_FILE.unlink()
 
@@ -33,7 +35,7 @@ async def stdio_lifespan(_server: FastMCP):
                 raise RuntimeError("Failed to authenticate with everyrow API")
             yield SessionContext(client_factory=lambda: client)
     except Exception as e:
-        logging.getLogger(__name__).error(f"everyrow-mcp startup failed: {e!r}")
+        logging.getLogger(__name__).error("everyrow-mcp startup failed: %r", e)
         raise
     finally:
         _clear_task_state()
