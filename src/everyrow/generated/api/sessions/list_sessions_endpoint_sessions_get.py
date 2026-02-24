@@ -5,7 +5,6 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.http_validation_error import HTTPValidationError
 from ...models.session_list_response import SessionListResponse
 from ...types import Response
 
@@ -19,18 +18,11 @@ def _get_kwargs() -> dict[str, Any]:
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> HTTPValidationError | SessionListResponse | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> SessionListResponse | None:
     if response.status_code == 200:
         response_200 = SessionListResponse.from_dict(response.json())
 
         return response_200
-
-    if response.status_code == 422:
-        response_422 = HTTPValidationError.from_dict(response.json())
-
-        return response_422
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -38,9 +30,7 @@ def _parse_response(
         return None
 
 
-def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[HTTPValidationError | SessionListResponse]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[SessionListResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -52,7 +42,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[HTTPValidationError | SessionListResponse]:
+) -> Response[SessionListResponse]:
     """List sessions
 
      List all sessions owned by the authenticated user.
@@ -62,7 +52,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionListResponse]
+        Response[SessionListResponse]
     """
 
     kwargs = _get_kwargs()
@@ -77,7 +67,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-) -> HTTPValidationError | SessionListResponse | None:
+) -> SessionListResponse | None:
     """List sessions
 
      List all sessions owned by the authenticated user.
@@ -87,7 +77,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionListResponse
+        SessionListResponse
     """
 
     return sync_detailed(
@@ -98,7 +88,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[HTTPValidationError | SessionListResponse]:
+) -> Response[SessionListResponse]:
     """List sessions
 
      List all sessions owned by the authenticated user.
@@ -108,7 +98,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionListResponse]
+        Response[SessionListResponse]
     """
 
     kwargs = _get_kwargs()
@@ -121,7 +111,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-) -> HTTPValidationError | SessionListResponse | None:
+) -> SessionListResponse | None:
     """List sessions
 
      List all sessions owned by the authenticated user.
@@ -131,7 +121,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionListResponse
+        SessionListResponse
     """
 
     return (

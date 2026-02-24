@@ -5,8 +5,8 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.classify_operation import ClassifyOperation
 from ...models.error_response import ErrorResponse
-from ...models.forecast_operation import ForecastOperation
 from ...models.insufficient_balance_error import InsufficientBalanceError
 from ...models.operation_response import OperationResponse
 from ...types import UNSET, Response, Unset
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    body: ForecastOperation,
+    body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
@@ -23,7 +23,7 @@ def _get_kwargs(
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/operations/forecast",
+        "url": "/operations/classify",
     }
 
     _kwargs["json"] = body.to_dict()
@@ -72,16 +72,16 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-    body: ForecastOperation,
+    body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceError | OperationResponse]:
-    """AI-powered probability forecast
+    """Classify rows into categories
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Use AI to classify each row into one of the provided categories.
 
     Args:
         x_cohort_source (None | str | Unset):
-        body (ForecastOperation):
+        body (ClassifyOperation):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -106,16 +106,16 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-    body: ForecastOperation,
+    body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceError | OperationResponse | None:
-    """AI-powered probability forecast
+    """Classify rows into categories
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Use AI to classify each row into one of the provided categories.
 
     Args:
         x_cohort_source (None | str | Unset):
-        body (ForecastOperation):
+        body (ClassifyOperation):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -135,16 +135,16 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-    body: ForecastOperation,
+    body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceError | OperationResponse]:
-    """AI-powered probability forecast
+    """Classify rows into categories
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Use AI to classify each row into one of the provided categories.
 
     Args:
         x_cohort_source (None | str | Unset):
-        body (ForecastOperation):
+        body (ClassifyOperation):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -167,16 +167,16 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-    body: ForecastOperation,
+    body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceError | OperationResponse | None:
-    """AI-powered probability forecast
+    """Classify rows into categories
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Use AI to classify each row into one of the provided categories.
 
     Args:
         x_cohort_source (None | str | Unset):
-        body (ForecastOperation):
+        body (ClassifyOperation):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

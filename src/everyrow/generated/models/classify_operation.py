@@ -10,42 +10,39 @@ from attrs import field as _attrs_field
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.rank_operation_input_type_1_item import RankOperationInputType1Item
-    from ..models.rank_operation_input_type_2 import RankOperationInputType2
-    from ..models.rank_operation_response_schema_type_0 import RankOperationResponseSchemaType0
+    from ..models.classify_operation_input_type_1_item import ClassifyOperationInputType1Item
+    from ..models.classify_operation_input_type_2 import ClassifyOperationInputType2
 
 
-T = TypeVar("T", bound="RankOperation")
+T = TypeVar("T", bound="ClassifyOperation")
 
 
 @_attrs_define
-class RankOperation:
+class ClassifyOperation:
     """
     Attributes:
-        input_ (list[RankOperationInputType1Item] | RankOperationInputType2 | UUID): The input data as a) the ID of an
-            existing artifact, b) a single record in the form of a JSON object, or c) a table of records in the form of a
-            list of JSON objects
-        task (str): Instructions for the AI to score each row
-        sort_by (str): Field name from response_schema to sort results by
+        input_ (ClassifyOperationInputType2 | list[ClassifyOperationInputType1Item] | UUID): The input data as a) the ID
+            of an existing artifact, b) a single record in the form of a JSON object, or c) a table of records in the form
+            of a list of JSON objects
+        task (str): Instructions for classifying each row into a category
+        categories (list[str]): List of allowed classification categories (minimum 2)
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
         webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
-        response_schema (None | RankOperationResponseSchemaType0 | Unset): JSON Schema for the response. Must include
-            the field specified in sort_by.
-        ascending (bool | Unset): Sort order: True for ascending, False for descending Default: True.
+        classification_field (str | Unset): Name of the output column for classification results Default:
+            'classification'.
+        include_reasoning (bool | Unset): Include reasoning in the output as its own column Default: False.
     """
 
-    input_: list[RankOperationInputType1Item] | RankOperationInputType2 | UUID
+    input_: ClassifyOperationInputType2 | list[ClassifyOperationInputType1Item] | UUID
     task: str
-    sort_by: str
+    categories: list[str]
     session_id: None | Unset | UUID = UNSET
     webhook_url: None | str | Unset = UNSET
-    response_schema: None | RankOperationResponseSchemaType0 | Unset = UNSET
-    ascending: bool | Unset = True
+    classification_field: str | Unset = "classification"
+    include_reasoning: bool | Unset = False
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.rank_operation_response_schema_type_0 import RankOperationResponseSchemaType0
-
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
             input_ = str(self.input_)
@@ -60,7 +57,7 @@ class RankOperation:
 
         task = self.task
 
-        sort_by = self.sort_by
+        categories = self.categories
 
         session_id: None | str | Unset
         if isinstance(self.session_id, Unset):
@@ -76,15 +73,9 @@ class RankOperation:
         else:
             webhook_url = self.webhook_url
 
-        response_schema: dict[str, Any] | None | Unset
-        if isinstance(self.response_schema, Unset):
-            response_schema = UNSET
-        elif isinstance(self.response_schema, RankOperationResponseSchemaType0):
-            response_schema = self.response_schema.to_dict()
-        else:
-            response_schema = self.response_schema
+        classification_field = self.classification_field
 
-        ascending = self.ascending
+        include_reasoning = self.include_reasoning
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -92,29 +83,28 @@ class RankOperation:
             {
                 "input": input_,
                 "task": task,
-                "sort_by": sort_by,
+                "categories": categories,
             }
         )
         if session_id is not UNSET:
             field_dict["session_id"] = session_id
         if webhook_url is not UNSET:
             field_dict["webhook_url"] = webhook_url
-        if response_schema is not UNSET:
-            field_dict["response_schema"] = response_schema
-        if ascending is not UNSET:
-            field_dict["ascending"] = ascending
+        if classification_field is not UNSET:
+            field_dict["classification_field"] = classification_field
+        if include_reasoning is not UNSET:
+            field_dict["include_reasoning"] = include_reasoning
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.rank_operation_input_type_1_item import RankOperationInputType1Item
-        from ..models.rank_operation_input_type_2 import RankOperationInputType2
-        from ..models.rank_operation_response_schema_type_0 import RankOperationResponseSchemaType0
+        from ..models.classify_operation_input_type_1_item import ClassifyOperationInputType1Item
+        from ..models.classify_operation_input_type_2 import ClassifyOperationInputType2
 
         d = dict(src_dict)
 
-        def _parse_input_(data: object) -> list[RankOperationInputType1Item] | RankOperationInputType2 | UUID:
+        def _parse_input_(data: object) -> ClassifyOperationInputType2 | list[ClassifyOperationInputType1Item] | UUID:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
@@ -129,7 +119,7 @@ class RankOperation:
                 input_type_1 = []
                 _input_type_1 = data
                 for input_type_1_item_data in _input_type_1:
-                    input_type_1_item = RankOperationInputType1Item.from_dict(input_type_1_item_data)
+                    input_type_1_item = ClassifyOperationInputType1Item.from_dict(input_type_1_item_data)
 
                     input_type_1.append(input_type_1_item)
 
@@ -138,7 +128,7 @@ class RankOperation:
                 pass
             if not isinstance(data, dict):
                 raise TypeError()
-            input_type_2 = RankOperationInputType2.from_dict(data)
+            input_type_2 = ClassifyOperationInputType2.from_dict(data)
 
             return input_type_2
 
@@ -146,7 +136,7 @@ class RankOperation:
 
         task = d.pop("task")
 
-        sort_by = d.pop("sort_by")
+        categories = cast(list[str], d.pop("categories"))
 
         def _parse_session_id(data: object) -> None | Unset | UUID:
             if data is None:
@@ -174,37 +164,22 @@ class RankOperation:
 
         webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
 
-        def _parse_response_schema(data: object) -> None | RankOperationResponseSchemaType0 | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            try:
-                if not isinstance(data, dict):
-                    raise TypeError()
-                response_schema_type_0 = RankOperationResponseSchemaType0.from_dict(data)
+        classification_field = d.pop("classification_field", UNSET)
 
-                return response_schema_type_0
-            except (TypeError, ValueError, AttributeError, KeyError):
-                pass
-            return cast(None | RankOperationResponseSchemaType0 | Unset, data)
+        include_reasoning = d.pop("include_reasoning", UNSET)
 
-        response_schema = _parse_response_schema(d.pop("response_schema", UNSET))
-
-        ascending = d.pop("ascending", UNSET)
-
-        rank_operation = cls(
+        classify_operation = cls(
             input_=input_,
             task=task,
-            sort_by=sort_by,
+            categories=categories,
             session_id=session_id,
             webhook_url=webhook_url,
-            response_schema=response_schema,
-            ascending=ascending,
+            classification_field=classification_field,
+            include_reasoning=include_reasoning,
         )
 
-        rank_operation.additional_properties = d
-        return rank_operation
+        classify_operation.additional_properties = d
+        return classify_operation
 
     @property
     def additional_keys(self) -> list[str]:

@@ -5,6 +5,10 @@ from .agent_map_operation_input_type_1_item import AgentMapOperationInputType1It
 from .agent_map_operation_input_type_2 import AgentMapOperationInputType2
 from .agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
 from .billing_response import BillingResponse
+from .cancel_task_response import CancelTaskResponse
+from .classify_operation import ClassifyOperation
+from .classify_operation_input_type_1_item import ClassifyOperationInputType1Item
+from .classify_operation_input_type_2 import ClassifyOperationInputType2
 from .create_artifact_request import CreateArtifactRequest
 from .create_artifact_request_data_type_0_item import CreateArtifactRequestDataType0Item
 from .create_artifact_request_data_type_1 import CreateArtifactRequestDataType1
@@ -64,6 +68,10 @@ __all__ = (
     "AgentMapOperationInputType2",
     "AgentMapOperationResponseSchemaType0",
     "BillingResponse",
+    "CancelTaskResponse",
+    "ClassifyOperation",
+    "ClassifyOperationInputType1Item",
+    "ClassifyOperationInputType2",
     "CreateArtifactRequest",
     "CreateArtifactRequestDataType0Item",
     "CreateArtifactRequestDataType1",

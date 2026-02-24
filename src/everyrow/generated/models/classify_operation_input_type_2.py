@@ -6,11 +6,11 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ForecastOperationInputType1Item")
+T = TypeVar("T", bound="ClassifyOperationInputType2")
 
 
 @_attrs_define
-class ForecastOperationInputType1Item:
+class ClassifyOperationInputType2:
     """ """
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -24,10 +24,10 @@ class ForecastOperationInputType1Item:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        forecast_operation_input_type_1_item = cls()
+        classify_operation_input_type_2 = cls()
 
-        forecast_operation_input_type_1_item.additional_properties = d
-        return forecast_operation_input_type_1_item
+        classify_operation_input_type_2.additional_properties = d
+        return classify_operation_input_type_2
 
     @property
     def additional_keys(self) -> list[str]:
