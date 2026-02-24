@@ -25,7 +25,7 @@ from .forecast_operation_input_type_1_item import ForecastOperationInputType1Ite
 from .forecast_operation_input_type_2 import ForecastOperationInputType2
 from .health_response import HealthResponse
 from .http_validation_error import HTTPValidationError
-from .insufficient_balance_error import InsufficientBalanceError
+from .insufficient_balance_response import InsufficientBalanceResponse
 from .llm_enum_public import LLMEnumPublic
 from .merge_breakdown_response import MergeBreakdownResponse
 from .merge_operation import MergeOperation
@@ -88,7 +88,7 @@ __all__ = (
     "ForecastOperationInputType2",
     "HealthResponse",
     "HTTPValidationError",
-    "InsufficientBalanceError",
+    "InsufficientBalanceResponse",
     "LLMEnumPublic",
     "MergeBreakdownResponse",
     "MergeOperation",

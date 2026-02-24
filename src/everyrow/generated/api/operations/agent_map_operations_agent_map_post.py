@@ -7,7 +7,7 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.agent_map_operation import AgentMapOperation
 from ...models.error_response import ErrorResponse
-from ...models.insufficient_balance_error import InsufficientBalanceError
+from ...models.insufficient_balance_response import InsufficientBalanceResponse
 from ...models.operation_response import OperationResponse
 from ...types import UNSET, Response, Unset
 
@@ -36,14 +36,14 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | InsufficientBalanceError | OperationResponse | None:
+) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
     if response.status_code == 200:
         response_200 = OperationResponse.from_dict(response.json())
 
         return response_200
 
     if response.status_code == 402:
-        response_402 = InsufficientBalanceError.from_dict(response.json())
+        response_402 = InsufficientBalanceResponse.from_dict(response.json())
 
         return response_402
 
@@ -60,7 +60,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | InsufficientBalanceError | OperationResponse]:
+) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -74,7 +74,7 @@ def sync_detailed(
     client: AuthenticatedClient,
     body: AgentMapOperation,
     x_cohort_source: None | str | Unset = UNSET,
-) -> Response[ErrorResponse | InsufficientBalanceError | OperationResponse]:
+) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
     """Parallel AI research agents
 
      Run an AI agent on each row in parallel to perform research and generate responses.
@@ -94,7 +94,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | InsufficientBalanceError | OperationResponse]
+        Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -114,7 +114,7 @@ def sync(
     client: AuthenticatedClient,
     body: AgentMapOperation,
     x_cohort_source: None | str | Unset = UNSET,
-) -> ErrorResponse | InsufficientBalanceError | OperationResponse | None:
+) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
     """Parallel AI research agents
 
      Run an AI agent on each row in parallel to perform research and generate responses.
@@ -134,7 +134,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | InsufficientBalanceError | OperationResponse
+        ErrorResponse | InsufficientBalanceResponse | OperationResponse
     """
 
     return sync_detailed(
@@ -149,7 +149,7 @@ async def asyncio_detailed(
     client: AuthenticatedClient,
     body: AgentMapOperation,
     x_cohort_source: None | str | Unset = UNSET,
-) -> Response[ErrorResponse | InsufficientBalanceError | OperationResponse]:
+) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
     """Parallel AI research agents
 
      Run an AI agent on each row in parallel to perform research and generate responses.
@@ -169,7 +169,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | InsufficientBalanceError | OperationResponse]
+        Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]
     """
 
     kwargs = _get_kwargs(
@@ -187,7 +187,7 @@ async def asyncio(
     client: AuthenticatedClient,
     body: AgentMapOperation,
     x_cohort_source: None | str | Unset = UNSET,
-) -> ErrorResponse | InsufficientBalanceError | OperationResponse | None:
+) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
     """Parallel AI research agents
 
      Run an AI agent on each row in parallel to perform research and generate responses.
@@ -207,7 +207,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | InsufficientBalanceError | OperationResponse
+        ErrorResponse | InsufficientBalanceResponse | OperationResponse
     """
 
     return (
