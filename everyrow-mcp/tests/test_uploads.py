@@ -21,6 +21,11 @@ from tests.conftest import make_test_context, override_settings
 class TestHmacSigning:
     """Tests for HMAC signing and verification."""
 
+    @pytest.fixture(autouse=True)
+    def _with_upload_secret(self):
+        with override_settings(upload_secret="test-secret-for-hmac"):
+            yield
+
     def test_roundtrip(self):
         """A signature can be verified immediately."""
         upload_id = "test-upload-id"
@@ -47,6 +52,12 @@ class TestHmacSigning:
         expires_at = int(time.time()) + 300
         sig = sign_upload_url("upload-1", expires_at)
         assert verify_upload_signature("upload-2", expires_at, sig) is False
+
+    def test_missing_secret_raises(self):
+        """RuntimeError when UPLOAD_SECRET is not set."""
+        with override_settings(upload_secret=""):
+            with pytest.raises(RuntimeError, match="UPLOAD_SECRET must be set"):
+                sign_upload_url("test", int(time.time()) + 300)
 
 
 class TestRequestUploadUrlInput:
@@ -95,7 +106,7 @@ class TestRequestUploadUrlTool:
         ctx = make_test_context(mock_client)
 
         with (
-            override_settings(transport="streamable-http"),
+            override_settings(transport="streamable-http", upload_secret="test-secret"),
             patch(
                 "everyrow_mcp.uploads.redis_store.store_upload_meta",
                 new_callable=AsyncMock,
@@ -121,7 +132,9 @@ class TestRequestUploadUrlTool:
         mock_client = MagicMock(token="fake-token")
         ctx = make_test_context(mock_client)
 
-        with override_settings(transport="streamable-http"):
+        with override_settings(
+            transport="streamable-http", upload_secret="test-secret"
+        ):
             params = RequestUploadUrlInput(filename="data.json")
             result = await tool_fn(params, ctx)
 
