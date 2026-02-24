@@ -17,10 +17,6 @@ class Settings(BaseSettings):
         default=50_000,
         description="Maximum number of rows allowed in inline JSON data",
     )
-    max_inline_data_bytes: int = Field(
-        default=10 * 1024 * 1024,
-        description="Maximum size in bytes for inline CSV string data (10 MB)",
-    )
     max_schema_properties: int = Field(
         default=50,
         description="Maximum number of properties allowed in a response schema",
@@ -79,6 +75,25 @@ class Settings(BaseSettings):
         default=604_800,
         description="Refresh token TTL in seconds (7 days)",
     )
+    max_inline_rows: int = Field(
+        default=5000,
+        description="Maximum rows allowed in inline data (list[dict]).",
+    )
+
+    # Upload settings (HTTP mode only)
+    upload_secret: str = Field(
+        default="",
+        description="HMAC-SHA256 secret for signing upload URLs. Auto-generated if empty.",
+    )
+    upload_url_ttl: int = Field(
+        default=300,
+        description="Presigned upload URL validity in seconds (5 min).",
+    )
+    max_upload_size_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        description="Maximum upload file size in bytes (50 MB).",
+    )
+
     everyrow_api_key: str | None = None
 
     @property

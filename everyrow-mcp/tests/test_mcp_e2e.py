@@ -18,7 +18,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
-import pandas as pd
 import pytest
 from everyrow.api_utils import create_client
 from everyrow.generated.models.public_task_type import PublicTaskType
@@ -129,7 +128,7 @@ class TestMcpProtocol:
 
     @pytest.mark.asyncio
     async def test_list_tools(self, _http_state):
-        """list_tools returns all 10 registered tools."""
+        """list_tools returns all registered tools (including upload_data)."""
         async with mcp_client() as session:
             result = await session.list_tools()
             tool_names = sorted(t.name for t in result.tools)
@@ -146,17 +145,14 @@ class TestMcpProtocol:
                     "everyrow_results",
                     "everyrow_screen",
                     "everyrow_single_agent",
+                    "everyrow_upload_data",
                 ]
             )
             assert tool_names == expected
 
     @pytest.mark.asyncio
-    async def test_call_screen_tool(self, _http_state, tmp_path):
+    async def test_call_screen_tool(self, _http_state):
         """Submit a screen task via MCP protocol and verify the response."""
-        df = pd.DataFrame([{"company": "Acme", "role": "Engineer"}])
-        csv_path = tmp_path / "test.csv"
-        df.to_csv(csv_path, index=False)
-
         task_id = str(uuid4())
         mock_task = _mock_task(task_id)
         _, fake_create_session = _mock_session()
@@ -182,7 +178,9 @@ class TestMcpProtocol:
                     {
                         "params": {
                             "task": "Filter for engineering roles",
-                            "input_csv": str(csv_path),
+                            "data": [
+                                {"company": "Acme", "role": "Engineer"},
+                            ],
                         }
                     },
                 )
@@ -254,12 +252,8 @@ class TestMcpProtocol:
             assert result.isError
 
     @pytest.mark.asyncio
-    async def test_call_agent_tool(self, _http_state, tmp_path):
+    async def test_call_agent_tool(self, _http_state):
         """Submit an agent task via MCP protocol."""
-        df = pd.DataFrame([{"name": "Anthropic"}])
-        csv_path = tmp_path / "companies.csv"
-        df.to_csv(csv_path, index=False)
-
         task_id = str(uuid4())
         mock_task = _mock_task(task_id)
         _, fake_create_session = _mock_session()
@@ -285,7 +279,7 @@ class TestMcpProtocol:
                     {
                         "params": {
                             "task": "Find the CEO",
-                            "input_csv": str(csv_path),
+                            "data": [{"name": "Anthropic"}],
                         }
                     },
                 )
@@ -334,7 +328,6 @@ class TestMcpProtocol:
 
 
 # ── TestMcpE2ERealApi — real API tests ────────────────────────
-
 _skip_unless_integration = pytest.mark.skipif(
     not os.environ.get("RUN_INTEGRATION_TESTS"),
     reason="Set RUN_INTEGRATION_TESTS=1 to run",
@@ -357,7 +350,7 @@ class TestMcpE2ERealApi:
             yield sdk_client
 
     @pytest.mark.asyncio
-    async def test_screen_pipeline(self, _real_client, jobs_csv):
+    async def test_screen_pipeline(self, _real_client, jobs_csv):  # noqa: ARG002
         """Submit → poll → results via MCP protocol with real API."""
         async with mcp_client() as session:
             with patch(
@@ -369,7 +362,18 @@ class TestMcpE2ERealApi:
                     {
                         "params": {
                             "task": "Filter for remote positions",
-                            "input_csv": jobs_csv,
+                            "data": [
+                                {
+                                    "company": "Airtable",
+                                    "title": "Senior Engineer",
+                                    "location": "Remote",
+                                },
+                                {
+                                    "company": "Vercel",
+                                    "title": "Lead Engineer",
+                                    "location": "NYC",
+                                },
+                            ],
                         }
                     },
                 )
@@ -429,12 +433,8 @@ class TestMcpE2ERealApi:
             print(f"  Results: {results.content[-1].text}")
 
     @pytest.mark.asyncio
-    async def test_agent_pipeline(self, _real_client, tmp_path):
+    async def test_agent_pipeline(self, _real_client, tmp_path):  # noqa: ARG002
         """Submit agent → poll → results via MCP protocol with real API."""
-        df = pd.DataFrame([{"name": "Anthropic"}, {"name": "OpenAI"}])
-        csv_path = tmp_path / "companies.csv"
-        df.to_csv(csv_path, index=False)
-
         async with mcp_client() as session:
             with patch(
                 "everyrow_mcp.tools._get_client",
@@ -445,7 +445,7 @@ class TestMcpE2ERealApi:
                     {
                         "params": {
                             "task": "Find the company's headquarters city.",
-                            "input_csv": str(csv_path),
+                            "data": [{"name": "Anthropic"}, {"name": "OpenAI"}],
                             "response_schema": {
                                 "properties": {
                                     "headquarters": {

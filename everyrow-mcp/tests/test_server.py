@@ -42,6 +42,7 @@ from everyrow_mcp.models import (
     ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
+    UploadDataInput,
     _schema_to_model,
 )
 from everyrow_mcp.tools import (
@@ -54,6 +55,7 @@ from everyrow_mcp.tools import (
     everyrow_results_http,
     everyrow_results_stdio,
     everyrow_single_agent,
+    everyrow_upload_data,
 )
 from tests.conftest import make_test_context, override_settings
 
@@ -118,73 +120,66 @@ class TestSchemaToModel:
 class TestInputValidation:
     """Tests for input validation."""
 
-    def test_screen_input_validates_csv_path(self, tmp_path: Path):
-        """Test ScreenInput validates CSV path."""
-        with pytest.raises(ValueError, match="does not exist"):
+    def test_screen_input_rejects_invalid_artifact_id(self):
+        """Test ScreenInput rejects an invalid artifact_id."""
+        with pytest.raises(ValidationError, match="artifact_id must be a valid UUID"):
             ScreenInput(
                 task="test",
-                input_csv=str(tmp_path / "nonexistent.csv"),
+                artifact_id="not-a-uuid",
             )
 
-    def test_rank_input_validates_field_type(self, tmp_path: Path):
-        """Test RankInput validates field_type."""
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
+    def test_screen_input_accepts_valid_artifact_id(self):
+        """Test ScreenInput accepts a valid UUID artifact_id."""
+        uid = str(uuid4())
+        params = ScreenInput(task="test", artifact_id=uid)
+        assert params.artifact_id == uid
 
+    def test_rank_input_validates_field_type(self):
+        """Test RankInput validates field_type."""
         with pytest.raises(ValidationError, match="Input should be"):
             RankInput(
                 task="test",
-                input_csv=str(csv_file),
+                artifact_id=str(uuid4()),
                 field_name="score",
                 field_type="invalid",  # pyright: ignore[reportArgumentType]
             )
 
-    def test_merge_input_validates_both_csvs(self, tmp_path: Path):
-        """Test MergeInput validates both CSV paths."""
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
-
-        with pytest.raises(ValueError, match="does not exist"):
+    def test_merge_input_validates_artifact_ids(self):
+        """Test MergeInput validates artifact IDs."""
+        with pytest.raises(ValidationError, match="artifact_id must be a valid UUID"):
             MergeInput(
                 task="test",
-                left_csv=str(csv_file),
-                right_csv=str(tmp_path / "nonexistent.csv"),
+                left_artifact_id="not-a-uuid",
+                right_artifact_id=str(uuid4()),
             )
 
-    def test_agent_input_rejects_empty_response_schema(self, tmp_path: Path):
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
-
+    def test_agent_input_rejects_empty_response_schema(self):
         with pytest.raises(
             ValidationError, match="must include a non-empty top-level 'properties'"
         ):
             AgentInput(
                 task="test",
-                input_csv=str(csv_file),
+                artifact_id=str(uuid4()),
                 response_schema={},
             )
 
-    def test_agent_input_rejects_shorthand_response_schema(self, tmp_path: Path):
+    def test_agent_input_rejects_shorthand_response_schema(self):
         """response_schema must be JSON Schema, not a field map."""
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
-
         with pytest.raises(
             ValidationError, match="must include a non-empty top-level 'properties'"
         ):
             AgentInput(
                 task="test",
-                input_csv=str(csv_file),
+                artifact_id=str(uuid4()),
                 response_schema={"population": "string", "year": "string"},
             )
 
-    def test_tool_inputs_accept_example_schemas(self, tmp_path: Path):
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
+    def test_tool_inputs_accept_example_schemas(self):
+        uid = str(uuid4())
 
         ScreenInput(
             task="test",
-            input_csv=str(csv_file),
+            artifact_id=uid,
             response_schema={
                 "type": "object",
                 "properties": {
@@ -196,7 +191,7 @@ class TestInputValidation:
         )
         AgentInput(
             task="test",
-            input_csv=str(csv_file),
+            artifact_id=uid,
             response_schema={
                 "type": "object",
                 "properties": {
@@ -208,7 +203,7 @@ class TestInputValidation:
         )
         AgentInput(
             task="test",
-            input_csv=str(csv_file),
+            data=[{"col": "val"}],
             response_schema={
                 "type": "object",
                 "properties": {
@@ -225,15 +220,14 @@ class TestInputValidation:
             },
         )
 
-    def test_screen_input_requires_boolean_property(self, tmp_path: Path):
+    def test_screen_input_requires_boolean_property(self):
         """Screen schemas must include at least one boolean property."""
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("a,b\n1,2\n")
+        uid = str(uuid4())
 
         with pytest.raises(ValidationError, match="must include at least one boolean"):
             ScreenInput(
                 task="test",
-                input_csv=str(csv_file),
+                artifact_id=uid,
                 response_schema={
                     "type": "object",
                     "properties": {"reason": {"type": "string"}},
@@ -242,7 +236,7 @@ class TestInputValidation:
 
         ScreenInput(
             task="test",
-            input_csv=str(csv_file),
+            artifact_id=uid,
             response_schema={
                 "type": "object",
                 "properties": {"pass": {"type": "boolean"}},
@@ -331,7 +325,7 @@ class TestAgent:
     """Tests for everyrow_agent."""
 
     @pytest.mark.asyncio
-    async def test_submit_returns_task_id(self, companies_csv: str):
+    async def test_submit_returns_task_id(self):
         """Test that submit returns immediately with task_id and session_url."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
@@ -351,7 +345,10 @@ class TestAgent:
 
             params = AgentInput(
                 task="Find HQ for each company",
-                input_csv=companies_csv,
+                data=[
+                    {"name": "TechStart", "industry": "Software"},
+                    {"name": "AILabs", "industry": "AI/ML"},
+                ],
             )
             result = await everyrow_agent(params, ctx)
 
@@ -1040,11 +1037,11 @@ class TestCancel:
 
 
 class TestAgentInlineInput:
-    """Tests for everyrow_agent with inline CSV data."""
+    """Tests for everyrow_agent with inline data."""
 
     @pytest.mark.asyncio
     async def test_submit_with_inline_data(self):
-        """Test agent submission with data instead of input_csv."""
+        """Test agent submission with data instead of artifact_id."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
         mock_client = _make_mock_client()
@@ -1063,7 +1060,10 @@ class TestAgentInlineInput:
 
             params = AgentInput(
                 task="Find HQ for each company",
-                data="name,industry\nTechStart,Software\nAILabs,AI\n",
+                data=[
+                    {"name": "TechStart", "industry": "Software"},
+                    {"name": "AILabs", "industry": "AI"},
+                ],
             )
             result = await everyrow_agent(params, ctx)
 
@@ -1077,6 +1077,37 @@ class TestAgentInlineInput:
             call_kwargs = mock_op.call_args[1]
             assert len(call_kwargs["input"]) == 2
 
+    @pytest.mark.asyncio
+    async def test_submit_with_artifact_id(self):
+        """Test agent submission with artifact_id."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        uid = str(uuid4())
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = AgentInput(task="Find HQ", artifact_id=uid)
+            result = await everyrow_agent(params, ctx)
+
+            assert len(result) == 1
+            text = result[0].text
+            assert str(mock_task.task_id) in text
+
+            # Verify the UUID was passed to the SDK
+            call_kwargs = mock_op.call_args[1]
+            assert call_kwargs["input"] == UUID(uid)
+
 
 class TestAgentInputValidation:
     """Tests for AgentInput model validation with inline data."""
@@ -1086,26 +1117,21 @@ class TestAgentInputValidation:
         with pytest.raises(ValidationError, match="Provide exactly one of"):
             AgentInput(task="test")
 
-    def test_rejects_both_input_sources(self, companies_csv: str):
+    def test_rejects_both_input_sources(self):
         """Test that providing both raises."""
         with pytest.raises(ValidationError, match="Provide exactly one of"):
             AgentInput(
                 task="test",
-                input_csv=companies_csv,
-                data="name,industry\nA,B\n",
+                artifact_id=str(uuid4()),
+                data=[{"a": "b"}],
             )
 
-    def test_accepts_input_csv(self, companies_csv: str):
-        """Test that input_csv alone is valid."""
-        params = AgentInput(task="test", input_csv=companies_csv)
-        assert params.input_csv == companies_csv
+    def test_accepts_artifact_id(self):
+        """Test that artifact_id alone is valid."""
+        uid = str(uuid4())
+        params = AgentInput(task="test", artifact_id=uid)
+        assert params.artifact_id == uid
         assert params.data is None
-
-    def test_accepts_data_csv_string(self):
-        """Test that data as CSV string is valid."""
-        params = AgentInput(task="test", data="a,b\n1,2\n")
-        assert params.data is not None
-        assert params.input_csv is None
 
     def test_accepts_data_json_list(self):
         """Test that data as JSON list of dicts is valid."""
@@ -1115,7 +1141,99 @@ class TestAgentInputValidation:
         ]
         params = AgentInput(task="test", data=records)
         assert params.data == records
-        assert params.input_csv is None
+        assert params.artifact_id is None
+
+
+class TestUploadData:
+    """Tests for everyrow_upload_data."""
+
+    @pytest.mark.asyncio
+    async def test_upload_from_url(self):
+        """Test uploading data from a URL."""
+        mock_client = _make_mock_client()
+        mock_session = _make_mock_session()
+        ctx = make_test_context(mock_client)
+        artifact_uuid = uuid4()
+
+        mock_df = pd.DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+
+        with (
+            patch(
+                "everyrow_mcp.tools.fetch_csv_from_url",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+            patch(
+                "everyrow_mcp.tools.create_table_artifact",
+                new_callable=AsyncMock,
+                return_value=artifact_uuid,
+            ) as mock_create,
+        ):
+            params = UploadDataInput(source="https://example.com/data.csv")
+            result = await everyrow_upload_data(params, ctx)
+
+        assert len(result) == 1
+        data = json.loads(result[0].text)
+        assert data["artifact_id"] == str(artifact_uuid)
+        assert data["rows"] == 2
+        assert data["columns"] == ["a", "b"]
+        mock_create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_upload_from_local_path(self, tmp_path: Path):
+        """Test uploading data from a local CSV file (stdio mode)."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("x,y\n1,2\n3,4\n")
+
+        mock_client = _make_mock_client()
+        mock_session = _make_mock_session()
+        ctx = make_test_context(mock_client)
+        artifact_uuid = uuid4()
+
+        with (
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+            patch(
+                "everyrow_mcp.tools.create_table_artifact",
+                new_callable=AsyncMock,
+                return_value=artifact_uuid,
+            ),
+        ):
+            params = UploadDataInput(source=str(csv_file))
+            result = await everyrow_upload_data(params, ctx)
+
+        data = json.loads(result[0].text)
+        assert data["artifact_id"] == str(artifact_uuid)
+        assert data["rows"] == 2
+
+    def test_upload_rejects_local_path_in_http_mode(self, tmp_path: Path):
+        """Test that local paths are rejected in HTTP mode."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("x,y\n1,2\n")
+
+        with override_settings(transport="streamable-http"):
+            with pytest.raises(
+                ValidationError, match="Local file paths are not supported"
+            ):
+                UploadDataInput(source=str(csv_file))
+
+    def test_upload_accepts_url_in_http_mode(self):
+        """Test that URLs are accepted in HTTP mode."""
+        with override_settings(transport="streamable-http"):
+            params = UploadDataInput(source="https://example.com/data.csv")
+            assert params.source == "https://example.com/data.csv"
+
+    def test_upload_google_sheets_url(self):
+        """Test that Google Sheets URLs are accepted."""
+        url = "https://docs.google.com/spreadsheets/d/1abc/edit#gid=0"
+        params = UploadDataInput(source=url)
+        assert params.source == url
 
 
 class TestResultsInputValidation:
@@ -1205,44 +1323,52 @@ class TestInputModelsUnchanged:
     """Verify that input models require an input source."""
 
     def test_rank_requires_input_source(self):
-        """RankInput requires either input_csv or data."""
+        """RankInput requires either artifact_id or data."""
         with pytest.raises(ValidationError):
             RankInput(task="test", field_name="score")
 
     def test_rank_accepts_data(self):
-        """RankInput accepts data as alternative to input_csv."""
-        params = RankInput(task="test", field_name="score", data="col\nval")
-        assert params.data == "col\nval"
-        assert params.input_csv is None
+        """RankInput accepts data as alternative to artifact_id."""
+        params = RankInput(
+            task="test",
+            field_name="score",
+            data=[{"col": "val"}],
+        )
+        assert params.data == [{"col": "val"}]
+        assert params.artifact_id is None
 
     def test_rank_rejects_both_inputs(self):
-        """RankInput rejects both input_csv and data."""
+        """RankInput rejects both artifact_id and data."""
         with pytest.raises(ValidationError):
             RankInput(
                 task="test",
                 field_name="score",
-                input_csv="/tmp/test.csv",
-                data="col\nval",
+                artifact_id=str(uuid4()),
+                data=[{"col": "val"}],
             )
 
     def test_screen_requires_input_source(self):
-        """ScreenInput requires either input_csv or data."""
+        """ScreenInput requires either artifact_id or data."""
         with pytest.raises(ValidationError):
             ScreenInput(task="test")
 
     def test_screen_accepts_data(self):
-        """ScreenInput accepts data as alternative to input_csv."""
-        params = ScreenInput(task="test", data="col\nval")
-        assert params.data == "col\nval"
-        assert params.input_csv is None
+        """ScreenInput accepts data as alternative to artifact_id."""
+        params = ScreenInput(task="test", data=[{"col": "val"}])
+        assert params.data == [{"col": "val"}]
+        assert params.artifact_id is None
 
     def test_screen_rejects_both_inputs(self):
-        """ScreenInput rejects both input_csv and data."""
+        """ScreenInput rejects both artifact_id and data."""
         with pytest.raises(ValidationError):
-            ScreenInput(task="test", input_csv="/tmp/test.csv", data="col\nval")
+            ScreenInput(
+                task="test",
+                artifact_id=str(uuid4()),
+                data=[{"col": "val"}],
+            )
 
     def test_dedupe_requires_input_source(self):
-        """DedupeInput requires either input_csv or data."""
+        """DedupeInput requires either artifact_id or data."""
         with pytest.raises(ValidationError):
             DedupeInput(equivalence_relation="same entity")
 
@@ -1256,7 +1382,7 @@ class TestStdioVsHttpGating:
     """Verify that widget JSON is only included in HTTP mode responses."""
 
     @pytest.mark.asyncio
-    async def test_submit_stdio_returns_single_content(self, companies_csv: str):
+    async def test_submit_stdio_returns_single_content(self):
         """In stdio mode, submission tools return only human-readable text."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
@@ -1273,16 +1399,17 @@ class TestStdioVsHttpGating:
             ),
         ):
             mock_op.return_value = mock_task
-            params = AgentInput(task="test", input_csv=companies_csv)
+            params = AgentInput(
+                task="test",
+                data=[{"name": "TechStart", "industry": "Software"}],
+            )
             result = await everyrow_agent(params, ctx)
 
         assert len(result) == 1
         assert "Task ID:" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_submit_http_returns_widget_and_text(
-        self, companies_csv: str, fake_redis
-    ):
+    async def test_submit_http_returns_widget_and_text(self, fake_redis):
         """In HTTP mode, submission tools return widget JSON + human text."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
@@ -1301,7 +1428,10 @@ class TestStdioVsHttpGating:
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
         ):
             mock_op.return_value = mock_task
-            params = AgentInput(task="test", input_csv=companies_csv)
+            params = AgentInput(
+                task="test",
+                data=[{"name": "TechStart", "industry": "Software"}],
+            )
             result = await everyrow_agent(params, ctx)
 
         assert len(result) == 2

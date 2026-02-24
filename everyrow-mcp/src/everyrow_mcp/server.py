@@ -18,6 +18,7 @@ from everyrow_mcp.tools import (
     _RESULTS_META,
     everyrow_results_http,
 )
+from everyrow_mcp.uploads import register_upload_tool
 
 
 class InputArgs(BaseModel):
@@ -87,6 +88,8 @@ def main():
         )(everyrow_results_http)
 
     if input_args.http:
+        register_upload_tool(mcp)
+
         if input_args.no_auth:
             mcp_server_url = f"http://localhost:{input_args.port}"
         else:

@@ -194,3 +194,17 @@ async def store_poll_token(task_id: str, poll_token: str) -> None:
 
 async def get_poll_token(task_id: str) -> str | None:
     return await get_redis_client().get(build_key("poll_token", task_id))
+
+
+# ── Upload metadata ───────────────────────────────────────────
+
+
+async def store_upload_meta(upload_id: str, meta_json: str, ttl: int) -> None:
+    """Store upload metadata with TTL (consume-on-use)."""
+    await get_redis_client().setex(build_key("upload", upload_id), ttl, meta_json)
+
+
+async def pop_upload_meta(upload_id: str) -> str | None:
+    """Atomically get and delete upload metadata (prevents replay)."""
+    key = build_key("upload", upload_id)
+    return await get_redis_client().getdel(key)

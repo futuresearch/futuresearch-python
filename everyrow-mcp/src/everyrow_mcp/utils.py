@@ -1,11 +1,102 @@
 """Utility functions for the everyrow MCP server."""
 
 import json
+import re
 from io import StringIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+import httpx
 import pandas as pd
+
+
+def _is_url(value: str) -> bool:
+    """Check if a string looks like an HTTP(S) URL."""
+    return value.startswith("http://") or value.startswith("https://")
+
+
+def validate_url(url: str) -> str:
+    """Validate and normalise an HTTP(S) URL.
+
+    Returns the URL unchanged (after basic validation).
+
+    Raises:
+        ValueError: If the URL scheme is not http/https or the URL has no host.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"URL must use http or https scheme: {url}")
+    if not parsed.netloc:
+        raise ValueError(f"URL has no host: {url}")
+    return url
+
+
+def _normalise_google_sheets_url(url: str) -> str:
+    """Convert a Google Sheets URL to its CSV export variant.
+
+    Handles:
+    - ``/edit...`` → ``/export?format=csv``
+    - ``/pub?...`` → ``/pub?...&output=csv``
+    - Already has ``/export?format=csv`` → unchanged
+    """
+    if "docs.google.com/spreadsheets" not in url:
+        return url
+
+    # Already an export URL
+    if "/export" in url and "format=csv" in url:
+        return url
+
+    # /edit or /edit#gid=... → /export?format=csv
+    match = re.match(r"(https://docs\.google\.com/spreadsheets/d/[^/]+)", url)
+    if match:
+        base = match.group(1)
+        # Extract gid if present
+        gid_match = re.search(r"gid=(\d+)", url)
+        if gid_match:
+            return f"{base}/export?format=csv&gid={gid_match.group(1)}"
+        return f"{base}/export?format=csv"
+
+    return url
+
+
+async def fetch_csv_from_url(url: str) -> pd.DataFrame:
+    """Fetch CSV data from a URL and return a DataFrame.
+
+    Automatically normalises Google Sheets URLs to their CSV export endpoint.
+
+    Raises:
+        ValueError: If the response cannot be parsed as CSV.
+        httpx.HTTPStatusError: On non-2xx responses.
+    """
+    url = _normalise_google_sheets_url(url)
+
+    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+
+    content_type = response.headers.get("content-type", "")
+
+    # Try CSV first
+    try:
+        df = pd.read_csv(StringIO(response.text))
+        if not df.empty:
+            return df
+    except Exception:
+        pass
+
+    # Try JSON array
+    try:
+        data = json.loads(response.text)
+        if isinstance(data, list) and data:
+            return pd.DataFrame(data)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    raise ValueError(
+        f"Could not parse response from {url} as CSV or JSON. "
+        f"Content-Type: {content_type}"
+    )
 
 
 def validate_csv_path(path: str) -> None:

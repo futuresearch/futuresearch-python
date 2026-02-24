@@ -72,6 +72,10 @@
     {
       "name": "everyrow_cancel",
       "description": "Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."
+    },
+    {
+      "name": "everyrow_upload_data",
+      "description": "Upload data from a URL or local file. Returns an artifact_id for use in processing tools."
     }
   ],
   "user_config": {

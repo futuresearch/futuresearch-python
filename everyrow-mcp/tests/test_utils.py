@@ -6,11 +6,14 @@ import pandas as pd
 import pytest
 
 from everyrow_mcp.utils import (
+    _is_url,
+    _normalise_google_sheets_url,
     load_data,
     resolve_output_path,
     save_result_to_csv,
     validate_csv_path,
     validate_output_path,
+    validate_url,
 )
 
 
@@ -99,7 +102,7 @@ class TestResolveOutputPath:
 
 
 class TestLoadData:
-    """Tests for load_data."""
+    """Tests for load_data (internal helper, still used by upload_data)."""
 
     def test_load_from_csv_file(self, tmp_path: Path):
         """Test loading from a CSV file path."""
@@ -168,3 +171,66 @@ class TestSaveResultToCsv:
         loaded = pd.read_csv(output_path)
         assert list(loaded.columns) == ["a", "b"]
         assert len(loaded) == 3
+
+
+class TestIsUrl:
+    """Tests for _is_url."""
+
+    def test_http_url(self):
+        assert _is_url("http://example.com") is True
+
+    def test_https_url(self):
+        assert _is_url("https://example.com/data.csv") is True
+
+    def test_local_path(self):
+        assert _is_url("/Users/test/data.csv") is False
+
+    def test_relative_path(self):
+        assert _is_url("data.csv") is False
+
+
+class TestValidateUrl:
+    """Tests for validate_url."""
+
+    def test_valid_https(self):
+        url = "https://example.com/data.csv"
+        assert validate_url(url) == url
+
+    def test_valid_http(self):
+        url = "http://example.com/data.csv"
+        assert validate_url(url) == url
+
+    def test_rejects_ftp(self):
+        with pytest.raises(ValueError, match="http or https"):
+            validate_url("ftp://example.com/data.csv")
+
+    def test_rejects_no_host(self):
+        with pytest.raises(ValueError, match="no host"):
+            validate_url("https://")
+
+
+class TestNormaliseGoogleSheetsUrl:
+    """Tests for _normalise_google_sheets_url."""
+
+    def test_edit_url_to_export(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/edit"
+        result = _normalise_google_sheets_url(url)
+        assert result == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+
+    def test_edit_url_with_gid(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/edit#gid=123"
+        result = _normalise_google_sheets_url(url)
+        assert (
+            result
+            == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv&gid=123"
+        )
+
+    def test_already_export_url(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+        result = _normalise_google_sheets_url(url)
+        assert result == url
+
+    def test_non_google_url_unchanged(self):
+        url = "https://example.com/data.csv"
+        result = _normalise_google_sheets_url(url)
+        assert result == url

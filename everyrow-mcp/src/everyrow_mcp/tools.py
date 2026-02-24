@@ -8,12 +8,14 @@ from textwrap import dedent
 from typing import Any
 from uuid import UUID
 
+import pandas as pd
 from everyrow.api_utils import handle_response
 from everyrow.constants import EveryrowError
 from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.ops import (
     agent_map_async,
+    create_table_artifact,
     dedupe_async,
     forecast_async,
     merge_async,
@@ -40,6 +42,7 @@ from everyrow_mcp.models import (
     ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
+    UploadDataInput,
     _schema_to_model,
 )
 from everyrow_mcp.result_store import (
@@ -56,7 +59,15 @@ from everyrow_mcp.tool_helpers import (
     create_tool_response,
     write_initial_task_state,
 )
-from everyrow_mcp.utils import load_data, save_result_to_csv
+from everyrow_mcp.utils import _is_url, fetch_csv_from_url, save_result_to_csv
+
+
+def _resolve_input(params) -> UUID | pd.DataFrame:
+    """Resolve artifact_id or data to a UUID or DataFrame for SDK ops."""
+    if params.artifact_id:
+        return UUID(params.artifact_id)
+    return pd.DataFrame(params.data)
+
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +103,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    input_data = _resolve_input(params)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -100,24 +111,31 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
-        kwargs: dict[str, Any] = {"task": params.task, "session": session, "input": df}
+        kwargs: dict[str, Any] = {
+            "task": params.task,
+            "session": session,
+            "input": input_data,
+        }
         if response_model:
             kwargs["response_model"] = response_model
         cohort_task = await agent_map_async(**kwargs)
         task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.AGENT,
             session_url=session_url,
-            total=len(df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(df)} agents starting.",
+        label=f"Submitted: {total} agents starting."
+        if total
+        else "Submitted: agents starting.",
         token=client.token,
-        total=len(df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
@@ -231,7 +249,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    input_data = _resolve_input(params)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -242,26 +260,29 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
         cohort_task = await rank_async(
             task=params.task,
             session=session,
-            input=df,
+            input=input_data,
             field_name=params.field_name,
             field_type=params.field_type,
             response_model=response_model,
             ascending_order=params.ascending_order,
         )
         task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.RANK,
             session_url=session_url,
-            total=len(df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(df)} rows for ranking.",
+        label=f"Submitted: {total} rows for ranking."
+        if total
+        else "Submitted: rows for ranking.",
         token=client.token,
-        total=len(df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
@@ -311,7 +332,7 @@ async def everyrow_screen(
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    input_data = _resolve_input(params)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -322,23 +343,26 @@ async def everyrow_screen(
         cohort_task = await screen_async(
             task=params.task,
             session=session,
-            input=df,
+            input=input_data,
             response_model=response_model,
         )
         task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.SCREEN,
             session_url=session_url,
-            total=len(df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(df)} rows for screening.",
+        label=f"Submitted: {total} rows for screening."
+        if total
+        else "Submitted: rows for screening.",
         token=client.token,
-        total=len(df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
@@ -384,29 +408,32 @@ async def everyrow_dedupe(
     client = _get_client(ctx)
     _clear_task_state()
 
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    input_data = _resolve_input(params)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
         cohort_task = await dedupe_async(
             equivalence_relation=params.equivalence_relation,
             session=session,
-            input=df,
+            input=input_data,
         )
         task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.DEDUPE,
             session_url=session_url,
-            total=len(df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(df)} rows for deduplication.",
+        label=f"Submitted: {total} rows for deduplication."
+        if total
+        else "Submitted: rows for deduplication.",
         token=client.token,
-        total=len(df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
@@ -461,35 +488,47 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
     _clear_task_state()
 
-    left_df = load_data(data=params.left_data, input_csv=params.left_csv)
-    right_df = load_data(data=params.right_data, input_csv=params.right_csv)
+    left_input: UUID | pd.DataFrame
+    if params.left_artifact_id:
+        left_input = UUID(params.left_artifact_id)
+    else:
+        left_input = pd.DataFrame(params.left_data)
+
+    right_input: UUID | pd.DataFrame
+    if params.right_artifact_id:
+        right_input = UUID(params.right_artifact_id)
+    else:
+        right_input = pd.DataFrame(params.right_data)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
         cohort_task = await merge_async(
             task=params.task,
             session=session,
-            left_table=left_df,
-            right_table=right_df,
+            left_table=left_input,
+            right_table=right_input,
             merge_on_left=params.merge_on_left,
             merge_on_right=params.merge_on_right,
             use_web_search=params.use_web_search,
             relationship_type=params.relationship_type,
         )
         task_id = str(cohort_task.task_id)
+        total = len(left_input) if isinstance(left_input, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.MERGE,
             session_url=session_url,
-            total=len(left_df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(left_df)} left rows for merging.",
+        label=f"Submitted: {total} left rows for merging."
+        if total
+        else "Submitted: rows for merging.",
         token=client.token,
-        total=len(left_df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
 
@@ -533,31 +572,85 @@ async def everyrow_forecast(
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    input_data = _resolve_input(params)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
         cohort_task = await forecast_async(
             task=params.context or "",
             session=session,
-            input=df,
+            input=input_data,
         )
         task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.FORECAST,
             session_url=session_url,
-            total=len(df),
+            total=total,
         )
 
     return await create_tool_response(
         task_id=task_id,
         session_url=session_url,
-        label=f"Submitted: {len(df)} rows for forecasting (6 research dimensions + dual forecaster per row).",
+        label=f"Submitted: {total} rows for forecasting (6 research dimensions + dual forecaster per row)."
+        if total
+        else "Submitted: rows for forecasting.",
         token=client.token,
-        total=len(df),
+        total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
     )
+
+
+@mcp.tool(
+    name="everyrow_upload_data",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Upload Data",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def everyrow_upload_data(
+    params: UploadDataInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
+
+    Use this tool to ingest data before calling everyrow_agent, everyrow_screen,
+    everyrow_rank, everyrow_dedupe, everyrow_merge, or everyrow_forecast.
+
+    Supported sources:
+    - HTTP(S) URLs (including Google Sheets — auto-converted to CSV export)
+    - Local CSV file paths (stdio mode only)
+
+    Returns an artifact_id (UUID) that can be passed to any processing tool's
+    artifact_id parameter. The data is stored server-side and can be reused
+    across multiple tool calls.
+    """
+    client = _get_client(ctx)
+
+    if _is_url(params.source):
+        df = await fetch_csv_from_url(params.source)
+    else:
+        df = pd.read_csv(params.source)
+
+    async with create_session(client=client) as session:
+        artifact_id = await create_table_artifact(df, session)
+
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {
+                    "artifact_id": str(artifact_id),
+                    "rows": len(df),
+                    "columns": list(df.columns),
+                }
+            ),
+        )
+    ]
 
 
 @mcp.tool(

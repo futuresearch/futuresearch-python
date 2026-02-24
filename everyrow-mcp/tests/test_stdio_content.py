@@ -221,13 +221,13 @@ class TestStdioSubmissionContent:
     """All submission tools must return clean, concise text in stdio mode."""
 
     @pytest.mark.asyncio
-    async def test_agent_content(self, companies_csv: str):
+    async def test_agent_content(self):
         task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.agent_map_async"
         )
         with patches[0], patches[1]:
             result = await everyrow_agent(
-                AgentInput(task="Find HQ", input_csv=companies_csv), ctx
+                AgentInput(task="Find HQ", data=[{"name": "TechStart"}]), ctx
             )
 
         assert len(result) == 1
@@ -254,7 +254,7 @@ class TestStdioSubmissionContent:
         assert "Session:" in text
 
     @pytest.mark.asyncio
-    async def test_rank_content(self, companies_csv: str):
+    async def test_rank_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.rank_async"
         )
@@ -262,7 +262,7 @@ class TestStdioSubmissionContent:
             result = await everyrow_rank(
                 RankInput(
                     task="Score by AI adoption",
-                    input_csv=companies_csv,
+                    data=[{"name": "TechStart", "industry": "Software"}],
                     field_name="ai_score",
                 ),
                 ctx,
@@ -272,13 +272,15 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="everyrow_rank")
 
     @pytest.mark.asyncio
-    async def test_screen_content(self, companies_csv: str):
+    async def test_screen_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.screen_async"
         )
         with patches[0], patches[1]:
             result = await everyrow_screen(
-                ScreenInput(task="Is this a tech company?", input_csv=companies_csv),
+                ScreenInput(
+                    task="Is this a tech company?", data=[{"name": "TechStart"}]
+                ),
                 ctx,
             )
 
@@ -286,13 +288,16 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="everyrow_screen")
 
     @pytest.mark.asyncio
-    async def test_dedupe_content(self, contacts_csv: str):
+    async def test_dedupe_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.dedupe_async"
         )
         with patches[0], patches[1]:
             result = await everyrow_dedupe(
-                DedupeInput(equivalence_relation="Same person", input_csv=contacts_csv),
+                DedupeInput(
+                    equivalence_relation="Same person",
+                    data=[{"name": "John Smith"}, {"name": "J. Smith"}],
+                ),
                 ctx,
             )
 
@@ -300,7 +305,7 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="everyrow_dedupe")
 
     @pytest.mark.asyncio
-    async def test_merge_content(self, products_csv: str, suppliers_csv: str):
+    async def test_merge_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.merge_async"
         )
@@ -308,8 +313,8 @@ class TestStdioSubmissionContent:
             result = await everyrow_merge(
                 MergeInput(
                     task="Match products to suppliers",
-                    left_csv=products_csv,
-                    right_csv=suppliers_csv,
+                    left_data=[{"product_name": "Photoshop", "vendor": "Adobe"}],
+                    right_data=[{"company_name": "Adobe Inc", "approved": True}],
                 ),
                 ctx,
             )
@@ -582,21 +587,21 @@ class TestToolSchemas:
             ("everyrow_dedupe", "DedupeInput"),
         ],
     )
-    def test_schema_has_input_csv_and_data(self, tool_name: str, def_name: str):
-        """CSV-based tools expose both input_csv and data."""
+    def test_schema_has_artifact_id_and_data(self, tool_name: str, def_name: str):
+        """Processing tools expose both artifact_id and data."""
         tool = mcp_app._tool_manager.get_tool(tool_name)
         assert tool is not None
         input_def = tool.parameters["$defs"][def_name]
-        assert "input_csv" in input_def["properties"]
+        assert "artifact_id" in input_def["properties"]
         assert "data" in input_def["properties"]
 
-    def test_merge_schema_has_csv_and_data_fields(self):
-        """everyrow_merge exposes left_csv/right_csv and left_data/right_data."""
+    def test_merge_schema_has_artifact_id_and_data_fields(self):
+        """everyrow_merge exposes left/right artifact_id and data fields."""
         tool = mcp_app._tool_manager.get_tool("everyrow_merge")
         assert tool is not None
         merge_def = tool.parameters["$defs"]["MergeInput"]
-        assert "left_csv" in merge_def["properties"]
-        assert "right_csv" in merge_def["properties"]
+        assert "left_artifact_id" in merge_def["properties"]
+        assert "right_artifact_id" in merge_def["properties"]
         assert "left_data" in merge_def["properties"]
         assert "right_data" in merge_def["properties"]
 
@@ -608,7 +613,7 @@ class TestHttpModeIncludesWidgets:
     """Verify HTTP mode DOES include widget data (confirming the gate works both ways)."""
 
     @pytest.mark.asyncio
-    async def test_submit_http_has_widget_json(self, companies_csv: str, fake_redis):
+    async def test_submit_http_has_widget_json(self, fake_redis):
         """HTTP mode must include widget JSON as the first TextContent."""
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.agent_map_async"
@@ -620,7 +625,7 @@ class TestHttpModeIncludesWidgets:
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
         ):
             result = await everyrow_agent(
-                AgentInput(task="Find HQ", input_csv=companies_csv), ctx
+                AgentInput(task="Find HQ", data=[{"name": "TechStart"}]), ctx
             )
 
         assert len(result) == 2
