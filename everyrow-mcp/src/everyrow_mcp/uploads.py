@@ -11,7 +11,6 @@ import hashlib
 import hmac
 import json
 import logging
-import secrets
 import time
 from io import BytesIO
 from uuid import uuid4
@@ -49,14 +48,19 @@ class RequestUploadUrlInput(BaseModel):
 
 # ── HMAC signing ──────────────────────────────────────────────
 
-_secret: list[str] = []  # mutable container to avoid global statement
-
 
 def _get_secret() -> str:
-    """Return the HMAC secret, generating one if not configured."""
-    if not _secret:
-        _secret.append(settings.upload_secret or secrets.token_urlsafe(32))
-    return _secret[0]
+    """Return the HMAC secret from settings.
+
+    Raises at call time if UPLOAD_SECRET is not configured — required
+    in multi-pod deployments so all instances share the same signing key.
+    """
+    if not settings.upload_secret:
+        raise RuntimeError(
+            "UPLOAD_SECRET must be set in HTTP mode for HMAC signing. "
+            'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+        )
+    return settings.upload_secret
 
 
 def sign_upload_url(upload_id: str, expires_at: int) -> str:
