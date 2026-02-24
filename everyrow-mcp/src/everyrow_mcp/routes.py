@@ -89,7 +89,7 @@ async def api_progress(request: Request) -> Response:
             await redis_store.pop_task_token(task_id)
 
         return JSONResponse(
-            ts.model_dump(mode="json", exclude=set(_UI_EXCLUDE)), headers=cors
+            ts.model_dump(mode="json", exclude=_UI_EXCLUDE), headers=cors
         )
     except Exception:
         logger.exception("Progress poll failed for task %s", task_id)

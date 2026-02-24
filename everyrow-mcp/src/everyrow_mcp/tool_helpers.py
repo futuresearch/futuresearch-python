@@ -132,9 +132,7 @@ async def create_tool_response(
     return [main_content]
 
 
-_UI_EXCLUDE = frozenset(
-    {"is_terminal", "is_screen", "task_type", "error", "started_at"}
-)
+_UI_EXCLUDE: set[str] = {"is_terminal", "is_screen", "task_type", "error", "started_at"}
 
 
 class TaskState(BaseModel):
