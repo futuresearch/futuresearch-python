@@ -92,15 +92,21 @@ async def _submission_ui_json(
     await redis_store.store_task_token(task_id, token)
     await redis_store.store_poll_token(task_id, poll_token)
 
-    # Record task owner for cross-user access checks (HTTP mode only)
+    # Record task owner for cross-user access checks (HTTP mode only).
+    # This MUST succeed — downstream ownership checks deny access when no
+    # owner is recorded, so a silent failure here would lock the user out
+    # of their own task.
     if settings.is_http:
         from mcp.server.auth.middleware.auth_context import (  # noqa: PLC0415
             get_access_token,
         )
 
         access_token = get_access_token()
-        if access_token and access_token.client_id:
-            await redis_store.store_task_owner(task_id, access_token.client_id)
+        if not access_token or not access_token.client_id:
+            raise RuntimeError(
+                f"Cannot record task owner for {task_id}: no authenticated user"
+            )
+        await redis_store.store_task_owner(task_id, access_token.client_id)
     data: dict[str, Any] = {
         "session_url": session_url,
         "task_id": task_id,
