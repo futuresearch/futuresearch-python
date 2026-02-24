@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 def _cors_headers() -> dict[str, str]:
-    origin = settings.mcp_server_url or "*"
+    origin = settings.mcp_server_url or "http://localhost:8000"
     return {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET",
+        "Access-Control-Allow-Headers": "Authorization",
     }
 
 

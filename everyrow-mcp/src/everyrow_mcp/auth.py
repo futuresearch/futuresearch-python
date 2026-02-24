@@ -415,18 +415,18 @@ class EveryRowAuthProvider(
             return None
 
         key = build_key("authcode", authorization_code)
-        # GET first, verify client_id, then DELETE — avoids consuming the code
-        # before ownership is confirmed (prevents cross-client DoS).
-        code_data = await self._redis.get(key)
+        # GETDEL atomically consumes the code — no race between concurrent requests.
+        code_data = await self._redis.getdel(key)
         if code_data is None:
             return None
         code_obj = EveryRowAuthorizationCode.model_validate_json(code_data)
         if code_obj.expires_at and code_obj.expires_at < time.time():
-            await self._redis.delete(key)
             return None
         if code_obj.client_id != client.client_id:
+            # Re-store so the legitimate client can still use it.
+            remaining = max(1, int((code_obj.expires_at or 0) - time.time()))
+            await self._redis.setex(key, remaining, code_data)
             return None
-        await self._redis.delete(key)
         return code_obj
 
     async def _issue_token_response(

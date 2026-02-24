@@ -674,6 +674,9 @@ class TestClientIdMismatch:
         result = await provider.load_authorization_code(wrong_client, auth_code_str)
         assert result is None
 
+        # Code should be re-stored so the legitimate client can still use it
+        assert await provider._redis.get(f"mcp:authcode:{auth_code_str}") is not None
+
     @pytest.mark.asyncio
     async def test_refresh_token_client_id_mismatch(self, provider):
         """load_refresh_token rejects when client_id doesn't match."""

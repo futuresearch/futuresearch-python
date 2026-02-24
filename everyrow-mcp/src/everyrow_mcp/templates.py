@@ -776,6 +776,7 @@ import{App}from"SCRIPT_SRC";
 const app=new App({name:"EveryRow Session",version:"1.0.0"});
 const el=document.getElementById("c");
 let pollUrl=null,pollTimer=null,sessionUrl="",wasDone=false;
+function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 
 app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;

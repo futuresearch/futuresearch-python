@@ -380,8 +380,8 @@ def _validate_task_id(v: str) -> str:
     """Validate task_id is a valid UUID."""
     try:
         UUID(v)
-    except ValueError:
-        raise ValueError("task_id must be a valid UUID")
+    except ValueError as exc:
+        raise ValueError("task_id must be a valid UUID") from exc
     return v
 
 

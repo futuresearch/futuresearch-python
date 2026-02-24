@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import re
 from enum import StrEnum
-from functools import lru_cache
 from pathlib import Path
 
 from redis.asyncio import Redis, Sentinel
@@ -94,16 +93,27 @@ def create_redis_client(
     return client
 
 
-@lru_cache
+_redis_client: Redis | None = None
+
+
 def get_redis_client() -> Redis:
-    return create_redis_client(
-        host=settings.redis_host,
-        port=settings.redis_port,
-        db=settings.redis_db,
-        password=settings.redis_password,
-        sentinel_endpoints=settings.redis_sentinel_endpoints,
-        sentinel_master_name=settings.redis_sentinel_master_name,
-    )
+    global _redis_client  # noqa: PLW0603
+    if _redis_client is None:
+        _redis_client = create_redis_client(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            db=settings.redis_db,
+            password=settings.redis_password,
+            sentinel_endpoints=settings.redis_sentinel_endpoints,
+            sentinel_master_name=settings.redis_sentinel_master_name,
+        )
+    return _redis_client
+
+
+def set_redis_client(client: Redis | None) -> None:
+    """Override the Redis client (for testing)."""
+    global _redis_client  # noqa: PLW0603
+    _redis_client = client
 
 
 async def get_result_meta(task_id: str) -> str | None:
