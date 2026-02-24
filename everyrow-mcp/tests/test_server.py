@@ -1124,7 +1124,7 @@ class TestResultsInputValidation:
     def test_stdio_requires_output_path(self):
         """Test that StdioResultsInput requires output_path."""
         with pytest.raises(ValidationError):
-            StdioResultsInput(task_id="00000000-0000-0000-0000-000000000000")
+            StdioResultsInput(task_id="00000000-0000-0000-0000-000000000000")  # pyright: ignore[reportCallIssue]
 
     def test_stdio_output_path_validated(self, tmp_path: Path):
         """Test that output_path is validated when provided."""

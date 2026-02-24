@@ -756,6 +756,7 @@ class TestStdioMcpIntegration:
             assert len(submit.content) == 1, (
                 f"Stdio submit should return 1 item, got {len(submit.content)}"
             )
+            assert isinstance(submit.content[0], TextContent)
             task_id = _extract_task_id(submit.content[0].text)
             print(f"\n  Submitted screen: {task_id}")
 
@@ -772,6 +773,7 @@ class TestStdioMcpIntegration:
                 )
                 assert len(progress.content) == 1
 
+                assert isinstance(progress.content[0], TextContent)
                 text = progress.content[0].text
                 print(f"  Progress: {text.splitlines()[0]}")
 
@@ -797,6 +799,7 @@ class TestStdioMcpIntegration:
             assert not results.isError
             _assert_mcp_result_clean(results, tool_name="screen results")
             assert len(results.content) == 1
+            assert isinstance(results.content[0], TextContent)
             assert "Saved" in results.content[0].text
             assert output_file.exists()
             print(f"  Results: {results.content[0].text}")
@@ -837,6 +840,7 @@ class TestStdioMcpIntegration:
             assert not submit.isError
             _assert_mcp_result_clean(submit, tool_name="agent submit")
             assert len(submit.content) == 1
+            assert isinstance(submit.content[0], TextContent)
             task_id = _extract_task_id(submit.content[0].text)
             print(f"\n  Submitted agent: {task_id}")
 
@@ -853,6 +857,7 @@ class TestStdioMcpIntegration:
                 )
                 assert len(progress.content) == 1
 
+                assert isinstance(progress.content[0], TextContent)
                 text = progress.content[0].text
                 print(f"  Progress: {text.splitlines()[0]}")
 
@@ -878,6 +883,7 @@ class TestStdioMcpIntegration:
             assert not results.isError
             _assert_mcp_result_clean(results, tool_name="agent results")
             assert len(results.content) == 1
+            assert isinstance(results.content[0], TextContent)
             assert "Saved" in results.content[0].text
             assert output_file.exists()
 
@@ -905,6 +911,7 @@ class TestStdioMcpIntegration:
             assert not submit.isError
             _assert_mcp_result_clean(submit, tool_name="single_agent submit")
             assert len(submit.content) == 1
+            assert isinstance(submit.content[0], TextContent)
             task_id = _extract_task_id(submit.content[0].text)
             print(f"\n  Submitted single_agent: {task_id}")
 
@@ -921,6 +928,7 @@ class TestStdioMcpIntegration:
                 )
                 assert len(progress.content) == 1
 
+                assert isinstance(progress.content[0], TextContent)
                 text = progress.content[0].text
                 print(f"  Progress: {text.splitlines()[0]}")
 
@@ -946,5 +954,6 @@ class TestStdioMcpIntegration:
             assert not results.isError
             _assert_mcp_result_clean(results, tool_name="single_agent results")
             assert len(results.content) == 1
+            assert isinstance(results.content[0], TextContent)
             assert output_file.exists()
             print(f"  Results: {results.content[0].text}")

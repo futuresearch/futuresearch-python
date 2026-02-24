@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # Set env vars for HttpSettings before any everyrow imports
 import os
+from collections.abc import AsyncGenerator
 
 os.environ.setdefault("EVERYROW_API_KEY", "test-api-key")
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -64,7 +65,7 @@ def _redis_server():
 
 
 @pytest.fixture
-async def fake_redis(_redis_server) -> aioredis.Redis:
+async def fake_redis(_redis_server) -> AsyncGenerator[aioredis.Redis, None]:
     """A real Redis client, flushed after each test."""
     r = aioredis.Redis(host="localhost", port=_REDIS_PORT, decode_responses=True)
     await r.flushdb()
@@ -102,7 +103,7 @@ def override_settings(**overrides):
 
 
 @pytest.fixture
-async def everyrow_client():
+async def everyrow_client() -> AsyncGenerator[object, None]:
     """Provide a real everyrow SDK client for integration tests."""
     with create_client() as client:
         yield client

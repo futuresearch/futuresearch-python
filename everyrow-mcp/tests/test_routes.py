@@ -82,7 +82,7 @@ class TestApiProgress:
     @pytest.mark.asyncio
     async def test_options_returns_204(self):
         req = FakeRequest(method="OPTIONS", path_params={"task_id": "abc"})
-        resp = await api_progress(req)
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 204
         assert resp.headers["Access-Control-Allow-Origin"] == settings.mcp_server_url
 
@@ -96,9 +96,9 @@ class TestApiProgress:
             path_params={"task_id": task_id},
             query_params={"token": "wrong-token"},
         )
-        resp = await api_progress(req)
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 403
-        body = json.loads(resp.body.decode())
+        body = json.loads(bytes(resp.body).decode())
         assert body["error"] == "Unauthorized"
 
     @pytest.mark.asyncio
@@ -109,7 +109,7 @@ class TestApiProgress:
             path_params={"task_id": task_id},
             query_params={},
         )
-        resp = await api_progress(req)
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 403
 
     @pytest.mark.asyncio
@@ -123,9 +123,9 @@ class TestApiProgress:
             path_params={"task_id": task_id},
             query_params={"token": poll_token},
         )
-        resp = await api_progress(req)
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 404
-        body = json.loads(resp.body.decode())
+        body = json.loads(bytes(resp.body).decode())
         assert body["error"] == "Unknown task"
 
     @pytest.mark.asyncio
@@ -149,10 +149,10 @@ class TestApiProgress:
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
-            resp = await api_progress(req)
+            resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
 
         assert resp.status_code == 200
-        body = json.loads(resp.body.decode())
+        body = json.loads(bytes(resp.body).decode())
         assert body["status"] == "running"
         assert body["completed"] == 3
         assert body["total"] == 10
@@ -181,10 +181,10 @@ class TestApiProgress:
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
-            resp = await api_progress(req)
+            resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
 
         assert resp.status_code == 200
-        body = json.loads(resp.body.decode())
+        body = json.loads(bytes(resp.body).decode())
         assert body["status"] == "completed"
 
         # Task token cleaned up; poll token kept for CSV download
@@ -208,8 +208,8 @@ class TestApiProgress:
             new_callable=AsyncMock,
             side_effect=RuntimeError("API down"),
         ):
-            resp = await api_progress(req)
+            resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
 
         assert resp.status_code == 500
-        body = json.loads(resp.body.decode())
+        body = json.loads(bytes(resp.body).decode())
         assert body["error"] == "Internal server error"

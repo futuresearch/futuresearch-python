@@ -28,13 +28,16 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Generator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 import pytest
 import redis
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import TextContent
 
 # Skip all tests unless opted in
 pytestmark = pytest.mark.skipif(
@@ -77,7 +80,7 @@ def _flush_redis_db(db: int = REDIS_TEST_DB) -> None:
 
 
 @pytest.fixture(scope="session")
-def mcp_server() -> str:
+def mcp_server() -> Generator[str, None, None]:
     """Start the MCP server subprocess on a random port with Redis DB 15.
 
     Yields the base URL (e.g. http://127.0.0.1:PORT).
@@ -166,7 +169,7 @@ async def poll_via_mcp(
         result = await session.call_tool(
             "everyrow_progress", {"params": {"task_id": task_id}}
         )
-        texts = [b.text for b in result.content if hasattr(b, "text")]
+        texts = [b.text for b in result.content if isinstance(b, TextContent)]
         human_text = texts[-1] if texts else ""
         print(f"  Poll {i + 1}: {human_text.splitlines()[0]}")
 
@@ -180,10 +183,10 @@ async def poll_via_mcp(
     raise TimeoutError(f"Task {task_id} did not complete within {max_polls} polls")
 
 
-def parse_widget_json(content_blocks) -> dict:
+def parse_widget_json(content_blocks) -> dict[str, Any]:
     """Parse the first TextContent block as JSON (the widget data)."""
     for block in content_blocks:
-        if hasattr(block, "text"):
+        if isinstance(block, TextContent):
             try:
                 return json.loads(block.text)
             except json.JSONDecodeError:
@@ -256,7 +259,10 @@ class TestAgentHttpTransport:
             )
 
             # Fail fast on tool errors
-            first_text = submit_result.content[0].text if submit_result.content else ""
+            first_block = submit_result.content[0] if submit_result.content else None
+            first_text = (
+                first_block.text if isinstance(first_block, TextContent) else ""
+            )
             assert not first_text.startswith("Error"), f"Tool error: {first_text}"
 
             # Parse widget JSON from the first content block
@@ -276,7 +282,9 @@ class TestAgentHttpTransport:
                 "everyrow_results",
                 {"params": {"task_id": task_id, "page_size": 1}},
             )
-            results_texts = [b.text for b in results_resp.content if hasattr(b, "text")]
+            results_texts = [
+                b.text for b in results_resp.content if isinstance(b, TextContent)
+            ]
             results_widget = parse_widget_json(results_resp.content)
             print(f"\nResults page 1 widget: {json.dumps(results_widget, indent=2)}")
 
@@ -306,7 +314,7 @@ class TestAgentHttpTransport:
             )
             results_widget2 = parse_widget_json(results_resp2.content)
             results_texts2 = [
-                b.text for b in results_resp2.content if hasattr(b, "text")
+                b.text for b in results_resp2.content if isinstance(b, TextContent)
             ]
             print(f"\nResults page 2 widget: {json.dumps(results_widget2, indent=2)}")
 
@@ -328,6 +336,7 @@ class TestAgentHttpTransport:
         reader = csv.DictReader(io.StringIO(csv_response.text))
         rows = list(reader)
         assert len(rows) == 2, f"Expected 2 CSV rows, got {len(rows)}"
+        assert reader.fieldnames is not None
         assert "headquarters" in reader.fieldnames, (
             f"Expected 'headquarters' column, got columns: {reader.fieldnames}"
         )

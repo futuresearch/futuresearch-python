@@ -98,12 +98,13 @@ class TestResultPageRoundTrip:
         await redis_store.store_result_page("task-multi", 0, 10, page0)
         await redis_store.store_result_page("task-multi", 10, 10, page10)
 
-        assert json.loads(await redis_store.get_result_page("task-multi", 0, 10)) == [
-            {"row": 0}
-        ]
-        assert json.loads(await redis_store.get_result_page("task-multi", 10, 10)) == [
-            {"row": 10}
-        ]
+        raw_page0 = await redis_store.get_result_page("task-multi", 0, 10)
+        assert raw_page0 is not None
+        assert json.loads(raw_page0) == [{"row": 0}]
+
+        raw_page10 = await redis_store.get_result_page("task-multi", 10, 10)
+        assert raw_page10 is not None
+        assert json.loads(raw_page10) == [{"row": 10}]
 
     @pytest.mark.asyncio
     async def test_get_missing_returns_none(self):

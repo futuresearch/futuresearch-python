@@ -258,6 +258,7 @@ class TestTryCachedResult:
 
         result = await try_cached_result(task_id, 0, 10, mcp_server_url=FAKE_SERVER_URL)
 
+        assert result is not None
         widget = json.loads(result[0].text)
         assert widget["session_url"] == "https://everyrow.io/sessions/xyz"
 
@@ -334,6 +335,7 @@ class TestTryStoreResult:
         )
 
         meta_raw = await redis_store.get_result_meta(task_id)
+        assert meta_raw is not None
         meta = json.loads(meta_raw)
         assert meta["session_url"] == "https://everyrow.io/sessions/abc"
 

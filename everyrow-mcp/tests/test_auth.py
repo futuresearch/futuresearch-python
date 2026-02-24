@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.serialization import (
 )
 from mcp.server.auth.provider import AccessToken, AuthorizationParams
 from mcp.shared.auth import OAuthClientInformationFull
+from pydantic import AnyUrl
 
 from everyrow_mcp.auth import (
     EveryRowAuthorizationCode,
@@ -53,6 +54,7 @@ def mock_redis():
     async def _setex(*args, name=None, time=None, value=None):  # noqa: ARG001
         key = name if name is not None else args[0]
         val = value if value is not None else args[2] if len(args) > 2 else None
+        assert val is not None
         store[key] = val
 
     async def _exists(key):
@@ -89,7 +91,7 @@ def verifier(rsa_keypair, mock_redis):
 
 def _make_jwt(
     private_key,
-    claims: dict | None = None,
+    claims: dict[str, str | int] | None = None,
     *,
     remove_claims: list[str] | None = None,
 ) -> str:
@@ -362,6 +364,7 @@ def provider_redis():
     async def _setex(*args, name=None, time=None, value=None):  # noqa: ARG001
         key = name if name is not None else args[0]
         val = value if value is not None else args[2] if len(args) > 2 else None
+        assert val is not None
         store[key] = val
 
     async def _get(key):
@@ -414,7 +417,7 @@ def test_client():
     """A minimal OAuthClientInformationFull for tests."""
     return OAuthClientInformationFull(
         client_id="test-client-id",
-        redirect_uris=["https://example.com/callback"],
+        redirect_uris=[AnyUrl("https://example.com/callback")],
     )
 
 
@@ -427,7 +430,7 @@ class TestAuthProvider:
         auth_code_obj = EveryRowAuthorizationCode(
             code=auth_code_str,
             client_id="test-client-id",
-            redirect_uri="https://example.com/callback",
+            redirect_uri=AnyUrl("https://example.com/callback"),
             redirect_uri_provided_explicitly=True,
             code_challenge="test-challenge",
             scopes=["read"],
@@ -563,7 +566,7 @@ class TestRedirectUriValidation:
         params = AuthorizationParams(
             state="s1",
             scopes=["read"],
-            redirect_uri="https://evil.example.com/callback",
+            redirect_uri=AnyUrl("https://evil.example.com/callback"),
             code_challenge="challenge",
             redirect_uri_provided_explicitly=True,
         )
@@ -576,7 +579,7 @@ class TestRedirectUriValidation:
         params = AuthorizationParams(
             state="s1",
             scopes=["read"],
-            redirect_uri="https://example.com/callback",
+            redirect_uri=AnyUrl("https://example.com/callback"),
             code_challenge="challenge",
             redirect_uri_provided_explicitly=True,
         )
@@ -653,7 +656,7 @@ class TestClientIdMismatch:
         auth_code_obj = EveryRowAuthorizationCode(
             code=auth_code_str,
             client_id="other-client-id",
-            redirect_uri="https://example.com/callback",
+            redirect_uri=AnyUrl("https://example.com/callback"),
             redirect_uri_provided_explicitly=True,
             code_challenge="test-challenge",
             scopes=["read"],
@@ -669,7 +672,7 @@ class TestClientIdMismatch:
 
         wrong_client = OAuthClientInformationFull(
             client_id="wrong-client-id",
-            redirect_uris=["https://example.com/callback"],
+            redirect_uris=[AnyUrl("https://example.com/callback")],
         )
         result = await provider.load_authorization_code(wrong_client, auth_code_str)
         assert result is None
@@ -692,7 +695,7 @@ class TestClientIdMismatch:
 
         wrong_client = OAuthClientInformationFull(
             client_id="wrong-client-id",
-            redirect_uris=["https://example.com/callback"],
+            redirect_uris=[AnyUrl("https://example.com/callback")],
         )
         result = await provider.load_refresh_token(wrong_client, "rt-mismatch")
         assert result is None
@@ -731,7 +734,7 @@ class TestAuthCodeExpiration:
         auth_code_obj = EveryRowAuthorizationCode(
             code=auth_code_str,
             client_id="test-client-id",
-            redirect_uri="https://example.com/callback",
+            redirect_uri=AnyUrl("https://example.com/callback"),
             redirect_uri_provided_explicitly=True,
             code_challenge="test-challenge",
             scopes=["read"],
