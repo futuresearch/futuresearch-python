@@ -33,14 +33,14 @@ services:
     env_file:
       - .env
     environment:
-      MCP_SERVER_URL: "${MCP_SERVER_URL:?Set MCP_SERVER_URL to your cloudflare tunnel URL}"
+      MCP_SERVER_URL: "${MCP_SERVER_URL:?Set MCP_SERVER_URL}"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "13"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       EVERYROW_API_URL: "https://everyrow.io/api/v0"
-      TRUST_PROXY_HEADERS: "true"
-      TRUSTED_IP_HEADER: "CF-Connecting-IP"  # Cloudflare tunnel
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
+      TRUSTED_IP_HEADER: "${TRUSTED_IP_HEADER:-X-Forwarded-For}"
     deploy:
       resources:
         limits:
