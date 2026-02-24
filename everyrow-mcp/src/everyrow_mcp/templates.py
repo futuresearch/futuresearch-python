@@ -734,7 +734,7 @@ function render(d){
     h+=`<div class="info">`;
     if(done){
       const cls=d.status==="completed"?"status-done":"status-fail";
-      h+=`<span class="${cls}">${d.status}</span>`;
+      h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
       h+=`<span>${comp}/${tot}${fail?` (${fail} failed)`:""}</span>`;
       if(elapsed)h+=`<span>${fmtTime(elapsed)}</span>`;
     }else{
@@ -754,7 +754,7 @@ function render(d){
       h+=`</div>`;
     }
   }else if(d.status){
-    h+=`<div class="info">${d.status}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
+    h+=`<div class="info">${esc(d.status)}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
   }
 
   el.innerHTML=h;

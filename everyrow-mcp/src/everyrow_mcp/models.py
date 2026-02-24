@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any, Literal
+from uuid import UUID
 
 from jsonschema import SchemaError
 from jsonschema.validators import validator_for
@@ -24,6 +25,10 @@ JSON_TYPE_MAP = {
     "array": list,
     "object": dict,
 }
+
+MAX_INLINE_ROWS = 50_000
+MAX_INLINE_DATA_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_SCHEMA_PROPERTIES = 50
 
 
 def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -49,6 +54,12 @@ def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] |
     if not isinstance(properties, dict) or not properties:
         raise ValueError(
             "response_schema must include a non-empty top-level 'properties' object"
+        )
+
+    if len(properties) > MAX_SCHEMA_PROPERTIES:
+        raise ValueError(
+            f"response_schema has {len(properties)} properties "
+            f"(max {MAX_SCHEMA_PROPERTIES})"
         )
 
     for field_name, field_def in properties.items():
@@ -124,6 +135,8 @@ def _check_exactly_one(
 
 
 class _SingleSourceInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
     input_csv: str | None = Field(
         default=None,
         description="Absolute path to CSV file (local/stdio mode only).",
@@ -138,6 +151,21 @@ class _SingleSourceInput(BaseModel):
     def validate_input_csv(cls, v: str | None) -> str | None:
         if v is not None:
             validate_csv_path(v)
+        return v
+
+    @field_validator("data")
+    @classmethod
+    def validate_data_size(
+        cls, v: str | list[dict[str, Any]] | None
+    ) -> str | list[dict[str, Any]] | None:
+        if v is None:
+            return v
+        if isinstance(v, str) and len(v) > MAX_INLINE_DATA_BYTES:
+            raise ValueError(
+                f"Inline data exceeds {MAX_INLINE_DATA_BYTES // (1024 * 1024)} MB limit"
+            )
+        if isinstance(v, list) and len(v) > MAX_INLINE_ROWS:
+            raise ValueError(f"Inline data has {len(v)} rows (max {MAX_INLINE_ROWS})")
         return v
 
     @model_validator(mode="after")
@@ -348,12 +376,26 @@ class SingleAgentInput(BaseModel):
         return _validate_response_schema(v)
 
 
+def _validate_task_id(v: str) -> str:
+    """Validate task_id is a valid UUID."""
+    try:
+        UUID(v)
+    except ValueError:
+        raise ValueError("task_id must be a valid UUID")
+    return v
+
+
 class ProgressInput(BaseModel):
     """Input for checking task progress."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     task_id: str = Field(..., description="The task ID returned by the operation tool.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
 
 
 class CancelInput(BaseModel):
@@ -362,6 +404,11 @@ class CancelInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     task_id: str = Field(..., description="The task ID to cancel.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
 
 
 def _validate_output_path(v: str | None) -> str | None:
@@ -389,6 +436,11 @@ class StdioResultsInput(BaseModel):
         description="Full absolute path to the output CSV file (must end in .csv).",
     )
 
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
     @field_validator("output_path")
     @classmethod
     def validate_output(cls, v: str) -> str:
@@ -403,6 +455,12 @@ class HttpResultsInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     task_id: str = Field(..., description="The task ID of the completed task.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
     output_path: str | None = Field(
         default=None,
         description="Full absolute path to the output CSV file (must end in .csv). "

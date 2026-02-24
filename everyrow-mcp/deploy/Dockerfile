@@ -16,10 +16,16 @@ RUN uv sync --package everyrow-mcp --no-dev --no-sources --no-editable
 # Stage 2: Slim runtime
 FROM python:3.13-slim
 
+RUN groupadd -r mcp && useradd -r -g mcp -d /app -s /sbin/nologin mcp
+
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 
-CMD ["everyrow-mcp", "--http", "--port", "8000", "--host", "0.0.0.0"]
-
 WORKDIR /app
 COPY --link --from=build /app/.venv .venv
+RUN chown -R mcp:mcp /app
+
+USER mcp
+
+STOPSIGNAL SIGTERM
+CMD ["everyrow-mcp", "--http", "--port", "8000", "--host", "0.0.0.0"]

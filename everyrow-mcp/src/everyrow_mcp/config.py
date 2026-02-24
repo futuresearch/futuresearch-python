@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     )
     redis_sentinel_master_name: str | None = Field(default=None)
 
+    trust_proxy_headers: bool = Field(
+        default=False,
+        description="Trust X-Forwarded-For and CF-Connecting-IP headers for client IP. "
+        "Enable only when behind a trusted reverse proxy (e.g. Cloudflare).",
+    )
+
     # HTTP-only settings — unused in stdio mode
     mcp_server_url: str = Field(default="")
     supabase_url: str = Field(default="")

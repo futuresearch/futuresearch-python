@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -33,9 +34,12 @@ class Transport(StrEnum):
 # ── Redis infrastructure ──────────────────────────────────────
 
 
+_KEY_UNSAFE = re.compile(r"[^a-zA-Z0-9._\-]")
+
+
 def build_key(*parts: str) -> str:
-    """Build a namespaced Redis key, sanitising embedded colons."""
-    sanitized = [p.replace(":", "_") for p in parts]
+    """Build a namespaced Redis key, sanitising user-controlled characters."""
+    sanitized = [_KEY_UNSAFE.sub("_", p) for p in parts]
     return "mcp:" + ":".join(sanitized)
 
 
@@ -133,7 +137,18 @@ async def store_result_page(
 # ── CSV result storage ────────────────────────────────────────
 
 
+MAX_CSV_CACHE_BYTES = 50 * 1024 * 1024  # 50 MB — skip Redis cache for oversized results
+
+
 async def store_result_csv(task_id: str, csv_text: str) -> None:
+    if len(csv_text) > MAX_CSV_CACHE_BYTES:
+        logger.warning(
+            "Skipping Redis cache for task %s: CSV is %d bytes (limit %d)",
+            task_id,
+            len(csv_text),
+            MAX_CSV_CACHE_BYTES,
+        )
+        return
     await get_redis_client().setex(
         name=build_key("result", task_id, "csv"), time=CSV_CACHE_TTL, value=csv_text
     )

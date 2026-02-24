@@ -593,8 +593,11 @@ class TestRateLimiting:
     async def test_rate_limit_exceeded(self, provider, provider_redis):
         """_check_rate_limit raises ValueError when the limit is exceeded."""
         # Set the pipeline to return a count above the limit
-        pipe_mock = provider_redis.pipeline.return_value
+        pipe_mock = AsyncMock()
         pipe_mock.execute = AsyncMock(return_value=[11, True])
+        pipe_mock.__aenter__ = AsyncMock(return_value=pipe_mock)
+        pipe_mock.__aexit__ = AsyncMock(return_value=False)
+        provider_redis.pipeline = MagicMock(return_value=pipe_mock)
 
         with pytest.raises(ValueError, match="rate limit exceeded"):
             await provider._check_rate_limit("register", "1.2.3.4")

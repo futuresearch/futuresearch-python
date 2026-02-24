@@ -78,7 +78,7 @@ class SupabaseTokenVerifier(TokenVerifier):
         return pyjwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256", "ES256"],
+            algorithms=["RS256"],
             issuer=self._issuer,
             audience=self._audience,
             options={"require": ["exp", "sub", "iss", "aud"]},
@@ -191,7 +191,9 @@ class EveryRowAuthProvider(
         endpoint over HTTPS and was never exposed to the client.
         NEVER use this for tokens received from end users.
         """
-        return pyjwt.decode(token, options={"verify_signature": False})
+        return pyjwt.decode(
+            token, options={"verify_signature": False}, algorithms=["RS256"]
+        )
 
     @staticmethod
     def _client_ip(request: Request) -> str:
@@ -199,10 +201,10 @@ class EveryRowAuthProvider(
 
     async def _check_rate_limit(self, action: str, client_ip: str) -> None:
         rl_key = build_key("ratelimit", action, client_ip)
-        pipe = self._redis.pipeline()
-        pipe.incr(rl_key)
-        pipe.expire(rl_key, settings.registration_rate_window)
-        count, _ = await pipe.execute()
+        async with self._redis.pipeline() as pipe:
+            pipe.incr(rl_key)
+            pipe.expire(rl_key, settings.registration_rate_window, nx=True)
+            count, _ = await pipe.execute()
         if count > settings.registration_rate_limit:
             raise ValueError(f"{action.title()} rate limit exceeded")
 
@@ -246,9 +248,10 @@ class EveryRowAuthProvider(
     def _validate_redirect_url(
         client: OAuthClientInformationFull, params: AuthorizationParams
     ) -> None:
-        if client.redirect_uris:
-            if str(params.redirect_uri) not in [str(u) for u in client.redirect_uris]:
-                raise ValueError("redirect_uri does not match any registered URI")
+        if not client.redirect_uris:
+            raise ValueError("Client must register at least one redirect_uri")
+        if str(params.redirect_uri) not in [str(u) for u in client.redirect_uris]:
+            raise ValueError("redirect_uri does not match any registered URI")
 
     async def _validate_auth_request(
         self, request: Request, action: str, state: str | None, *, consume: bool = False
@@ -272,15 +275,14 @@ class EveryRowAuthProvider(
 
     async def _validate_client(self, pending: PendingAuth) -> None:
         client_info = await self.get_client(pending.client_id)
-        if client_info is None or (
-            pending.params.redirect_uri
-            and client_info.redirect_uris
-            and str(pending.params.redirect_uri)
+        if client_info is None:
+            raise HTTPException(status_code=400, detail="Invalid client")
+        if pending.params.redirect_uri and (
+            not client_info.redirect_uris
+            or str(pending.params.redirect_uri)
             not in [str(u) for u in client_info.redirect_uris]
         ):
-            raise HTTPException(
-                status_code=400, detail="Invalid client or redirect_uri"
-            )
+            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
 
     async def _validate_supabase_code(
         self, code: str, supabase_code_verifier: str
@@ -289,10 +291,10 @@ class EveryRowAuthProvider(
             return await self._exchange_supabase_code(
                 code=code, code_verifier=supabase_code_verifier
             )
-        except Exception:
-            logger.exception("Failed to exchange Supabase code")
+        except Exception as exc:
+            logger.error("Failed to exchange Supabase code: %s", type(exc).__name__)
             raise HTTPException(
-                status_code=500, detail="Failed to authenticate with Supabase"
+                status_code=500, detail="Authentication failed. Please try again."
             )
 
     async def _validate_callback_request(
@@ -411,12 +413,16 @@ class EveryRowAuthProvider(
         if len(authorization_code) > 256:
             return None
 
-        code_data = await self._redis.getdel(build_key("authcode", authorization_code))
+        key = build_key("authcode", authorization_code)
+        # GET first, verify client_id, then DELETE — avoids consuming the code
+        # before ownership is confirmed (prevents cross-client DoS).
+        code_data = await self._redis.get(key)
         if code_data is None:
             return None
         code_obj = EveryRowAuthorizationCode.model_validate_json(code_data)
         if code_obj.client_id != client.client_id:
             return None
+        await self._redis.delete(key)
         return code_obj
 
     async def _issue_token_response(
@@ -470,12 +476,16 @@ class EveryRowAuthProvider(
         if len(refresh_token) > 256:
             return None
 
-        data = await self._redis.getdel(build_key("refresh", refresh_token))
+        key = build_key("refresh", refresh_token)
+        # GET first, verify client_id, then DELETE — same pattern as
+        # load_authorization_code to avoid cross-client DoS.
+        data = await self._redis.get(key)
         if data is None:
             return None
         rt = EveryRowRefreshToken.model_validate_json(data)
         if rt.client_id != client.client_id:
             return None
+        await self._redis.delete(key)
         return rt
 
     async def exchange_refresh_token(
@@ -485,9 +495,18 @@ class EveryRowAuthProvider(
         scopes: list[str],
     ) -> OAuthToken:
         final_scopes = self._validate_scopes(scopes, refresh_token)
-        supa_tokens = await self._refresh_supabase_token(
-            refresh_token.supabase_refresh_token
-        )
+        try:
+            supa_tokens = await self._refresh_supabase_token(
+                refresh_token.supabase_refresh_token
+            )
+        except Exception:
+            # Re-store the consumed refresh token so the user isn't locked out.
+            await self._redis.setex(
+                name=build_key("refresh", refresh_token.token),
+                time=settings.refresh_token_ttl,
+                value=refresh_token.model_dump_json(),
+            )
+            raise
         return await self._issue_token_response(
             access_token=supa_tokens.access_token,
             client_id=client.client_id,

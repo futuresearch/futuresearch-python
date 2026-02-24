@@ -35,6 +35,19 @@ def configure_http_mode(
     mcp_server_url: str,
 ) -> None:
     """Configure the MCP server for HTTP transport."""
+    if not no_auth:
+        missing = []
+        if not settings.supabase_url:
+            missing.append("SUPABASE_URL")
+        if not settings.supabase_anon_key:
+            missing.append("SUPABASE_ANON_KEY")
+        if not settings.mcp_server_url:
+            missing.append("MCP_SERVER_URL")
+        if missing:
+            raise RuntimeError(
+                f"HTTP auth mode requires these environment variables: {', '.join(missing)}"
+            )
+
     redis_client = get_redis_client()
     if no_auth:
         lifespan = no_auth_http_lifespan
@@ -52,7 +65,7 @@ def configure_http_mode(
     mcp.settings.port = port
 
     _register_widgets(mcp, mcp_server_url)
-    _register_routes(mcp, auth_provider if not no_auth else None)
+    _register_routes(mcp, redis_client, auth_provider if not no_auth else None)
     _add_middleware(mcp, redis_client, rate_limit=not no_auth)
 
 
@@ -79,6 +92,7 @@ def _register_widgets(mcp: FastMCP, mcp_server_url: str) -> None:
 
 def _register_routes(
     mcp: FastMCP,
+    redis: Redis,
     auth_provider: EveryRowAuthProvider | None,
 ) -> None:
     """Register REST endpoints for widget polling, CSV download, health, and auth."""
@@ -88,6 +102,12 @@ def _register_routes(
     )
 
     async def _health(_request: Request) -> Response:
+        try:
+            await redis.ping()
+        except Exception:
+            return JSONResponse(
+                {"status": "unhealthy", "redis": "unreachable"}, status_code=503
+            )
         return JSONResponse({"status": "ok"})
 
     mcp.custom_route("/health", ["GET"])(_health)

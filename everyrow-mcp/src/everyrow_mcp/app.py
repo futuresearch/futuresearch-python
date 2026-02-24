@@ -17,6 +17,8 @@ from everyrow_mcp.tool_helpers import SessionContext
 
 
 def _clear_task_state() -> None:
+    if settings.is_http:
+        return
     if TASK_STATE_FILE.exists():
         TASK_STATE_FILE.unlink()
 
