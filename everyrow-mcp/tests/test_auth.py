@@ -714,6 +714,115 @@ class TestInputLengthValidation:
         assert result is None
 
 
+# ── Auth code expiration tests ─────────────────────────────────────────
+
+
+class TestAuthCodeExpiration:
+    @pytest.mark.asyncio
+    async def test_auth_code_expired_rejected(self, provider, test_client):
+        """load_authorization_code returns None for an expired auth code."""
+        auth_code_str = secrets.token_urlsafe(32)
+        auth_code_obj = EveryRowAuthorizationCode(
+            code=auth_code_str,
+            client_id="test-client-id",
+            redirect_uri="https://example.com/callback",
+            redirect_uri_provided_explicitly=True,
+            code_challenge="test-challenge",
+            scopes=["read"],
+            expires_at=time.time() - 60,  # expired 60 seconds ago
+            supabase_access_token="fake-supabase-jwt",
+            supabase_refresh_token="fake-refresh",
+        )
+        await provider._redis.setex(
+            f"mcp:authcode:{auth_code_str}",
+            _AUTH_CODE_TTL,
+            auth_code_obj.model_dump_json(),
+        )
+
+        result = await provider.load_authorization_code(test_client, auth_code_str)
+        assert result is None
+
+        # Code should also be cleaned up from Redis
+        assert await provider._redis.get(f"mcp:authcode:{auth_code_str}") is None
+
+
+# ── Revocation TTL tests ──────────────────────────────────────────────
+
+
+class TestRevocationTTL:
+    @pytest.mark.asyncio
+    async def test_revoke_access_token_uses_remaining_ttl(self, mock_redis):
+        """Revoking an access token uses remaining lifetime + buffer, not flat TTL."""
+        verifier = SupabaseTokenVerifier(SUPABASE_URL, redis=mock_redis)
+        provider = EveryRowAuthProvider(redis=mock_redis, token_verifier=verifier)
+
+        expires_at = int(time.time()) + 1800  # 30 minutes remaining
+        access_token = AccessToken(
+            token="at-ttl-test",
+            client_id="user-123",
+            scopes=["read"],
+            expires_at=expires_at,
+        )
+        await provider.revoke_token(access_token)
+
+        # setex should have been called with remaining lifetime + 60s buffer
+        fingerprint = hashlib.sha256(b"at-ttl-test").hexdigest()
+        key = f"mcp:revoked:{fingerprint}"
+        assert key in mock_redis._store
+
+        # Verify the TTL passed to setex: remaining (~1800) + 60 = ~1860
+        call_args = mock_redis.setex.call_args
+        ttl_used = call_args.kwargs.get("time") or call_args[0][1]
+        assert 1800 <= ttl_used <= 1870  # allow for test execution time
+
+    @pytest.mark.asyncio
+    async def test_revoke_access_token_no_expiry_uses_fallback(self, mock_redis):
+        """Revoking a token with no expires_at falls back to _revocation_ttl."""
+        verifier = SupabaseTokenVerifier(SUPABASE_URL, redis=mock_redis)
+        provider = EveryRowAuthProvider(redis=mock_redis, token_verifier=verifier)
+
+        access_token = AccessToken(
+            token="at-no-exp",
+            client_id="user-123",
+            scopes=["read"],
+            # no expires_at
+        )
+        await provider.revoke_token(access_token)
+
+        call_args = mock_redis.setex.call_args
+        ttl_used = call_args.kwargs.get("time") or call_args[0][1]
+        assert ttl_used == verifier._revocation_ttl
+
+
+# ── Supabase response validation tests ────────────────────────────────
+
+
+class TestSupabaseResponseValidation:
+    @pytest.mark.asyncio
+    async def test_supabase_response_missing_fields(self, provider):
+        """_supabase_token_request raises ValueError when response lacks required fields."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "token_type": "bearer"
+        }  # missing access_token, refresh_token
+
+        with (
+            patch.object(
+                provider._http_client,
+                "post",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
+            pytest.raises(
+                ValueError, match="Invalid token response from identity provider"
+            ),
+        ):
+            await provider._supabase_token_request(
+                "pkce", {"auth_code": "x", "code_verifier": "y"}
+            )
+
+
 # ── Deny list fail-closed tests ───────────────────────────────────────
 
 

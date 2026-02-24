@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 
 import httpx
 import jwt as pyjwt
+import pydantic
 from jwt import PyJWKClient
 from mcp.server.auth.provider import (
     AccessToken,
@@ -107,7 +108,7 @@ class SupabaseTokenVerifier(TokenVerifier):
             logger.warning("JWKS fetch timed out (10s)")
             return None
         except pyjwt.PyJWTError:
-            logger.debug("JWT verification failed", exc_info=True)
+            logger.debug("JWT verification failed")
             return None
 
 
@@ -361,7 +362,7 @@ class EveryRowAuthProvider(
             value=request.path_params.get("state"),
             max_age=settings.pending_auth_ttl,
             httponly=True,
-            samesite="lax",
+            samesite="strict",
             secure=True,
             path="/auth/callback",
         )
@@ -400,7 +401,7 @@ class EveryRowAuthProvider(
             "mcp_auth_state",
             path="/auth/callback",
             httponly=True,
-            samesite="lax",
+            samesite="strict",
             secure=True,
         )
         return response
@@ -420,6 +421,9 @@ class EveryRowAuthProvider(
         if code_data is None:
             return None
         code_obj = EveryRowAuthorizationCode.model_validate_json(code_data)
+        if code_obj.expires_at and code_obj.expires_at < time.time():
+            await self._redis.delete(key)
+            return None
         if code_obj.client_id != client.client_id:
             return None
         await self._redis.delete(key)
@@ -519,9 +523,11 @@ class EveryRowAuthProvider(
             await self._redis.delete(build_key("refresh", token.token))
         elif isinstance(token, AccessToken):
             fp = SupabaseTokenVerifier._token_fingerprint(token.token)
+            remaining = max(0, (token.expires_at or 0) - int(time.time())) + 60
+            ttl = remaining if remaining > 60 else self._token_verifier._revocation_ttl
             await self._redis.setex(
                 name=build_key("revoked", fp),
-                time=self._token_verifier._revocation_ttl,
+                time=ttl,
                 value="1",
             )
 
@@ -538,10 +544,14 @@ class EveryRowAuthProvider(
         )
         resp.raise_for_status()
         data = resp.json()
-        return SupabaseTokenResponse(
-            access_token=data["access_token"],
-            refresh_token=data["refresh_token"],
-        )
+        try:
+            return SupabaseTokenResponse.model_validate(data)
+        except pydantic.ValidationError:
+            logger.error(
+                "Supabase token response missing required fields: %s",
+                sorted(data.keys()),
+            )
+            raise ValueError("Invalid token response from identity provider")
 
     async def _exchange_supabase_code(
         self, code: str, code_verifier: str
