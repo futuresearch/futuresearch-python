@@ -202,7 +202,7 @@ async def _validate_upload(  # noqa: PLR0911
             JSONResponse({"error": "Invalid or expired signature"}, status_code=403),
         )
 
-    meta_json = await redis_store.pop_upload_meta(upload_id)
+    meta_json = await redis_store.get_upload_meta(upload_id)
     if meta_json is None:
         return (
             None,
@@ -277,6 +277,14 @@ async def handle_upload(request: Request) -> JSONResponse:  # noqa: PLR0911
         return JSONResponse(
             {"error": "Upload rate limit exceeded. Try again later."},
             status_code=429,
+        )
+
+    # All checks passed — atomically consume the upload URL.
+    # If two requests race past the peek, only one wins the pop.
+    upload_id = request.path_params["upload_id"]
+    if await redis_store.pop_upload_meta(upload_id) is None:
+        return JSONResponse(
+            {"error": "Upload URL already used or expired"}, status_code=410
         )
 
     try:

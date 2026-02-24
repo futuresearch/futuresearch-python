@@ -233,7 +233,7 @@ class TestHandleUpload:
         )
 
         with patch(
-            "everyrow_mcp.uploads.redis_store.pop_upload_meta",
+            "everyrow_mcp.uploads.redis_store.get_upload_meta",
             new_callable=AsyncMock,
             return_value=meta_no_token,
         ):
@@ -263,7 +263,7 @@ class TestHandleUpload:
         with (
             override_settings(max_upload_size_bytes=1000),
             patch(
-                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
+                "everyrow_mcp.uploads.redis_store.get_upload_meta",
                 new_callable=AsyncMock,
                 return_value=meta,
             ),
@@ -293,10 +293,17 @@ class TestHandleUpload:
             }
         )
 
-        with patch(
-            "everyrow_mcp.uploads.redis_store.pop_upload_meta",
-            new_callable=AsyncMock,
-            return_value=meta,
+        with (
+            patch(
+                "everyrow_mcp.uploads.redis_store.get_upload_meta",
+                new_callable=AsyncMock,
+                return_value=meta,
+            ),
+            patch(
+                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
+                new_callable=AsyncMock,
+                return_value=meta,
+            ),
         ):
             request = self._make_upload_request(
                 upload_id, b"not,valid\x00csv\xfe\xff", expires_at=expires_at
@@ -324,6 +331,11 @@ class TestHandleUpload:
         )
 
         with (
+            patch(
+                "everyrow_mcp.uploads.redis_store.get_upload_meta",
+                new_callable=AsyncMock,
+                return_value=meta,
+            ),
             patch(
                 "everyrow_mcp.uploads.redis_store.pop_upload_meta",
                 new_callable=AsyncMock,
@@ -391,7 +403,7 @@ class TestContentTypeValidation:
         request.body = AsyncMock(return_value=b"a,b\n1,2\n")
 
         with patch(
-            "everyrow_mcp.uploads.redis_store.pop_upload_meta",
+            "everyrow_mcp.uploads.redis_store.get_upload_meta",
             new_callable=AsyncMock,
             return_value=meta,
         ):
@@ -407,3 +419,69 @@ class TestContentTypeValidation:
         # Existing TestHandleUpload tests don't set Content-Type and pass,
         # which implicitly tests that missing Content-Type is accepted.
         pass
+
+
+class TestUploadRateLimitPreservesUrl:
+    """Verify that a 429 does NOT consume the upload URL."""
+
+    @pytest.fixture(autouse=True)
+    def _with_upload_secret(self):
+        with override_settings(upload_secret="test-secret-for-hmac"):
+            yield
+
+    @pytest.mark.asyncio
+    async def test_rate_limited_upload_does_not_consume_url(self):
+        """When rate-limited (429), the upload metadata is NOT consumed."""
+        upload_id = "rate-limit-test"
+        expires_at = int(time.time()) + 300
+        sig = sign_upload_url(upload_id, expires_at)
+        meta = json.dumps(
+            {
+                "upload_id": upload_id,
+                "filename": "data.csv",
+                "expires_at": expires_at,
+                "api_token": encrypt_value("user-tok"),
+            }
+        )
+
+        # Pipeline mock returns count > limit to trigger 429
+        mock_pipe = MagicMock()
+        mock_pipe.incr = MagicMock()
+        mock_pipe.expire = MagicMock()
+        mock_pipe.execute = AsyncMock(return_value=[999, True])
+        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
+        mock_pipe.__aexit__ = AsyncMock(return_value=False)
+        mock_client = AsyncMock()
+        mock_client.pipeline = MagicMock(return_value=mock_pipe)
+
+        pop_mock = AsyncMock(return_value=meta)
+
+        request = MagicMock()
+        request.path_params = {"upload_id": upload_id}
+        request.query_params = {"expires": str(expires_at), "sig": sig}
+        request.headers = {}
+        request.body = AsyncMock(return_value=b"a,b\n1,2\n")
+
+        with (
+            override_settings(upload_rate_limit=5),
+            patch(
+                "everyrow_mcp.uploads.redis_store.get_upload_meta",
+                new_callable=AsyncMock,
+                return_value=meta,
+            ),
+            patch(
+                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
+                pop_mock,
+            ),
+            patch(
+                "everyrow_mcp.uploads.redis_store.get_redis_client",
+                return_value=mock_client,
+            ),
+        ):
+            resp = await handle_upload(request)
+
+        assert resp.status_code == 429
+        body = json.loads(resp.body.decode())
+        assert "rate limit" in body["error"].lower()
+        # pop_upload_meta must NOT have been called
+        pop_mock.assert_not_called()

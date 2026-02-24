@@ -286,6 +286,11 @@ async def store_upload_meta(upload_id: str, meta_json: str, ttl: int) -> None:
     await get_redis_client().setex(build_key("upload", upload_id), ttl, meta_json)
 
 
+async def get_upload_meta(upload_id: str) -> str | None:
+    """Read upload metadata without consuming it."""
+    return await get_redis_client().get(build_key("upload", upload_id))
+
+
 async def pop_upload_meta(upload_id: str) -> str | None:
     """Atomically get and delete upload metadata (prevents replay)."""
     key = build_key("upload", upload_id)
