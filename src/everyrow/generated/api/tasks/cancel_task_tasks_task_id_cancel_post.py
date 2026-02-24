@@ -7,6 +7,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.cancel_task_response import CancelTaskResponse
 from ...models.error_response import ErrorResponse
 from ...models.http_validation_error import HTTPValidationError
 from ...types import Response
@@ -27,20 +28,16 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | HTTPValidationError | None:
+) -> CancelTaskResponse | ErrorResponse | HTTPValidationError | None:
     if response.status_code == 200:
-        # Cancel response is a minimal payload — success is signalled by the 200 status alone.
-        return None
+        response_200 = CancelTaskResponse.from_dict(response.json())
+
+        return response_200
 
     if response.status_code == 404:
         response_404 = ErrorResponse.from_dict(response.json())
 
         return response_404
-
-    if response.status_code == 409:
-        response_409 = ErrorResponse.from_dict(response.json())
-
-        return response_409
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -55,7 +52,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | HTTPValidationError | None]:
+) -> Response[CancelTaskResponse | ErrorResponse | HTTPValidationError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -68,11 +65,10 @@ def sync_detailed(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-) -> Response[ErrorResponse | HTTPValidationError | None]:
-    """Cancel a running task
+) -> Response[CancelTaskResponse | ErrorResponse | HTTPValidationError]:
+    """Cancel a task
 
-     Cancel a task by its ID. Returns HTTP 200 on success, 404 if not found,
-     or 409 if the task is already in a terminal state.
+     Cancel a running or pending task. Returns 409 if the task has already completed.
 
     Args:
         task_id (UUID):
@@ -82,7 +78,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | HTTPValidationError | None]
+        Response[CancelTaskResponse | ErrorResponse | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -96,15 +92,14 @@ def sync_detailed(
     return _build_response(client=client, response=response)
 
 
-async def asyncio_detailed(
+def sync(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-) -> Response[ErrorResponse | HTTPValidationError | None]:
-    """Cancel a running task
+) -> CancelTaskResponse | ErrorResponse | HTTPValidationError | None:
+    """Cancel a task
 
-     Cancel a task by its ID. Returns HTTP 200 on success, 404 if not found,
-     or 409 if the task is already in a terminal state.
+     Cancel a running or pending task. Returns 409 if the task has already completed.
 
     Args:
         task_id (UUID):
@@ -114,7 +109,33 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | HTTPValidationError | None]
+        CancelTaskResponse | ErrorResponse | HTTPValidationError
+    """
+
+    return sync_detailed(
+        task_id=task_id,
+        client=client,
+    ).parsed
+
+
+async def asyncio_detailed(
+    task_id: UUID,
+    *,
+    client: AuthenticatedClient,
+) -> Response[CancelTaskResponse | ErrorResponse | HTTPValidationError]:
+    """Cancel a task
+
+     Cancel a running or pending task. Returns 409 if the task has already completed.
+
+    Args:
+        task_id (UUID):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[CancelTaskResponse | ErrorResponse | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
@@ -124,3 +145,31 @@ async def asyncio_detailed(
     response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
+
+async def asyncio(
+    task_id: UUID,
+    *,
+    client: AuthenticatedClient,
+) -> CancelTaskResponse | ErrorResponse | HTTPValidationError | None:
+    """Cancel a task
+
+     Cancel a running or pending task. Returns 409 if the task has already completed.
+
+    Args:
+        task_id (UUID):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        CancelTaskResponse | ErrorResponse | HTTPValidationError
+    """
+
+    return (
+        await asyncio_detailed(
+            task_id=task_id,
+            client=client,
+        )
+    ).parsed

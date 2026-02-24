@@ -7,7 +7,8 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from .session_list_item import SessionListItem
+    from ..models.session_list_item import SessionListItem
+
 
 T = TypeVar("T", bound="SessionListResponse")
 
@@ -16,14 +17,17 @@ T = TypeVar("T", bound="SessionListResponse")
 class SessionListResponse:
     """
     Attributes:
-        sessions (list['SessionListItem']): The list of sessions
+        sessions (list[SessionListItem]): List of sessions
     """
 
     sessions: list[SessionListItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        sessions = [s.to_dict() for s in self.sessions]
+        sessions = []
+        for sessions_item_data in self.sessions:
+            sessions_item = sessions_item_data.to_dict()
+            sessions.append(sessions_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -37,10 +41,15 @@ class SessionListResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from .session_list_item import SessionListItem
+        from ..models.session_list_item import SessionListItem
 
         d = dict(src_dict)
-        sessions = [SessionListItem.from_dict(s) for s in d.pop("sessions")]
+        sessions = []
+        _sessions = d.pop("sessions")
+        for sessions_item_data in _sessions:
+            sessions_item = SessionListItem.from_dict(sessions_item_data)
+
+            sessions.append(sessions_item)
 
         session_list_response = cls(
             sessions=sessions,

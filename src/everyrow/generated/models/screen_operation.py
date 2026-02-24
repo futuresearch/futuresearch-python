@@ -27,6 +27,7 @@ class ScreenOperation:
             list of JSON objects
         task (str): Instructions for the AI to filter/screen each row
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
+        webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
         response_schema (None | ScreenOperationResponseSchemaType0 | Unset): JSON Schema for the response format. If not
             provided, uses default answer schema.
     """
@@ -34,6 +35,7 @@ class ScreenOperation:
     input_: list[ScreenOperationInputType1Item] | ScreenOperationInputType2 | UUID
     task: str
     session_id: None | Unset | UUID = UNSET
+    webhook_url: None | str | Unset = UNSET
     response_schema: None | ScreenOperationResponseSchemaType0 | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -62,6 +64,12 @@ class ScreenOperation:
         else:
             session_id = self.session_id
 
+        webhook_url: None | str | Unset
+        if isinstance(self.webhook_url, Unset):
+            webhook_url = UNSET
+        else:
+            webhook_url = self.webhook_url
+
         response_schema: dict[str, Any] | None | Unset
         if isinstance(self.response_schema, Unset):
             response_schema = UNSET
@@ -80,6 +88,8 @@ class ScreenOperation:
         )
         if session_id is not UNSET:
             field_dict["session_id"] = session_id
+        if webhook_url is not UNSET:
+            field_dict["webhook_url"] = webhook_url
         if response_schema is not UNSET:
             field_dict["response_schema"] = response_schema
 
@@ -142,6 +152,15 @@ class ScreenOperation:
 
         session_id = _parse_session_id(d.pop("session_id", UNSET))
 
+        def _parse_webhook_url(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
+
         def _parse_response_schema(data: object) -> None | ScreenOperationResponseSchemaType0 | Unset:
             if data is None:
                 return data
@@ -163,6 +182,7 @@ class ScreenOperation:
             input_=input_,
             task=task,
             session_id=session_id,
+            webhook_url=webhook_url,
             response_schema=response_schema,
         )
 

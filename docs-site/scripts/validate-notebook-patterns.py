@@ -129,9 +129,7 @@ def check_create_session_wrapping(code_cells: list[str]) -> list[str]:
         return []  # No everyrow ops used, nothing to check
 
     # Check that create_session is used with a name
-    has_create_session = bool(
-        re.search(r"create_session\s*\(\s*name\s*=", all_code)
-    )
+    has_create_session = bool(re.search(r"create_session\s*\(\s*name\s*=", all_code))
     if not has_create_session:
         errors.append(
             "everyrow operations found but not wrapped in "
@@ -146,7 +144,7 @@ def check_create_session_wrapping(code_cells: list[str]) -> list[str]:
     if not has_observability:
         errors.append(
             "Missing session observability. "
-            "Add `print(f\"Session URL: {session.get_url()}\")` inside the create_session block."
+            'Add `print(f"Session URL: {session.get_url()}")` inside the create_session block.'
         )
 
     return errors
