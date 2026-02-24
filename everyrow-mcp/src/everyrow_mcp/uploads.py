@@ -229,7 +229,10 @@ async def handle_upload(request: Request) -> JSONResponse:
     assert body is not None and meta is not None  # type narrowing
 
     # Retrieve and decrypt the user's API token
-    api_token = decrypt_value(meta.get("api_token", ""))
+    try:
+        api_token = decrypt_value(meta.get("api_token", ""))
+    except Exception:
+        api_token = ""
     if not api_token:
         return JSONResponse({"error": "Upload authorization missing"}, status_code=403)
 
