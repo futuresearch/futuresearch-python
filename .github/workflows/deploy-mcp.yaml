@@ -27,8 +27,8 @@ on:
       - "uv.lock"
 
 env:
-  GKE_ZONE: ${{ secrets.BETA_CLUSTER_REGION }}
-  GKE_NAME: ${{ secrets.BETA_CLUSTER_NAME }}
+  GKE_ZONE: ${{ vars.BETA_CLUSTER_REGION }}
+  GKE_NAME: ${{ vars.BETA_CLUSTER_NAME }}
   MCP_IMAGE_NAME: ${{ vars.GCP_REGISTRY_NAME }}/${{ vars.GCP_PROJECT_NAME }}/delphos/everyrow-mcp
 
 permissions:
