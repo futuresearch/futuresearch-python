@@ -21,6 +21,7 @@ from everyrow.generated.types import Unset
 from everyrow.ops import (
     agent_map_async,
     dedupe_async,
+    forecast_async,
     merge_async,
     rank_async,
     screen_async,
@@ -40,6 +41,7 @@ from everyrow_mcp.app import (
 from everyrow_mcp.models import (
     AgentInput,
     DedupeInput,
+    ForecastInput,
     MergeInput,
     ProgressInput,
     RankInput,
@@ -525,6 +527,78 @@ async def everyrow_merge(params: MergeInput) -> list[TextContent]:
             type="text",
             text=(
                 f"Submitted: {len(left_df)} left rows for merging.\n"
+                f"Session: {session_url}\n"
+                f"Task ID: {task_id}\n\n"
+                f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."
+            ),
+        )
+    ]
+
+
+@mcp.tool(
+    name="everyrow_forecast",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Probability Forecast",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def everyrow_forecast(params: ForecastInput) -> list[TextContent]:
+    """Forecast the probability of binary questions from a CSV file.
+
+    Each row is forecast using an approach validated against FutureSearch's
+    past-casting environment of 1500 hard forecasting questions and 15M research
+    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
+    and https://arxiv.org/abs/2506.21558.
+
+    The CSV should contain at minimum a ``question`` column.  Recommended additional
+    columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
+    columns are passed to the research agents and forecasters.
+
+    The optional ``context`` parameter provides batch-level instructions that apply
+    to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
+    rows are self-contained.
+
+    Output columns added: ``rationale`` (str) and ``probability`` (int, 0-100).
+
+    This function submits the task and returns immediately with a task_id and session_url.
+    After receiving a result from this tool, share the session_url with the user.
+    Then immediately call everyrow_progress(task_id) to monitor.
+    Once the task is completed, call everyrow_results to save the output.
+    """
+    client = _get_client()
+
+    _clear_task_state()
+    df = pd.read_csv(params.input_csv)
+
+    async with create_session(client=client) as session:
+        session_url = session.get_url()
+        cohort_task = await forecast_async(
+            task=params.context or "",
+            session=session,
+            input=df,
+        )
+        task_id = str(cohort_task.task_id)
+        _write_task_state(
+            task_id,
+            task_type=PublicTaskType.FORECAST,
+            session_url=session_url,
+            total=len(df),
+            completed=0,
+            failed=0,
+            running=0,
+            status=TaskStatus.RUNNING,
+            started_at=datetime.now(UTC),
+        )
+
+    return [
+        TextContent(
+            type="text",
+            text=(
+                f"Submitted: {len(df)} rows for forecasting (6 research dimensions + dual forecaster per row).\n"
                 f"Session: {session_url}\n"
                 f"Task ID: {task_id}\n\n"
                 f"Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}')."

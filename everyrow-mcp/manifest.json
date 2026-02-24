@@ -50,6 +50,10 @@
       "description": "Run web research agents on each row of a CSV file."
     },
     {
+      "name": "everyrow_forecast",
+      "description": "Forecast the probability of binary questions from a CSV file."
+    },
+    {
       "name": "everyrow_single_agent",
       "description": "Run a single web research agent on a task, optionally with context data."
     },
