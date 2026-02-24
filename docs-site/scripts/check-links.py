@@ -48,6 +48,7 @@ CHECKED_DOMAINS: set[str] = {
 SKIPPED_URLS: set[str] = {
     "https://ai.google.dev/gemini-api/docs/gemini-3#temperature",
     "https://ai.google.dev/gemini-api/docs/structured-output",
+    "https://arxiv.org/abs/2506.21558",
     "https://clinicaltrials.gov/",
     "https://clinicaltrials.gov/data-api/about-api",
     "https://code.claude.com/docs/en/discover-plugins",
@@ -76,7 +77,6 @@ SKIPPED_URLS: set[str] = {
     "https://platform.claude.com/docs/en/build-with-claude/extended-thinking#feature-compatibility",
     "https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle",
     "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
-    "https://arxiv.org/abs/2506.21558",
 }
 
 
