@@ -49,6 +49,7 @@ from everyrow_mcp.tools import (
     _RESULTS_META,
     everyrow_agent,
     everyrow_cancel,
+    everyrow_list_sessions,
     everyrow_progress,
     everyrow_results_http,
     everyrow_results_stdio,
@@ -814,6 +815,118 @@ class TestResults:
         assert widget_data["total"] == 1
         assert "Redis unavailable" in result[1].text
         assert "1 rows" in result[1].text
+
+
+class TestListSessions:
+    """Tests for everyrow_list_sessions."""
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_returns_sessions(self):
+        """Test that list_sessions returns formatted session info."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        mock_sessions = [
+            MagicMock(
+                session_id=uuid4(),
+                name="My Session",
+                created_at=datetime(2025, 6, 1, 12, 0, tzinfo=UTC),
+                updated_at=datetime(2025, 6, 1, 13, 0, tzinfo=UTC),
+                get_url=lambda: "https://everyrow.io/sessions/abc",
+            ),
+            MagicMock(
+                session_id=uuid4(),
+                name="Another Session",
+                created_at=datetime(2025, 6, 2, 10, 0, tzinfo=UTC),
+                updated_at=datetime(2025, 6, 2, 11, 0, tzinfo=UTC),
+                get_url=lambda: "https://everyrow.io/sessions/def",
+            ),
+        ]
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=mock_sessions,
+        ):
+            result = await everyrow_list_sessions(ctx)
+
+        text = result[0].text
+        assert "2 session(s)" in text
+        assert "My Session" in text
+        assert "Another Session" in text
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_empty(self):
+        """Test that list_sessions handles no sessions."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            result = await everyrow_list_sessions(ctx)
+
+        assert "No sessions found" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_api_error(self):
+        """Test that list_sessions handles API errors gracefully."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("API error"),
+        ):
+            result = await everyrow_list_sessions(ctx)
+
+        assert "Error listing sessions" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_passes_client_from_context(self):
+        """Test that the tool passes the context client to list_sessions."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ) as mock_ls:
+            await everyrow_list_sessions(ctx)
+
+        mock_ls.assert_called_once_with(client=mock_client)
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_output_contains_urls_and_dates(self):
+        """Test that the formatted output includes URLs and timestamps."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        session_id = uuid4()
+        mock_sessions = [
+            MagicMock(
+                session_id=session_id,
+                name="Pipeline Run",
+                created_at=datetime(2025, 8, 15, 9, 30, tzinfo=UTC),
+                updated_at=datetime(2025, 8, 15, 10, 45, tzinfo=UTC),
+                get_url=lambda: f"https://everyrow.io/sessions/{session_id}",
+            ),
+        ]
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=mock_sessions,
+        ):
+            result = await everyrow_list_sessions(ctx)
+
+        text = result[0].text
+        assert "Pipeline Run" in text
+        assert "2025-08-15 09:30 UTC" in text
+        assert "2025-08-15 10:45 UTC" in text
+        assert f"https://everyrow.io/sessions/{session_id}" in text
 
 
 class TestCancel:

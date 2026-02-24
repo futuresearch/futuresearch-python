@@ -138,6 +138,7 @@ class TestMcpProtocol:
                     "everyrow_cancel",
                     "everyrow_dedupe",
                     "everyrow_forecast",
+                    "everyrow_list_sessions",
                     "everyrow_merge",
                     "everyrow_progress",
                     "everyrow_rank",

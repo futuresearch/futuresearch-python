@@ -122,6 +122,12 @@ Cancel a running task. Use when the user wants to stop a task that is currently 
 
 Returns a confirmation message. If the task has already finished, returns an error with its current state.
 
+### everyrow_list_sessions
+
+List all sessions owned by the authenticated user. Returns session names, IDs, timestamps, and dashboard URLs. No parameters required.
+
+Returns a formatted list of sessions with links to the web dashboard.
+
 ## Workflow
 
 ```

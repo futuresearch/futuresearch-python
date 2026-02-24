@@ -21,7 +21,7 @@ from everyrow.ops import (
     screen_async,
     single_agent_async,
 )
-from everyrow.session import create_session, get_session_url
+from everyrow.session import create_session, get_session_url, list_sessions
 from everyrow.task import cancel_task
 from mcp.types import TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
@@ -728,6 +728,45 @@ async def everyrow_results_http(
             f"Showing {len(page_df)} rows inline (Redis unavailable, no download link).",
         ),
     ]
+
+
+@mcp.tool(
+    name="everyrow_list_sessions",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="List Sessions",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def everyrow_list_sessions(ctx: EveryRowContext) -> list[TextContent]:
+    """List all everyrow sessions owned by the authenticated user.
+
+    Returns session names, IDs, timestamps, and dashboard URLs.
+    Use this to find past sessions or check what's been run.
+    """
+    client = _get_client(ctx)
+
+    try:
+        sessions = await list_sessions(client=client)
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error listing sessions: {e!r}")]
+
+    if not sessions:
+        return [TextContent(type="text", text="No sessions found.")]
+
+    lines = [f"Found {len(sessions)} session(s):\n"]
+    for s in sessions:
+        lines.append(
+            f"- **{s.name}** (id: {s.session_id})\n"
+            f"  Created: {s.created_at:%Y-%m-%d %H:%M UTC} | "
+            f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}\n"
+            f"  URL: {s.get_url()}"
+        )
+
+    return [TextContent(type="text", text="\n".join(lines))]
 
 
 @mcp.tool(

@@ -90,6 +90,21 @@ async with create_session(name="Lead Qualification") as session:
 
 The session URL lets you monitor progress and inspect results in the web UI while your script runs.
 
+### Listing Sessions
+
+Retrieve all your sessions programmatically with `list_sessions`:
+
+```python
+from everyrow import list_sessions
+
+sessions = await list_sessions()
+for s in sessions:
+    print(f"{s.name} ({s.session_id}) — created {s.created_at:%Y-%m-%d}")
+    print(f"  View: {s.get_url()}")
+```
+
+Each item is a `SessionInfo` with `session_id`, `name`, `created_at`, and `updated_at` fields.
+
 ## Async Operations
 
 For long-running jobs, use the `_async` variants to submit work and continue without blocking:
