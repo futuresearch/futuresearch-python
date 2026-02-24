@@ -17,23 +17,24 @@ Run with: pytest tests/test_http_real.py -v -s
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import json
 import os
 import re
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pandas as pd
 import pytest
 import redis.asyncio
 from everyrow.api_utils import create_client
-from mcp.types import TextContent
 from starlette.applications import Starlette
 from starlette.routing import Route
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.models import AgentInput, HttpResultsInput, ProgressInput, ScreenInput
-from everyrow_mcp.routes import api_progress
+from everyrow_mcp.routes import api_download, api_progress
 from everyrow_mcp.tools import (
     everyrow_agent,
     everyrow_progress,
@@ -88,6 +89,11 @@ def app(_http_mode):
             Route(
                 "/api/progress/{task_id}",
                 api_progress,
+                methods=["GET", "OPTIONS"],
+            ),
+            Route(
+                "/api/results/{task_id}/download",
+                api_download,
                 methods=["GET", "OPTIONS"],
             ),
         ],
@@ -190,7 +196,7 @@ class TestHttpScreenPipeline:
     ):
         """Submit a screen task, poll via REST, fetch results via MCP tool."""
         # 1. Submit via MCP tool (in HTTP mode)
-        ctx = make_test_context(everyrow_client)
+        ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
         result = await everyrow_screen(
             ScreenInput(
                 task="Filter for remote positions with salary > $100k",
@@ -225,31 +231,26 @@ class TestHttpScreenPipeline:
         )
         assert resp.status_code == 404
 
-        # 4. Fetch results via MCP tool (mock store)
-        with (
-            patch(
-                "everyrow_mcp.tools.try_cached_result",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "everyrow_mcp.tools.try_store_result",
-                new_callable=AsyncMock,
-            ) as mock_store,
-        ):
-            mock_store.return_value = [
-                TextContent(
-                    type="text",
-                    text='{"csv_url": "http://testserver/api/results/x/download?token=t", "preview": [], "total": 0}',
-                ),
-                TextContent(type="text", text="Results ready."),
-            ]
-            results = await everyrow_results_http(
-                HttpResultsInput(task_id=task_id), ctx
-            )
+        # 4. Fetch results via MCP tool — real Redis flow
+        results = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
 
         assert len(results) == 2
+        result_data = json.loads(results[0].text)
+        assert "csv_url" in result_data
+        assert "preview" in result_data
+        assert result_data["total"] > 0
         print(f"  Results: {results[1].text}")
+
+        # 5. Download CSV via the csv_url
+        csv_url = result_data["csv_url"]
+        assert csv_url.startswith("http://testserver/api/results/")
+        download_resp = await client.get(csv_url)
+        assert download_resp.status_code == 200
+        assert download_resp.headers["content-type"].startswith("text/csv")
+        reader = csv.reader(io.StringIO(download_resp.text))
+        rows = list(reader)
+        assert len(rows) >= 2  # header + at least one data row
+        print(f"  CSV download: {len(rows) - 1} data rows")
 
 
 class TestHttpAgentPipeline:
@@ -269,7 +270,7 @@ class TestHttpAgentPipeline:
         df.to_csv(input_csv, index=False)
 
         # 1. Submit via MCP tool
-        ctx = make_test_context(everyrow_client)
+        ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
         result = await everyrow_agent(
             AgentInput(
                 task="Find the company's headquarters city.",
@@ -300,31 +301,38 @@ class TestHttpAgentPipeline:
         assert progress["status"] == "completed"
         assert progress["completed"] == 2
 
-        # 3. Fetch results via MCP tool (mock store)
-        with (
-            patch(
-                "everyrow_mcp.tools.try_cached_result",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "everyrow_mcp.tools.try_store_result",
-                new_callable=AsyncMock,
-            ) as mock_store,
-        ):
-            mock_store.return_value = [
-                TextContent(
-                    type="text",
-                    text='{"csv_url": "http://testserver/api/results/x/download?token=t", "preview": [], "total": 2}',
-                ),
-                TextContent(type="text", text="Results: 2 rows."),
-            ]
-            results = await everyrow_results_http(
-                HttpResultsInput(task_id=task_id), ctx
-            )
+        # 3. Fetch results via MCP tool — real Redis, page_size=1 for pagination
+        results = await everyrow_results_http(
+            HttpResultsInput(task_id=task_id, page_size=1), ctx
+        )
 
         assert len(results) == 2
-        print(f"  Results: {results[1].text}")
+        result_data = json.loads(results[0].text)
+        assert result_data["total"] == 2
+        assert len(result_data["preview"]) == 1  # page_size=1
+        assert "csv_url" in result_data
+        print(f"  Page 1: {results[1].text}")
+
+        # 4. Fetch second page (should come from Redis cache)
+        results_p2 = await everyrow_results_http(
+            HttpResultsInput(task_id=task_id, offset=1, page_size=1), ctx
+        )
+
+        assert len(results_p2) == 2
+        result_data_p2 = json.loads(results_p2[0].text)
+        assert len(result_data_p2["preview"]) == 1
+        assert result_data_p2["total"] == 2
+        print(f"  Page 2: {results_p2[1].text}")
+
+        # 5. Download full CSV, verify 2 rows with headquarters column
+        csv_url = result_data["csv_url"]
+        download_resp = await client.get(csv_url)
+        assert download_resp.status_code == 200
+        assert download_resp.headers["content-type"].startswith("text/csv")
+        result_df = pd.read_csv(io.StringIO(download_resp.text))
+        assert len(result_df) == 2
+        assert "headquarters" in result_df.columns
+        print(f"  CSV: {len(result_df)} rows, columns={list(result_df.columns)}")
 
 
 class TestProgressPollingModes:
@@ -338,7 +346,7 @@ class TestProgressPollingModes:
         jobs_csv: str,
     ):
         """Submit a task and poll using both REST endpoint and MCP tool."""
-        ctx = make_test_context(everyrow_client)
+        ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
         result = await everyrow_screen(
             ScreenInput(
                 task="Filter for engineering roles",
