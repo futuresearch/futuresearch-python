@@ -54,6 +54,19 @@ class TestValidateCsvPath:
         with pytest.raises(ValueError, match="must be a CSV"):
             validate_csv_path(str(txt_file))
 
+    def test_path_traversal_resolved(self, tmp_path: Path):
+        """Path with /../ segments is resolved before validation."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        # Construct a path with traversal: /tmp/xxx/sub/../test.csv
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        traversal_path = str(sub) + "/../test.csv"
+
+        # Should resolve to the real file and pass
+        validate_csv_path(traversal_path)
+
 
 class TestValidateOutputPath:
     """Tests for validate_output_path."""
@@ -237,7 +250,7 @@ class TestSsrfProtection:
             "everyrow_mcp.utils.socket.getaddrinfo",
             return_value=_mock_resolve("localhost", "127.0.0.1"),
         ):
-            with pytest.raises(ValueError, match="blocked address"):
+            with pytest.raises(ValueError, match="not permitted"):
                 _validate_url_target("http://localhost/secret")
 
     def test_validate_url_target_blocks_10_x(self):
@@ -245,7 +258,7 @@ class TestSsrfProtection:
             "everyrow_mcp.utils.socket.getaddrinfo",
             return_value=_mock_resolve("internal.corp", "10.0.0.5"),
         ):
-            with pytest.raises(ValueError, match="blocked address"):
+            with pytest.raises(ValueError, match="not permitted"):
                 _validate_url_target("http://internal.corp/data")
 
     def test_validate_url_target_blocks_metadata_endpoint(self):
@@ -253,7 +266,7 @@ class TestSsrfProtection:
             "everyrow_mcp.utils.socket.getaddrinfo",
             return_value=_mock_resolve("metadata", "169.254.169.254"),
         ):
-            with pytest.raises(ValueError, match="blocked address"):
+            with pytest.raises(ValueError, match="not permitted"):
                 _validate_url_target("http://metadata/latest/api-token")
 
     def test_validate_url_target_allows_public(self):

@@ -11,7 +11,7 @@ COPY --link everyrow-mcp/pyproject.toml everyrow-mcp/README.md ./everyrow-mcp/
 COPY --link everyrow-mcp/src/ ./everyrow-mcp/src/
 
 # Install everyrow-mcp and its dependencies (includes workspace everyrow package)
-RUN uv sync --package everyrow-mcp --no-dev --no-sources --no-editable
+RUN uv sync --package everyrow-mcp --no-dev --no-sources --no-editable --frozen
 
 # Stage 2: Slim runtime
 FROM python:3.13-slim

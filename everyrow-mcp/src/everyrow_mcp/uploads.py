@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
+import shlex
 import time
 from io import BytesIO
 from uuid import uuid4
@@ -150,7 +151,7 @@ def register_upload_tool(mcp: FastMCP) -> None:
                         "upload_id": upload_id,
                         "expires_in": settings.upload_url_ttl,
                         "max_size_bytes": settings.max_upload_size_bytes,
-                        "curl_command": f'curl -X PUT -T "{params.filename}" "{upload_url}"',
+                        "curl_command": f"curl -X PUT -T {shlex.quote(params.filename)} {shlex.quote(upload_url)}",
                     }
                 ),
             )
