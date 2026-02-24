@@ -70,6 +70,7 @@ SKIPPED_URLS: set[str] = {
     "https://pip.pypa.io/en/stable/",
     "https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle",
     "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
+    'https://arxiv.org/abs/2506.21558'
 }
 
 

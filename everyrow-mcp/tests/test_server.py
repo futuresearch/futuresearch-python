@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 import pandas as pd
 import pytest
+from everyrow.constants import EveryrowError
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.generated.models.task_progress_info import TaskProgressInfo
 from everyrow.generated.models.task_result_response import TaskResultResponse
@@ -649,7 +650,6 @@ class TestCancel:
     @pytest.mark.asyncio
     async def test_cancel_already_terminated_task(self):
         """Test cancelling an already terminated task clears state and returns an error message."""
-        from everyrow.constants import EveryrowError
 
         mock_client = _make_mock_client()
         task_id = str(uuid4())
@@ -676,7 +676,6 @@ class TestCancel:
     @pytest.mark.asyncio
     async def test_cancel_task_not_found(self):
         """Test cancelling a nonexistent task clears state and returns an error message."""
-        from everyrow.constants import EveryrowError
 
         mock_client = _make_mock_client()
         task_id = str(uuid4())
