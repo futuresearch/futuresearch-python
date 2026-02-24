@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from everyrow_mcp.utils import validate_csv_path
+from everyrow_mcp.utils import validate_csv_path_or_url
 
 JSON_TYPE_MAP = {
     "string": str,
@@ -126,7 +126,8 @@ def _check_exactly_one(
 class _SingleSourceInput(BaseModel):
     input_csv: str | None = Field(
         default=None,
-        description="Absolute path to CSV file (local/stdio mode only).",
+        description="Absolute path to a local CSV file, or an http/https URL "
+        "(Google Sheets and Drive share links are supported).",
     )
     data: str | list[dict[str, Any]] | None = Field(
         default=None,
@@ -137,7 +138,7 @@ class _SingleSourceInput(BaseModel):
     @classmethod
     def validate_input_csv(cls, v: str | None) -> str | None:
         if v is not None:
-            validate_csv_path(v)
+            validate_csv_path_or_url(v)
         return v
 
     @model_validator(mode="after")
@@ -251,7 +252,8 @@ class MergeInput(BaseModel):
     # LEFT table
     left_csv: str | None = Field(
         default=None,
-        description="Absolute path to the left CSV (local/stdio mode only).",
+        description="Absolute path to the left CSV file, or an http/https URL "
+        "(Google Sheets and Drive share links are supported).",
     )
     left_data: str | list[dict[str, Any]] | None = Field(
         default=None,
@@ -261,7 +263,8 @@ class MergeInput(BaseModel):
     # RIGHT table
     right_csv: str | None = Field(
         default=None,
-        description="Absolute path to the right CSV (local/stdio mode only).",
+        description="Absolute path to the right CSV file, or an http/https URL "
+        "(Google Sheets and Drive share links are supported).",
     )
     right_data: str | list[dict[str, Any]] | None = Field(
         default=None,
@@ -290,7 +293,7 @@ class MergeInput(BaseModel):
     @classmethod
     def validate_csv_paths(cls, v: str | None) -> str | None:
         if v is not None:
-            validate_csv_path(v)
+            validate_csv_path_or_url(v)
         return v
 
     @model_validator(mode="after")

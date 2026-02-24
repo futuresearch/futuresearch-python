@@ -89,7 +89,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    df = await load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -228,7 +228,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    df = await load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -308,7 +308,7 @@ async def everyrow_screen(
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    df = await load_data(data=params.data, input_csv=params.input_csv)
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -381,7 +381,7 @@ async def everyrow_dedupe(
     client = _get_client(ctx)
     _clear_task_state()
 
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    df = await load_data(data=params.data, input_csv=params.input_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -458,8 +458,8 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
     _clear_task_state()
 
-    left_df = load_data(data=params.left_data, input_csv=params.left_csv)
-    right_df = load_data(data=params.right_data, input_csv=params.right_csv)
+    left_df = await load_data(data=params.left_data, input_csv=params.left_csv)
+    right_df = await load_data(data=params.right_data, input_csv=params.right_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -530,7 +530,7 @@ async def everyrow_forecast(
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(data=params.data, input_csv=params.input_csv)
+    df = await load_data(data=params.data, input_csv=params.input_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()

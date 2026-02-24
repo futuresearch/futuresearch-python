@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
+import httpx
 import pandas as pd
 import pytest
 from everyrow.constants import EveryrowError
@@ -959,6 +960,114 @@ class TestAgentInlineInput:
             # Verify the DataFrame passed to the SDK had 2 rows
             call_kwargs = mock_op.call_args[1]
             assert len(call_kwargs["input"]) == 2
+
+
+class TestAgentUrlInput:
+    """Tests for everyrow_agent with input_csv pointing to a URL."""
+
+    @pytest.mark.asyncio
+    async def test_submit_with_input_url(self):
+        """input_csv with a URL fetches CSV via httpx, passes DataFrame to SDK."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        csv_text = "name,industry\nTechStart,Software\nAILabs,AI\n"
+        mock_response = httpx.Response(200, text=csv_text)
+
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+            patch("everyrow_mcp.utils.httpx.AsyncClient", return_value=mock_http),
+        ):
+            mock_op.return_value = mock_task
+
+            params = AgentInput(
+                task="Find HQ for each company",
+                input_csv="https://example.com/companies.csv",
+            )
+            result = await everyrow_agent(params, ctx)
+
+            assert len(result) == 1
+            text = result[0].text
+            assert str(mock_task.task_id) in text
+            assert "2 agents starting" in text
+
+            # Verify the DataFrame passed to the SDK had 2 rows from the URL
+            call_kwargs = mock_op.call_args[1]
+            df = call_kwargs["input"]
+            assert len(df) == 2
+            assert list(df.columns) == ["name", "industry"]
+
+    @pytest.mark.asyncio
+    async def test_submit_with_google_sheets_url(self):
+        """Google Sheets edit URL is normalized before fetch."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        csv_text = "col\nval\n"
+        mock_response = httpx.Response(200, text=csv_text)
+
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+            patch("everyrow_mcp.utils.httpx.AsyncClient", return_value=mock_http),
+        ):
+            mock_op.return_value = mock_task
+
+            params = AgentInput(
+                task="Process sheet",
+                input_csv="https://docs.google.com/spreadsheets/d/ABC123/edit#gid=0",
+            )
+            await everyrow_agent(params, ctx)
+
+            # Verify the normalized export URL was fetched
+            called_url = mock_http.get.call_args[0][0]
+            assert "export?format=csv" in called_url
+            assert "gid=0" in called_url
+
+    @pytest.mark.asyncio
+    async def test_url_fetch_error_propagates(self):
+        """HTTP error from URL fetch surfaces as a tool error."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        mock_response = httpx.Response(404, text="Not Found")
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("everyrow_mcp.utils.httpx.AsyncClient", return_value=mock_http):
+            params = AgentInput(
+                task="test",
+                input_csv="https://example.com/missing.csv",
+            )
+            with pytest.raises(ValueError, match="HTTP 404"):
+                await everyrow_agent(params, ctx)
 
 
 class TestAgentInputValidation:

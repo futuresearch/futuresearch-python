@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import httpx
 import pandas as pd
 import pytest
 from everyrow.api_utils import create_client
@@ -324,6 +325,60 @@ class TestMcpProtocol:
             assert not result.isError
             human_text = result.content[-1].text
             assert "everyrow_results" in human_text
+
+    @pytest.mark.asyncio
+    async def test_call_agent_with_input_url(self, _http_state):
+        """Submit agent via MCP protocol with input_csv URL — full JSON-RPC -> URL fetch -> SDK."""
+        task_id = str(uuid4())
+        mock_task = _mock_task(task_id)
+        _, fake_create_session = _mock_session()
+
+        csv_text = "name,industry\nAcme,Software\nBeta,AI\n"
+        mock_response = httpx.Response(200, text=csv_text)
+
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_http.__aexit__ = AsyncMock(return_value=None)
+
+        async with mcp_client() as session:
+            with (
+                patch(
+                    "everyrow_mcp.tools._get_client",
+                    return_value=MagicMock(token="fake-token"),
+                ),
+                patch(
+                    "everyrow_mcp.tools.agent_map_async",
+                    new_callable=AsyncMock,
+                    return_value=mock_task,
+                ) as mock_op,
+                patch(
+                    "everyrow_mcp.tools.create_session",
+                    side_effect=fake_create_session,
+                ),
+                patch(
+                    "everyrow_mcp.utils.httpx.AsyncClient",
+                    return_value=mock_http,
+                ),
+            ):
+                result = await session.call_tool(
+                    "everyrow_agent",
+                    {
+                        "params": {
+                            "task": "Find HQ",
+                            "input_csv": "https://example.com/data.csv",
+                        }
+                    },
+                )
+
+            assert not result.isError
+            assert len(result.content) == 2
+            widget = json.loads(result.content[0].text)
+            assert widget["task_id"] == task_id
+
+            # Verify the URL was fetched and DataFrame reached the SDK
+            call_kwargs = mock_op.call_args[1]
+            assert len(call_kwargs["input"]) == 2
 
 
 # ── TestMcpE2ERealApi — real API tests ────────────────────────
