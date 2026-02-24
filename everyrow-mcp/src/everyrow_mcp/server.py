@@ -8,7 +8,6 @@ from textwrap import dedent
 
 from pydantic import BaseModel
 
-import everyrow_mcp.sheets_tools
 import everyrow_mcp.tools  # noqa: F401  — registers @mcp.tool() decorators
 from everyrow_mcp.app import get_instructions, mcp
 from everyrow_mcp.config import settings
@@ -20,6 +19,10 @@ from everyrow_mcp.tools import (
     everyrow_results_http,
 )
 from everyrow_mcp.uploads import register_upload_tool
+
+# Only register sheets tools when enabled (requires HTTP mode + Google OAuth)
+if settings.enable_sheets_tools:
+    import everyrow_mcp.sheets_tools  # noqa: F401
 
 
 class InputArgs(BaseModel):
@@ -93,6 +96,13 @@ def main():
             meta=_RESULTS_META,
         )(everyrow_results_http)
 
+        # Strip output_spreadsheet_title from results schema when sheets disabled
+        if not settings.enable_sheets_tools:
+            tool = mcp._tool_manager.get_tool("everyrow_results")
+            if tool:
+                http_def = tool.parameters.get("$defs", {}).get("HttpResultsInput", {})
+                http_def.get("properties", {}).pop("output_spreadsheet_title", None)
+
     if input_args.http:
         # ── HTTP mode logging ──────────────────────────────────────
         # INFO level so operational events show up in Cloud Logging.
@@ -135,17 +145,6 @@ def main():
             logging.error("Configuration error: EVERYROW_API_KEY is required")
             logging.error("Get an API key at https://everyrow.io/api-key")
             sys.exit(1)
-
-        # Sheets tools require HTTP mode (OAuth provides the Google token).
-        # Remove them from the tool manager so they don't appear in list_tools().
-        for name in (
-            "sheets_list",
-            "sheets_read",
-            "sheets_write",
-            "sheets_create",
-            "sheets_info",
-        ):
-            mcp._tool_manager.remove_tool(name)
 
     mcp.run(transport=transport.value)
 

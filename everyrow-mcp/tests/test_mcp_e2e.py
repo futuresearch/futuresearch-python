@@ -70,7 +70,11 @@ def _http_state(fake_redis):
     )(everyrow_results_http)
 
     with (
-        override_settings(transport="streamable-http", upload_secret="test-secret"),
+        override_settings(
+            transport="streamable-http",
+            upload_secret="test-secret",
+            enable_sheets_tools=True,
+        ),
         patch.object(redis_store, "get_redis_client", return_value=fake_redis),
         patch("everyrow_mcp.tools.get_access_token", _fake_access_token),
         patch("everyrow_mcp.tool_helpers.get_access_token", _fake_access_token),

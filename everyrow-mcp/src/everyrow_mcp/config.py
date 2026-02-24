@@ -125,6 +125,10 @@ class Settings(BaseSettings):
         description="Upload rate limit sliding window in seconds (1 hour)",
     )
 
+    enable_sheets_tools: bool = Field(
+        default=False,
+        description="Enable Google Sheets tools (requires HTTP mode with Google OAuth)",
+    )
     everyrow_api_key: str | None = Field(default=None, repr=False)
     google_sheets_credentials_json: str | None = Field(
         default=None,
