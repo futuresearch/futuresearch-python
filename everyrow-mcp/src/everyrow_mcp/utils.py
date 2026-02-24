@@ -31,6 +31,13 @@ _BLOCKED_NETWORKS = [
     ipaddress.ip_network("fe80::/10"),
 ]
 
+_BLOCKED_HOSTNAMES = frozenset(
+    {
+        "metadata.google.internal",
+        "metadata.google.internal.",
+    }
+)
+
 
 def _is_blocked_ip(addr: str) -> bool:
     """Check if an IP address falls within a blocked private/internal network."""
@@ -39,6 +46,40 @@ def _is_blocked_ip(addr: str) -> bool:
     except ValueError:
         return True  # unparseable → block
     return any(ip in net for net in _BLOCKED_NETWORKS)
+
+
+def _validate_hostname(hostname: str) -> None:
+    """Validate that a hostname doesn't resolve to blocked IPs or metadata services.
+
+    Called both as a pre-flight check and at transport request time to close
+    the TOCTOU gap between DNS validation and HTTP connection.
+
+    Raises:
+        ValueError: If the hostname is blocked, resolves to a blocked IP, or cannot be resolved.
+    """
+    if hostname.lower() in _BLOCKED_HOSTNAMES:
+        raise ValueError(f"Hostname is not permitted: {hostname}")
+
+    # Direct IP literal — validate without DNS resolution
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if any(ip in net for net in _BLOCKED_NETWORKS):
+            raise ValueError(f"Connection to blocked IP: {hostname}")
+        return
+    except ValueError:
+        pass  # Not an IP literal, resolve via DNS
+
+    try:
+        addrinfos = socket.getaddrinfo(
+            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+    except socket.gaierror:
+        raise ValueError(f"Could not resolve hostname: {hostname}")
+
+    for _, _, _, _, sockaddr in addrinfos:
+        if _is_blocked_ip(sockaddr[0]):
+            logger.warning("SSRF blocked: %s resolved to %s", hostname, sockaddr[0])
+            raise ValueError(f"URL target is not permitted: {hostname}")
 
 
 def _validate_url_target(url: str) -> None:
@@ -51,19 +92,7 @@ def _validate_url_target(url: str) -> None:
     hostname = parsed.hostname
     if not hostname:
         raise ValueError(f"URL has no hostname: {url}")
-
-    try:
-        addrinfos = socket.getaddrinfo(
-            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-        )
-    except socket.gaierror:
-        raise ValueError(f"Could not resolve hostname: {hostname}")
-
-    for family, _, _, _, sockaddr in addrinfos:
-        ip_str = sockaddr[0]
-        if _is_blocked_ip(ip_str):
-            logger.warning("SSRF blocked: %s resolved to %s", hostname, ip_str)
-            raise ValueError(f"URL target is not permitted: {hostname}")
+    _validate_hostname(hostname)
 
 
 def _is_url(value: str) -> bool:
@@ -115,7 +144,7 @@ def _normalise_google_sheets_url(url: str) -> str:
     return url
 
 
-def _check_redirect(response: httpx.Response) -> None:
+async def _check_redirect(response: httpx.Response) -> None:
     """Event hook: validate redirect targets against blocked networks."""
     if response.is_redirect:
         location = response.headers.get("location", "")
@@ -127,6 +156,26 @@ def _check_redirect(response: httpx.Response) -> None:
                     f"Redirect to blocked address: {location}",
                     request=response.request,
                 )
+
+
+class _SSRFSafeTransport(httpx.AsyncBaseTransport):
+    """Transport that re-validates hostnames at request time.
+
+    Narrows the TOCTOU window between DNS validation and connection to
+    near-zero by re-checking every hostname immediately before the inner
+    transport opens a TCP connection.
+    """
+
+    def __init__(self) -> None:
+        self._transport = httpx.AsyncHTTPTransport(retries=0)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host:
+            _validate_hostname(request.url.host)
+        return await self._transport.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._transport.aclose()
 
 
 async def fetch_csv_from_url(url: str) -> pd.DataFrame:
@@ -143,7 +192,9 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     _validate_url_target(url)
 
     async with httpx.AsyncClient(
+        transport=_SSRFSafeTransport(),
         follow_redirects=True,
+        max_redirects=5,
         timeout=60.0,
         event_hooks={"response": [_check_redirect]},
     ) as client:

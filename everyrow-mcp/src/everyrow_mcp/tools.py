@@ -759,6 +759,26 @@ async def everyrow_results_http(
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
 
+    # ── Cross-user access check ──────────────────────────────────
+    try:
+        owner = await redis_store.get_task_owner(task_id)
+        if owner:
+            from mcp.server.auth.middleware.auth_context import (  # noqa: PLC0415
+                get_access_token,
+            )
+
+            access_token = get_access_token()
+            user_id = access_token.client_id if access_token else None
+            if user_id and user_id != owner:
+                return [
+                    TextContent(
+                        type="text",
+                        text="Access denied: this task belongs to another user.",
+                    )
+                ]
+    except Exception:
+        logger.debug("Could not verify task ownership for %s", task_id)
+
     # ── Return from cache if available ───────────────────────────
     cached = await try_cached_result(
         task_id, params.offset, params.page_size, mcp_server_url=mcp_server_url

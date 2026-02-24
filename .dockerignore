@@ -1,0 +1,17 @@
+# Deny everything by default, allowlist what the Dockerfile needs
+*
+
+# Root workspace files
+!pyproject.toml
+!uv.lock
+!README.md
+
+# SDK package
+!src/
+!src/**
+
+# MCP server package
+!everyrow-mcp/pyproject.toml
+!everyrow-mcp/README.md
+!everyrow-mcp/src/
+!everyrow-mcp/src/**

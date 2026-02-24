@@ -28,6 +28,7 @@ from starlette.responses import JSONResponse
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
+from everyrow_mcp.redis_store import decrypt_value, encrypt_value
 from everyrow_mcp.tool_helpers import EveryRowContext
 
 logger = logging.getLogger(__name__)
@@ -131,13 +132,13 @@ def register_upload_tool(mcp: FastMCP) -> None:
         client = ctx.request_context.lifespan_context.client_factory()
         api_token = getattr(client, "token", None) or ""
 
-        # Store metadata in Redis (including user's token for upload auth)
+        # Store metadata in Redis (token encrypted at rest)
         meta = json.dumps(
             {
                 "upload_id": upload_id,
                 "filename": params.filename,
                 "expires_at": expires_at,
-                "api_token": api_token,
+                "api_token": encrypt_value(api_token),
             }
         )
         await redis_store.store_upload_meta(upload_id, meta, settings.upload_url_ttl)
@@ -227,8 +228,8 @@ async def handle_upload(request: Request) -> JSONResponse:
         return error
     assert body is not None and meta is not None  # type narrowing
 
-    # Retrieve the user's API token stored when the upload URL was requested
-    api_token = meta.get("api_token", "")
+    # Retrieve and decrypt the user's API token
+    api_token = decrypt_value(meta.get("api_token", ""))
     if not api_token:
         return JSONResponse({"error": "Upload authorization missing"}, status_code=403)
 

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import logging
 import re
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 
+from cryptography.fernet import Fernet
 from redis.asyncio import Redis, Sentinel
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
@@ -39,6 +43,38 @@ def build_key(*parts: str) -> str:
     """Build a namespaced Redis key, sanitising user-controlled characters."""
     sanitized = [_KEY_UNSAFE.sub("_", p) for p in parts]
     return "mcp:" + ":".join(sanitized)
+
+
+# ── Token encryption at rest ─────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def _get_fernet() -> Fernet | None:
+    """Get a Fernet cipher for encrypting sensitive values in Redis.
+
+    Returns None when encryption is not configured (e.g. stdio mode
+    where UPLOAD_SECRET is typically unset).
+    """
+    if not settings.upload_secret:
+        return None
+    key = hashlib.sha256(settings.upload_secret.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def encrypt_value(value: str) -> str:
+    """Encrypt a string value for Redis storage. No-op without UPLOAD_SECRET."""
+    f = _get_fernet()
+    if f is None:
+        return value
+    return f.encrypt(value.encode()).decode()
+
+
+def decrypt_value(value: str) -> str:
+    """Decrypt a string value from Redis. No-op without UPLOAD_SECRET."""
+    f = _get_fernet()
+    if f is None:
+        return value
+    return f.decrypt(value.encode()).decode()
 
 
 def create_redis_client(
@@ -181,11 +217,16 @@ async def get_result_csv(task_id: str) -> str | None:
 
 
 async def store_task_token(task_id: str, token: str) -> None:
-    await get_redis_client().setex(build_key("task_token", task_id), TOKEN_TTL, token)
+    await get_redis_client().setex(
+        build_key("task_token", task_id), TOKEN_TTL, encrypt_value(token)
+    )
 
 
 async def get_task_token(task_id: str) -> str | None:
-    return await get_redis_client().get(build_key("task_token", task_id))
+    encrypted = await get_redis_client().get(build_key("task_token", task_id))
+    if encrypted is None:
+        return None
+    return decrypt_value(encrypted)
 
 
 async def pop_task_token(task_id: str) -> None:
@@ -199,12 +240,28 @@ async def store_poll_token(task_id: str, poll_token: str) -> None:
     await get_redis_client().setex(
         name=build_key("poll_token", task_id),
         time=TOKEN_TTL,
-        value=poll_token,
+        value=encrypt_value(poll_token),
     )
 
 
 async def get_poll_token(task_id: str) -> str | None:
-    return await get_redis_client().get(build_key("poll_token", task_id))
+    encrypted = await get_redis_client().get(build_key("poll_token", task_id))
+    if encrypted is None:
+        return None
+    return decrypt_value(encrypted)
+
+
+# ── Task ownership (user-scoped data isolation) ──────────────
+
+
+async def store_task_owner(task_id: str, user_id: str) -> None:
+    """Record which user submitted a task (for cross-user access checks)."""
+    await get_redis_client().setex(build_key("task_owner", task_id), TOKEN_TTL, user_id)
+
+
+async def get_task_owner(task_id: str) -> str | None:
+    """Return the user_id that owns a task, or None if not recorded."""
+    return await get_redis_client().get(build_key("task_owner", task_id))
 
 
 # ── Upload metadata ───────────────────────────────────────────
