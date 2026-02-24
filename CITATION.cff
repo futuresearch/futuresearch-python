@@ -4,8 +4,8 @@ type: software
 title: "everyrow"
 abstract: "Screen, rank, dedupe, and merge dataframes using natural language. Run web agents to research every row."
 license: MIT
-version: 0.3.4
-date-released: 2026-02-19
+version: 0.4.0
+date-released: 2026-02-24
 repository-code: "https://github.com/futuresearch/everyrow-sdk"
 url: "https://everyrow.io"
 keywords:
