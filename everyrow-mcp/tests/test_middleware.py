@@ -6,6 +6,7 @@ import time
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
 
+from redis.exceptions import ConnectionError as RedisConnectionError
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
@@ -147,9 +148,15 @@ class TestRateLimitMiddleware:
         assert "rate" in keys[0]
 
     def test_fails_open_when_redis_unavailable(self):
-        """If Redis raises, requests still pass through (fail-open)."""
+        """If Redis raises RedisError, requests still pass through (fail-open)."""
+
+        @asynccontextmanager
+        async def _failing_pipeline():
+            raise RedisConnectionError("Redis down")
+            yield
+
         redis_mock = AsyncMock()
-        redis_mock.incr = AsyncMock(side_effect=ConnectionError("Redis down"))
+        redis_mock.pipeline = _failing_pipeline
 
         app = _make_app(redis_mock, max_requests=1)
         client = TestClient(app)

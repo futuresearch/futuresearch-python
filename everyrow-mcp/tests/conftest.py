@@ -73,10 +73,12 @@ async def fake_redis(_redis_server) -> aioredis.Redis:
     await r.aclose()
 
 
-def make_test_context(client):
+def make_test_context(client, mcp_server_url: str = ""):
     """Create a mock MCP Context with a SessionContext for testing."""
     ctx = MagicMock()
-    ctx.request_context.lifespan_context = SessionContext(client_factory=lambda: client)
+    ctx.request_context.lifespan_context = SessionContext(
+        client_factory=lambda: client, mcp_server_url=mcp_server_url
+    )
     return ctx
 
 

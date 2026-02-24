@@ -61,12 +61,19 @@ def clamp_page_to_budget(
     if estimated <= settings.token_budget:
         return preview_records, page_size
 
+    # Pre-compute per-row token sizes and build a prefix sum so the binary
+    # search doesn't need to re-serialize on every iteration.
+    # Overhead per-row is ~2 tokens for the JSON array wrapper/commas.
+    row_sizes = [_estimate_tokens(json.dumps(r)) + 2 for r in preview_records]
+    prefix = [0] * (len(row_sizes) + 1)
+    for i, s in enumerate(row_sizes):
+        prefix[i + 1] = prefix[i] + s
+
     lo, hi = 1, len(preview_records)
     best = 1
     while lo <= hi:
         mid = (lo + hi) // 2
-        candidate = preview_records[:mid]
-        if _estimate_tokens(json.dumps(candidate)) <= settings.token_budget:
+        if prefix[mid] <= settings.token_budget:
             best = mid
             lo = mid + 1
         else:

@@ -16,10 +16,18 @@ RUN uv sync --package everyrow-mcp --no-dev --no-sources --no-editable
 # Stage 2: Slim runtime
 FROM python:3.13-slim
 
+RUN groupadd -r mcp && useradd -r -g mcp -d /app -s /sbin/nologin mcp
+
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 
-CMD ["everyrow-mcp", "--http", "--port", "8000", "--host", "0.0.0.0"]
-
 WORKDIR /app
 COPY --link --from=build /app/.venv .venv
+RUN chown -R mcp:mcp /app
+
+USER mcp
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
+CMD ["everyrow-mcp", "--http", "--port", "8000", "--host", "0.0.0.0"]

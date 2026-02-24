@@ -78,6 +78,7 @@ def verifier(rsa_keypair, mock_redis):
     mock_signing_key.key = public_key.public_bytes(
         Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
     )
+    mock_signing_key._jwk_data = {"alg": "RS256"}
     verifier._jwks_client = MagicMock()
     verifier._jwks_client.get_signing_key_from_jwt = MagicMock(
         return_value=mock_signing_key
@@ -194,17 +195,15 @@ class TestSupabaseTokenVerifier:
             assert v._issuer == "https://my-project.supabase.co/auth/v1"
 
     @pytest.mark.asyncio
-    async def test_algorithm_from_header_not_private_attr(
-        self, rsa_keypair, mock_redis
-    ):
-        """verify_token reads alg from the JWT header, not signing_key._algorithm."""
+    async def test_algorithm_falls_back_to_rs256(self, rsa_keypair, mock_redis):
+        """verify_token falls back to RS256 when _jwk_data has no alg."""
         private_key, public_key = rsa_keypair
         token = _make_jwt(private_key)
 
         verifier = SupabaseTokenVerifier(SUPABASE_URL, redis=mock_redis)
 
-        # Signing key with NO _algorithm attr
-        mock_signing_key = MagicMock(spec=[])  # empty spec = no attributes
+        # Signing key with no _jwk_data attribute
+        mock_signing_key = MagicMock(spec=[])
         mock_signing_key.key = public_key.public_bytes(
             Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
         )
@@ -228,6 +227,7 @@ class TestSupabaseTokenVerifier:
         mock_signing_key.key = public_key.public_bytes(
             Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
         )
+        mock_signing_key._jwk_data = {"alg": "RS256"}
         verifier._jwks_client = MagicMock()
         verifier._jwks_client.get_signing_key_from_jwt = MagicMock(
             return_value=mock_signing_key
@@ -593,8 +593,11 @@ class TestRateLimiting:
     async def test_rate_limit_exceeded(self, provider, provider_redis):
         """_check_rate_limit raises ValueError when the limit is exceeded."""
         # Set the pipeline to return a count above the limit
-        pipe_mock = provider_redis.pipeline.return_value
+        pipe_mock = AsyncMock()
         pipe_mock.execute = AsyncMock(return_value=[11, True])
+        pipe_mock.__aenter__ = AsyncMock(return_value=pipe_mock)
+        pipe_mock.__aexit__ = AsyncMock(return_value=False)
+        provider_redis.pipeline = MagicMock(return_value=pipe_mock)
 
         with pytest.raises(ValueError, match="rate limit exceeded"):
             await provider._check_rate_limit("register", "1.2.3.4")
@@ -671,6 +674,9 @@ class TestClientIdMismatch:
         result = await provider.load_authorization_code(wrong_client, auth_code_str)
         assert result is None
 
+        # Code should be re-stored so the legitimate client can still use it
+        assert await provider._redis.get(f"mcp:authcode:{auth_code_str}") is not None
+
     @pytest.mark.asyncio
     async def test_refresh_token_client_id_mismatch(self, provider):
         """load_refresh_token rejects when client_id doesn't match."""
@@ -691,6 +697,9 @@ class TestClientIdMismatch:
         result = await provider.load_refresh_token(wrong_client, "rt-mismatch")
         assert result is None
 
+        # Token should be re-stored so the legitimate client can still use it
+        assert await provider._redis.get("mcp:refresh:rt-mismatch") is not None
+
 
 # ── Input length validation tests ─────────────────────────────────────
 
@@ -709,6 +718,115 @@ class TestInputLengthValidation:
         long_token = "R" * 257
         result = await provider.load_refresh_token(test_client, long_token)
         assert result is None
+
+
+# ── Auth code expiration tests ─────────────────────────────────────────
+
+
+class TestAuthCodeExpiration:
+    @pytest.mark.asyncio
+    async def test_auth_code_expired_rejected(self, provider, test_client):
+        """load_authorization_code returns None for an expired auth code."""
+        auth_code_str = secrets.token_urlsafe(32)
+        auth_code_obj = EveryRowAuthorizationCode(
+            code=auth_code_str,
+            client_id="test-client-id",
+            redirect_uri="https://example.com/callback",
+            redirect_uri_provided_explicitly=True,
+            code_challenge="test-challenge",
+            scopes=["read"],
+            expires_at=time.time() - 60,  # expired 60 seconds ago
+            supabase_access_token="fake-supabase-jwt",
+            supabase_refresh_token="fake-refresh",
+        )
+        await provider._redis.setex(
+            f"mcp:authcode:{auth_code_str}",
+            _AUTH_CODE_TTL,
+            auth_code_obj.model_dump_json(),
+        )
+
+        result = await provider.load_authorization_code(test_client, auth_code_str)
+        assert result is None
+
+        # Code should also be cleaned up from Redis
+        assert await provider._redis.get(f"mcp:authcode:{auth_code_str}") is None
+
+
+# ── Revocation TTL tests ──────────────────────────────────────────────
+
+
+class TestRevocationTTL:
+    @pytest.mark.asyncio
+    async def test_revoke_access_token_uses_remaining_ttl(self, mock_redis):
+        """Revoking an access token uses remaining lifetime + buffer, not flat TTL."""
+        verifier = SupabaseTokenVerifier(SUPABASE_URL, redis=mock_redis)
+        provider = EveryRowAuthProvider(redis=mock_redis, token_verifier=verifier)
+
+        expires_at = int(time.time()) + 1800  # 30 minutes remaining
+        access_token = AccessToken(
+            token="at-ttl-test",
+            client_id="user-123",
+            scopes=["read"],
+            expires_at=expires_at,
+        )
+        await provider.revoke_token(access_token)
+
+        # setex should have been called with remaining lifetime + 60s buffer
+        fingerprint = hashlib.sha256(b"at-ttl-test").hexdigest()
+        key = f"mcp:revoked:{fingerprint}"
+        assert key in mock_redis._store
+
+        # Verify the TTL passed to setex: remaining (~1800) + 60 = ~1860
+        call_args = mock_redis.setex.call_args
+        ttl_used = call_args.kwargs.get("time") or call_args[0][1]
+        assert 1800 <= ttl_used <= 1870  # allow for test execution time
+
+    @pytest.mark.asyncio
+    async def test_revoke_access_token_no_expiry_uses_fallback(self, mock_redis):
+        """Revoking a token with no expires_at falls back to _revocation_ttl."""
+        verifier = SupabaseTokenVerifier(SUPABASE_URL, redis=mock_redis)
+        provider = EveryRowAuthProvider(redis=mock_redis, token_verifier=verifier)
+
+        access_token = AccessToken(
+            token="at-no-exp",
+            client_id="user-123",
+            scopes=["read"],
+            # no expires_at
+        )
+        await provider.revoke_token(access_token)
+
+        call_args = mock_redis.setex.call_args
+        ttl_used = call_args.kwargs.get("time") or call_args[0][1]
+        assert ttl_used == verifier.revocation_ttl
+
+
+# ── Supabase response validation tests ────────────────────────────────
+
+
+class TestSupabaseResponseValidation:
+    @pytest.mark.asyncio
+    async def test_supabase_response_missing_fields(self, provider):
+        """_supabase_token_request raises ValueError when response lacks required fields."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {
+            "token_type": "bearer"
+        }  # missing access_token, refresh_token
+
+        with (
+            patch.object(
+                provider._http_client,
+                "post",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
+            pytest.raises(
+                ValueError, match="Invalid token response from identity provider"
+            ),
+        ):
+            await provider._supabase_token_request(
+                "pkce", {"auth_code": "x", "code_verifier": "y"}
+            )
 
 
 # ── Deny list fail-closed tests ───────────────────────────────────────

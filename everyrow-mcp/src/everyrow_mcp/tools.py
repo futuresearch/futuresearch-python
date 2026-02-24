@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from textwrap import dedent
 from typing import Any
@@ -56,6 +57,8 @@ from everyrow_mcp.tool_helpers import (
     write_initial_task_state,
 )
 from everyrow_mcp.utils import load_data, save_result_to_csv
+
+logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
@@ -592,12 +595,13 @@ async def everyrow_progress(
                 client=client,
             )
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to poll task %s", task_id)
         return [
             TextContent(
                 type="text",
                 text=dedent(f"""\
-                    Error polling task: {e!r}
+                    Error polling task {task_id}. Please try again.
                     Retry: call everyrow_progress(task_id='{task_id}')."""),
             )
         ]
@@ -630,8 +634,14 @@ async def everyrow_results_stdio(
                     Call everyrow_progress(task_id='{task_id}') to check again."""),
             )
         ]
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
+    except Exception:
+        logger.exception("Failed to retrieve results for task %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text=f"Error retrieving results for task {task_id}. Please try again.",
+            )
+        ]
 
     output_file = Path(params.output_path)
     save_result_to_csv(df, output_file)
@@ -679,13 +689,17 @@ async def everyrow_results_http(
                     Call everyrow_progress(task_id='{task_id}') to check again."""),
             )
         ]
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error retrieving results: {e!r}")]
+    except Exception:
+        logger.exception("Failed to retrieve results for task %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text=f"Error retrieving results for task {task_id}. Please try again.",
+            )
+        ]
 
-    # ── Optionally save to file (local HTTP mode) ─────────────────
-    if params.output_path:
-        output_file = Path(params.output_path)
-        save_result_to_csv(df, output_file)
+    # output_path is accepted by the schema but ignored in HTTP mode —
+    # the server must not write to its own filesystem on remote request.
 
     # ── Store in Redis and return paginated response ──────────────
     store_response = await try_store_result(
@@ -743,19 +757,20 @@ async def everyrow_cancel(
                 text=f"Cancelled task {task_id}.",
             )
         ]
-    except EveryrowError as e:
-        _clear_task_state()
+    except EveryrowError:
+        logger.exception("Failed to cancel task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error cancelling task {task_id}: {e!r}",
+                text=f"Failed to cancel task {task_id}. The task may have already completed.",
             )
         ]
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to cancel task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error cancelling task {task_id}: {e!r}",
+                text=f"Error cancelling task {task_id}. Please try again.",
             )
         ]
 

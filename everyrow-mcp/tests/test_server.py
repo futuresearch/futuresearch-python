@@ -844,7 +844,7 @@ class TestCancel:
 
     @pytest.mark.asyncio
     async def test_cancel_already_terminated_task(self):
-        """Test cancelling an already terminated task clears state and returns an error message."""
+        """Test cancelling an already terminated task returns error without clearing state."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         task_id = str(uuid4())
@@ -864,12 +864,13 @@ class TestCancel:
 
         text = result[0].text
         assert task_id in text
-        assert "Error" in text
-        mock_clear.assert_called_once()
+        assert "Failed" in text
+        # State should NOT be cleared when cancellation fails
+        mock_clear.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cancel_task_not_found(self):
-        """Test cancelling a nonexistent task clears state and returns an error message."""
+        """Test cancelling a nonexistent task returns error without clearing state."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         task_id = str(uuid4())
@@ -886,9 +887,9 @@ class TestCancel:
             result = await everyrow_cancel(params, ctx)
 
         text = result[0].text
-        assert "Error" in text
-        assert "not found" in text.lower()
-        mock_clear.assert_called_once()
+        assert "Failed" in text
+        # State should NOT be cleared when cancellation fails
+        mock_clear.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cancel_api_error(self):
@@ -909,17 +910,20 @@ class TestCancel:
 
         text = result[0].text
         assert "Error" in text
-        assert "Network failure" in text
 
     def test_cancel_input_validation(self):
-        """Test CancelInput strips whitespace and forbids extra fields."""
-        # Whitespace stripping
-        inp = CancelInput(task_id="  abc-123  ")
-        assert inp.task_id == "abc-123"
+        """Test CancelInput strips whitespace, validates UUID, and forbids extra fields."""
+        valid_uuid = str(uuid4())
+        inp = CancelInput(task_id=f"  {valid_uuid}  ")
+        assert inp.task_id == valid_uuid
+
+        # Invalid UUID rejected
+        with pytest.raises(ValidationError):
+            CancelInput(task_id="not-a-uuid")
 
         # Extra fields forbidden
         with pytest.raises(ValidationError):
-            CancelInput(task_id="abc", extra_field="x")  # type: ignore[call-arg]
+            CancelInput(task_id=valid_uuid, extra_field="x")  # type: ignore[call-arg]
 
 
 class TestAgentInlineInput:
@@ -1007,36 +1011,44 @@ class TestResultsInputValidation:
     def test_stdio_requires_output_path(self):
         """Test that StdioResultsInput requires output_path."""
         with pytest.raises(ValidationError):
-            StdioResultsInput(task_id="some-id")
+            StdioResultsInput(task_id="00000000-0000-0000-0000-000000000000")
 
     def test_stdio_output_path_validated(self, tmp_path: Path):
         """Test that output_path is validated when provided."""
         params = StdioResultsInput(
-            task_id="some-id", output_path=str(tmp_path / "out.csv")
+            task_id="00000000-0000-0000-0000-000000000000",
+            output_path=str(tmp_path / "out.csv"),
         )
         assert params.output_path is not None
 
     def test_stdio_output_path_rejects_non_csv(self, tmp_path: Path):
         """Test that non-CSV output_path is rejected."""
         with pytest.raises(ValidationError, match=r"must end in \.csv"):
-            StdioResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
+            StdioResultsInput(
+                task_id="00000000-0000-0000-0000-000000000000",
+                output_path=str(tmp_path / "out.txt"),
+            )
 
     def test_http_output_path_optional(self):
         """Test that HttpResultsInput allows omitting output_path."""
-        params = HttpResultsInput(task_id="some-id")
+        params = HttpResultsInput(task_id="00000000-0000-0000-0000-000000000000")
         assert params.output_path is None
 
     def test_http_output_path_validated(self, tmp_path: Path):
         """Test that HttpResultsInput validates output_path when provided."""
         params = HttpResultsInput(
-            task_id="some-id", output_path=str(tmp_path / "out.csv")
+            task_id="00000000-0000-0000-0000-000000000000",
+            output_path=str(tmp_path / "out.csv"),
         )
         assert params.output_path is not None
 
     def test_http_output_path_rejects_non_csv(self, tmp_path: Path):
         """Test that non-CSV output_path is rejected in HTTP mode too."""
         with pytest.raises(ValidationError, match=r"must end in \.csv"):
-            HttpResultsInput(task_id="some-id", output_path=str(tmp_path / "out.txt"))
+            HttpResultsInput(
+                task_id="00000000-0000-0000-0000-000000000000",
+                output_path=str(tmp_path / "out.txt"),
+            )
 
 
 class TestHttpResultsToolOverride:

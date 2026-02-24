@@ -386,8 +386,8 @@ function updateCopyBtn(){const n=S.selected.size;const fl=copyFmt.toUpperCase();
 
 /* --- select all --- */
 selAllBtn.addEventListener("click",()=>{
-  if(S.selected.size===S.filteredIdx.length)S.selected.clear();
-  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));}
+  if(S.selected.size===S.filteredIdx.length){S.selected.clear();showToast("Selection cleared");}
+  else{S.selected.clear();S.filteredIdx.forEach(i=>S.selected.add(i));showToast("Selected all "+S.filteredIdx.length+" rows");}
   updateSelection();updateCopyBtn();
 });
 
@@ -776,6 +776,7 @@ import{App}from"SCRIPT_SRC";
 const app=new App({name:"EveryRow Session",version:"1.0.0"});
 const el=document.getElementById("c");
 let pollUrl=null,pollTimer=null,sessionUrl="",wasDone=false;
+function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 
 app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
@@ -805,7 +806,7 @@ function render(d){
     h+=`<div class="info">`;
     if(done){
       const cls=d.status==="completed"?"status-done":"status-fail";
-      h+=`<span class="${cls}">${d.status}</span>`;
+      h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
       h+=`<span>${comp}/${tot}${fail?` (${fail} failed)`:""}</span>`;
       if(elapsed)h+=`<span>${fmtTime(elapsed)}</span>`;
     }else{
@@ -825,7 +826,7 @@ function render(d){
       h+=`</div>`;
     }
   }else if(d.status){
-    h+=`<div class="info">${d.status}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
+    h+=`<div class="info">${esc(d.status)}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
   }
 
   el.innerHTML=h;
