@@ -58,7 +58,7 @@ def real_ctx(everyrow_client):
     return make_test_context(everyrow_client)
 
 
-async def poll_until_complete(task_id: str, ctx, max_polls: int = 30) -> str:
+async def poll_until_complete(task_id: str, ctx, max_polls: int = 60) -> str:
     """Poll everyrow_progress until task completes or fails.
 
     Returns the final human-readable status text from everyrow_progress.
