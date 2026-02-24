@@ -44,6 +44,9 @@ def _is_blocked_ip(addr: str) -> bool:
         ip = ipaddress.ip_address(addr)
     except ValueError:
         return True  # unparseable → block
+    # Unwrap IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1 → 127.0.0.1)
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
     return any(ip in net for net in _BLOCKED_NETWORKS)
 
 

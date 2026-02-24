@@ -368,7 +368,7 @@ class EveryRowAuthProvider(
         state = request.path_params.get("state", "")
         response = RedirectResponse(url=pending.supabase_redirect_url, status_code=302)
         response.set_cookie(
-            key="mcp_auth_state",
+            key="__Host-mcp_auth_state",
             value=state,
             max_age=settings.pending_auth_ttl,
             httponly=True,

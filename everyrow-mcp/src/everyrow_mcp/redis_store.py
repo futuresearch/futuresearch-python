@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import logging
 import re
 from enum import StrEnum
@@ -9,6 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from redis.asyncio import Redis, Sentinel
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
@@ -57,7 +58,12 @@ def _get_fernet() -> Fernet | None:
     """
     if not settings.upload_secret:
         return None
-    key = hashlib.sha256(settings.upload_secret.encode()).digest()
+    key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"everyrow-mcp-fernet",
+    ).derive(settings.upload_secret.encode())
     return Fernet(base64.urlsafe_b64encode(key))
 
 

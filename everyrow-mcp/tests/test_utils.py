@@ -239,6 +239,15 @@ class TestSsrfProtection:
     def test_blocks_ipv6_loopback(self):
         assert _is_blocked_ip("::1") is True
 
+    def test_blocks_ipv4_mapped_ipv6_loopback(self):
+        assert _is_blocked_ip("::ffff:127.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_private(self):
+        assert _is_blocked_ip("::ffff:10.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_metadata(self):
+        assert _is_blocked_ip("::ffff:169.254.169.254") is True
+
     def test_allows_public_ip(self):
         assert _is_blocked_ip("8.8.8.8") is False
 
