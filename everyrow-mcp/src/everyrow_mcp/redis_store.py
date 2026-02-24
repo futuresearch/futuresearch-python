@@ -147,16 +147,18 @@ async def store_result_page(
 # ── CSV result storage ────────────────────────────────────────
 
 
-MAX_CSV_CACHE_BYTES = 50 * 1024 * 1024  # 50 MB — skip Redis cache for oversized results
+MAX_CSV_CACHE_CHARS = (
+    50 * 1024 * 1024
+)  # 50M characters — skip Redis cache for oversized results
 
 
 async def store_result_csv(task_id: str, csv_text: str) -> None:
-    if len(csv_text) > MAX_CSV_CACHE_BYTES:
+    if len(csv_text) > MAX_CSV_CACHE_CHARS:
         logger.warning(
-            "Skipping Redis cache for task %s: CSV is %d bytes (limit %d)",
+            "Skipping Redis cache for task %s: CSV is %d chars (limit %d)",
             task_id,
             len(csv_text),
-            MAX_CSV_CACHE_BYTES,
+            MAX_CSV_CACHE_CHARS,
         )
         return
     await get_redis_client().setex(

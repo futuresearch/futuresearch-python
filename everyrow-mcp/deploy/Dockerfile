@@ -27,5 +27,7 @@ RUN chown -R mcp:mcp /app
 
 USER mcp
 
-STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+
 CMD ["everyrow-mcp", "--http", "--port", "8000", "--host", "0.0.0.0"]

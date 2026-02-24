@@ -60,6 +60,10 @@ class SupabaseTokenVerifier(TokenVerifier):
         self._revocation_ttl = revocation_ttl
         self._jwks_lock = asyncio.Lock()
 
+    @property
+    def revocation_ttl(self) -> int:
+        return self._revocation_ttl
+
     @staticmethod
     def _token_fingerprint(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
@@ -481,15 +485,15 @@ class EveryRowAuthProvider(
             return None
 
         key = build_key("refresh", refresh_token)
-        # GET first, verify client_id, then DELETE — same pattern as
-        # load_authorization_code to avoid cross-client DoS.
-        data = await self._redis.get(key)
+        # GETDEL atomically consumes the token — no race between concurrent requests.
+        data = await self._redis.getdel(key)
         if data is None:
             return None
         rt = EveryRowRefreshToken.model_validate_json(data)
         if rt.client_id != client.client_id:
+            # Re-store so the legitimate client can still use it.
+            await self._redis.setex(key, settings.refresh_token_ttl, data)
             return None
-        await self._redis.delete(key)
         return rt
 
     async def exchange_refresh_token(
@@ -524,7 +528,7 @@ class EveryRowAuthProvider(
         elif isinstance(token, AccessToken):
             fp = SupabaseTokenVerifier._token_fingerprint(token.token)
             remaining = max(0, (token.expires_at or 0) - int(time.time())) + 60
-            ttl = remaining if remaining > 60 else self._token_verifier._revocation_ttl
+            ttl = remaining if remaining > 60 else self._token_verifier.revocation_ttl
             await self._redis.setex(
                 name=build_key("revoked", fp),
                 time=ttl,

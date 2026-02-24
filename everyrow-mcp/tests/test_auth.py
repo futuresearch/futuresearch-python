@@ -697,6 +697,9 @@ class TestClientIdMismatch:
         result = await provider.load_refresh_token(wrong_client, "rt-mismatch")
         assert result is None
 
+        # Token should be re-stored so the legitimate client can still use it
+        assert await provider._redis.get("mcp:refresh:rt-mismatch") is not None
+
 
 # ── Input length validation tests ─────────────────────────────────────
 
@@ -794,7 +797,7 @@ class TestRevocationTTL:
 
         call_args = mock_redis.setex.call_args
         ttl_used = call_args.kwargs.get("time") or call_args[0][1]
-        assert ttl_used == verifier._revocation_ttl
+        assert ttl_used == verifier.revocation_ttl
 
 
 # ── Supabase response validation tests ────────────────────────────────
