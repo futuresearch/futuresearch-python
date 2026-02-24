@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from everyrow.api_utils import create_client, handle_response
 from everyrow.constants import DEFAULT_EVERYROW_APP_URL
 from everyrow.generated.api.sessions import (
     create_session_endpoint_sessions_post,
+    list_sessions_endpoint_sessions_get,
 )
 from everyrow.generated.client import AuthenticatedClient
 from everyrow.generated.models.create_session import CreateSession
@@ -16,6 +18,20 @@ from everyrow.generated.models.create_session import CreateSession
 def get_session_url(session_id: UUID) -> str:
     base_url = os.environ.get("EVERYROW_APP_URL", DEFAULT_EVERYROW_APP_URL).rstrip("/")
     return f"{base_url}/sessions/{session_id}"
+
+
+@dataclass
+class SessionInfo:
+    """Summary of an existing session."""
+
+    session_id: UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+    def get_url(self) -> str:
+        """Get the URL to view this session in the web interface."""
+        return get_session_url(self.session_id)
 
 
 class Session:
@@ -69,6 +85,40 @@ async def create_session(
         response = handle_response(response)
         session = Session(client=client, session_id=response.session_id)
         yield session
+    finally:
+        if owns_client:
+            await client.__aexit__()
+
+
+async def list_sessions(
+    client: AuthenticatedClient | None = None,
+) -> list[SessionInfo]:
+    """List all sessions owned by the authenticated user.
+
+    Args:
+        client: Optional authenticated client. If not provided, one will be created
+                automatically using the EVERYROW_API_KEY environment variable.
+
+    Returns:
+        A list of SessionInfo objects.
+    """
+    owns_client = client is None
+    if owns_client:
+        client = create_client()
+        await client.__aenter__()
+
+    try:
+        response = await list_sessions_endpoint_sessions_get.asyncio(client=client)
+        response = handle_response(response)
+        return [
+            SessionInfo(
+                session_id=item.session_id,
+                name=item.name,
+                created_at=item.created_at,
+                updated_at=item.updated_at,
+            )
+            for item in response.sessions
+        ]
     finally:
         if owns_client:
             await client.__aexit__()
