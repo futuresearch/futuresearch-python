@@ -230,6 +230,19 @@ class TestNormaliseGoogleSheetsUrl:
         result = _normalise_google_sheets_url(url)
         assert result == url
 
+    def test_pub_url_to_export(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/pub?output=html"
+        result = _normalise_google_sheets_url(url)
+        assert result == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+
+    def test_pub_url_with_gid(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/pub?gid=456&single=true"
+        result = _normalise_google_sheets_url(url)
+        assert (
+            result
+            == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv&gid=456"
+        )
+
     def test_non_google_url_unchanged(self):
         url = "https://example.com/data.csv"
         result = _normalise_google_sheets_url(url)

@@ -37,7 +37,7 @@ def _normalise_google_sheets_url(url: str) -> str:
 
     Handles:
     - ``/edit...`` → ``/export?format=csv``
-    - ``/pub?...`` → ``/pub?...&output=csv``
+    - ``/pub...`` → ``/export?format=csv``
     - Already has ``/export?format=csv`` → unchanged
     """
     if "docs.google.com/spreadsheets" not in url:
@@ -47,7 +47,7 @@ def _normalise_google_sheets_url(url: str) -> str:
     if "/export" in url and "format=csv" in url:
         return url
 
-    # /edit or /edit#gid=... → /export?format=csv
+    # /edit, /pub, or bare doc URL → /export?format=csv
     match = re.match(r"(https://docs\.google\.com/spreadsheets/d/[^/]+)", url)
     if match:
         base = match.group(1)
@@ -80,8 +80,11 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     # Try CSV first
     try:
         df = pd.read_csv(StringIO(response.text))
-        if not df.empty:
-            return df
+        if df.empty:
+            raise ValueError(f"URL returned empty CSV data (headers only): {url}")
+        return df
+    except ValueError:
+        raise
     except Exception:
         pass
 
