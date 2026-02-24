@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "everyrow-mcp",
   "display_name": "Everyrow MCP Server",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "AI-powered dataframe ops: transform, dedupe, merge, rank, and screen with natural language",
   "long_description": "MCP server for everyrow: agent ops at spreadsheet scale. This server exposes everyrow's 5 core operations as MCP tools, allowing LLM applications to screen, rank, dedupe, merge, and run agents on CSV files. All tools operate on local CSV files.",
   "author": {
