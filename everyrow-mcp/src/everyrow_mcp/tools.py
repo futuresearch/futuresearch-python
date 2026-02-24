@@ -606,14 +606,19 @@ async def everyrow_forecast(
 async def everyrow_upload_data(
     params: UploadDataInput, ctx: EveryRowContext
 ) -> list[TextContent]:
-    """Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
+    """Upload data from a URL. Returns an artifact_id for use in processing tools.
 
     Use this tool to ingest data before calling everyrow_agent, everyrow_screen,
     everyrow_rank, everyrow_dedupe, everyrow_merge, or everyrow_forecast.
 
     Supported sources:
     - HTTP(S) URLs (including Google Sheets — auto-converted to CSV export)
-    - Local CSV file paths (stdio mode only)
+    - Local CSV file paths (stdio/local mode only — not available over HTTP)
+
+    For local files over HTTP, use everyrow_request_upload_url instead:
+    1. Call everyrow_request_upload_url with the filename
+    2. Execute the returned curl command to upload the file
+    3. Use the artifact_id from the curl response in your processing tool
 
     Returns an artifact_id (UUID) that can be passed to any processing tool's
     artifact_id parameter. The data is stored server-side and can be reused

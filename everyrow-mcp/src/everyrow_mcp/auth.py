@@ -149,6 +149,18 @@ class PendingAuth(BaseModel):
     supabase_redirect_url: str
 
 
+def _decode_trusted_server_jwt(token: str) -> dict[str, Any]:
+    """Decode a Supabase JWT received from a trusted server-to-server exchange.
+
+    Skips signature verification — the token came from Supabase's token
+    endpoint over HTTPS and was never exposed to the client.
+    NEVER use this for tokens received from end users.
+    """
+    return pyjwt.decode(
+        token, options={"verify_signature": False}, algorithms=["RS256"]
+    )
+
+
 # ── OAuth provider ────────────────────────────────────────────────────
 #
 # Auth flow:
@@ -191,18 +203,6 @@ class EveryRowAuthProvider(
 
     async def aclose(self) -> None:
         await self._http_client.aclose()
-
-    @staticmethod
-    def _UNSAFE_decode_server_jwt(token: str) -> dict[str, Any]:
-        """Decode a Supabase JWT received from a trusted server-to-server exchange.
-
-        Skips signature verification — the token came from Supabase's token
-        endpoint over HTTPS and was never exposed to the client.
-        NEVER use this for tokens received from end users.
-        """
-        return pyjwt.decode(
-            token, options={"verify_signature": False}, algorithms=["RS256"]
-        )
 
     @staticmethod
     def _client_ip(request: Request) -> str:
@@ -310,7 +310,7 @@ class EveryRowAuthProvider(
         self, request: Request
     ) -> tuple[PendingAuth, SupabaseTokenResponse]:
         code = request.query_params.get("code")
-        state = request.cookies.get("mcp_auth_state")
+        state = request.cookies.get("__Host-mcp_auth_state")
         if not code:
             raise HTTPException(status_code=400, detail="Missing code")
         pending = await self._validate_auth_request(
@@ -374,7 +374,7 @@ class EveryRowAuthProvider(
             httponly=True,
             samesite="lax",
             secure=True,
-            path="/auth/callback",
+            path="/",
         )
         return response
 
@@ -408,8 +408,8 @@ class EveryRowAuthProvider(
         url = f"{pending.params.redirect_uri}?{urlencode(redirect_params)}"
         response = RedirectResponse(url=url, status_code=302)
         response.delete_cookie(
-            "mcp_auth_state",
-            path="/auth/callback",
+            "__Host-mcp_auth_state",
+            path="/",
             httponly=True,
             samesite="lax",
             secure=True,
@@ -446,7 +446,7 @@ class EveryRowAuthProvider(
         scopes: list[str],
         supabase_refresh_token: str,
     ) -> OAuthToken:
-        jwt_claims = self._UNSAFE_decode_server_jwt(access_token)
+        jwt_claims = _decode_trusted_server_jwt(access_token)
         expires_in = max(0, jwt_claims.get("exp", 0) - int(time.time()))
 
         rt_str = secrets.token_urlsafe(32)

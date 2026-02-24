@@ -21,6 +21,7 @@ from everyrow_mcp.auth import (
     EveryRowAuthorizationCode,
     EveryRowAuthProvider,
     EveryRowRefreshToken,
+    PendingAuth,
     SupabaseTokenResponse,
     SupabaseTokenVerifier,
 )
@@ -833,6 +834,61 @@ class TestSupabaseResponseValidation:
 
 
 # ── Deny list fail-closed tests ───────────────────────────────────────
+
+
+# ── Cookie prefix tests ───────────────────────────────────────────────
+
+
+class TestHostCookiePrefix:
+    @pytest.mark.asyncio
+    async def test_handle_start_sets_host_prefixed_cookie(
+        self, provider, provider_redis
+    ):
+        """handle_start sets a __Host- prefixed cookie with path=/."""
+        # Create a PendingAuth entry in Redis
+        state = secrets.token_urlsafe(32)
+        pending = PendingAuth(
+            client_id="test-client-id",
+            params=AuthorizationParams(
+                state="s1",
+                scopes=["read"],
+                redirect_uri="https://example.com/callback",
+                code_challenge="challenge",
+                redirect_uri_provided_explicitly=True,
+            ),
+            supabase_code_verifier="verifier",
+            supabase_redirect_url="https://supabase.test/auth",
+        )
+        await provider_redis.setex(
+            f"mcp:pending:{state}",
+            600,
+            pending.model_dump_json(),
+        )
+
+        # Fix pipeline mock to be an async context manager
+        pipe_mock = MagicMock()
+        pipe_mock.incr = MagicMock()
+        pipe_mock.expire = MagicMock()
+        pipe_mock.execute = AsyncMock(return_value=[1, True])
+        pipe_mock.__aenter__ = AsyncMock(return_value=pipe_mock)
+        pipe_mock.__aexit__ = AsyncMock(return_value=False)
+        provider_redis.pipeline = MagicMock(return_value=pipe_mock)
+
+        # Build a fake request
+        request = MagicMock()
+        request.path_params = {"state": state}
+        request.headers = {}
+        request.client = MagicMock()
+        request.client.host = "1.2.3.4"
+
+        response = await provider.handle_start(request)
+
+        # Check cookie name and path
+        cookie_header = response.headers.getlist("set-cookie")
+        assert any("__Host-mcp_auth_state" in c for c in cookie_header)
+        assert any("Path=/" in c for c in cookie_header)
+        # Must not have the old path
+        assert not any("Path=/auth/callback" in c for c in cookie_header)
 
 
 # ── Two-phase refresh token tests ─────────────────────────────────────

@@ -1,13 +1,65 @@
 """Utility functions for the everyrow MCP server."""
 
+import ipaddress
 import json
+import logging
 import re
+import socket
 from io import StringIO
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+# ── SSRF protection ────────────────────────────────────────────
+
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("0.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+]
+
+
+def _is_blocked_ip(addr: str) -> bool:
+    """Check if an IP address falls within a blocked private/internal network."""
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return True  # unparseable → block
+    return any(ip in net for net in _BLOCKED_NETWORKS)
+
+
+def _validate_url_target(url: str) -> None:
+    """Resolve a URL's hostname and reject if any resolved IP is internal.
+
+    Raises:
+        ValueError: If the hostname resolves to a blocked network or cannot be resolved.
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError(f"URL has no hostname: {url}")
+
+    try:
+        addrinfos = socket.getaddrinfo(
+            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+    except socket.gaierror:
+        raise ValueError(f"Could not resolve hostname: {hostname}")
+
+    for family, _, _, _, sockaddr in addrinfos:
+        ip_str = sockaddr[0]
+        if _is_blocked_ip(ip_str):
+            raise ValueError(f"URL resolves to blocked address: {hostname} -> {ip_str}")
 
 
 def is_url(value: str) -> bool:
@@ -59,18 +111,38 @@ def _normalise_google_sheets_url(url: str) -> str:
     return url
 
 
+def _check_redirect(response: httpx.Response) -> None:
+    """Event hook: validate redirect targets against blocked networks."""
+    if response.is_redirect:
+        location = response.headers.get("location", "")
+        if location:
+            try:
+                _validate_url_target(location)
+            except ValueError:
+                raise httpx.TooManyRedirects(
+                    f"Redirect to blocked address: {location}",
+                    request=response.request,
+                )
+
+
 async def fetch_csv_from_url(url: str) -> pd.DataFrame:
     """Fetch CSV data from a URL and return a DataFrame.
 
     Automatically normalises Google Sheets URLs to their CSV export endpoint.
+    Validates that the URL (and any redirects) do not target internal networks.
 
     Raises:
-        ValueError: If the response cannot be parsed as CSV.
+        ValueError: If the response cannot be parsed as CSV, or URL targets a blocked network.
         httpx.HTTPStatusError: On non-2xx responses.
     """
     url = _normalise_google_sheets_url(url)
+    _validate_url_target(url)
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        timeout=60.0,
+        event_hooks={"response": [_check_redirect]},
+    ) as client:
         response = await client.get(url)
         response.raise_for_status()
 

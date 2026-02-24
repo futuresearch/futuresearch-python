@@ -87,14 +87,14 @@ class TestApiProgress:
         assert resp.headers["Access-Control-Allow-Origin"] == settings.mcp_server_url
 
     @pytest.mark.asyncio
-    async def test_invalid_poll_token_returns_403(self):
+    async def test_invalid_poll_token_via_header_returns_403(self):
         task_id = str(uuid4())
         await redis_store.store_poll_token(task_id, "correct-token")
         await redis_store.store_task_token(task_id, "api-key")
 
         req = FakeRequest(
             path_params={"task_id": task_id},
-            query_params={"token": "wrong-token"},
+            headers={"authorization": "Bearer wrong-token"},
         )
         resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 403
@@ -107,7 +107,6 @@ class TestApiProgress:
         # No poll token stored
         req = FakeRequest(
             path_params={"task_id": task_id},
-            query_params={},
         )
         resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 403
@@ -121,7 +120,7 @@ class TestApiProgress:
 
         req = FakeRequest(
             path_params={"task_id": task_id},
-            query_params={"token": poll_token},
+            headers={"authorization": f"Bearer {poll_token}"},
         )
         resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
         assert resp.status_code == 404
@@ -129,7 +128,43 @@ class TestApiProgress:
         assert body["error"] == "Unknown task"
 
     @pytest.mark.asyncio
-    async def test_valid_progress_returns_status(self):
+    async def test_valid_progress_via_auth_header(self):
+        """Poll token sent via Authorization: Bearer header works."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_task_token(task_id, "api-key-123")
+
+        status_resp = _make_status_response(
+            status="running", completed=3, total=10, failed=1, running=2
+        )
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+
+        with patch(
+            "everyrow_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            new_callable=AsyncMock,
+            return_value=status_resp,
+        ):
+            resp = await api_progress(req)
+
+        assert resp.status_code == 200
+        body = json.loads(resp.body.decode())
+        assert body["status"] == "running"
+        assert body["completed"] == 3
+        assert body["total"] == 10
+        assert body["failed"] == 1
+        assert body["running"] == 2
+        assert "elapsed_s" in body
+        assert "session_url" in body
+        assert resp.headers["Access-Control-Allow-Origin"] == settings.mcp_server_url
+
+    @pytest.mark.asyncio
+    async def test_backward_compat_query_param_for_download(self):
+        """Poll token via ?token= query param still works (for download links)."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token)
@@ -173,7 +208,7 @@ class TestApiProgress:
 
         req = FakeRequest(
             path_params={"task_id": task_id},
-            query_params={"token": poll_token},
+            headers={"authorization": f"Bearer {poll_token}"},
         )
 
         with patch(
@@ -200,7 +235,7 @@ class TestApiProgress:
 
         req = FakeRequest(
             path_params={"task_id": task_id},
-            query_params={"token": poll_token},
+            headers={"authorization": f"Bearer {poll_token}"},
         )
 
         with patch(

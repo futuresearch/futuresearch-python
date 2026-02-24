@@ -85,4 +85,64 @@ async def no_auth_http_lifespan(_server: FastMCP):
         )
 
 
-mcp = FastMCP("everyrow_mcp", lifespan=stdio_lifespan)
+_INSTRUCTIONS_COMMON = """\
+You are connected to the everyrow MCP server. everyrow dispatches web research \
+agents that search the internet, read pages, and return structured results for \
+every row in a dataset.
+
+## Workflow
+1. **Ingest data** — pass `data` (inline list of dicts) or an `artifact_id` \
+(from `everyrow_upload_data` or `everyrow_request_upload_url`) to any processing tool.
+2. **Submit** — call a processing tool (everyrow_agent, everyrow_screen, \
+everyrow_rank, everyrow_dedupe, everyrow_merge, everyrow_forecast). \
+It returns a task_id immediately.
+3. **Poll** — call `everyrow_progress(task_id)` repeatedly until the task completes. \
+Do NOT add commentary between progress calls — just call again immediately.
+4. **Results** — call `everyrow_results(task_id)` to retrieve the output.
+
+## Key rules
+- Always share the session_url with the user after submitting a task.
+- Never guess or fabricate results — always wait for the task to complete.
+- For small datasets (< 50 rows), prefer passing `data` directly.
+- For larger datasets, use `everyrow_upload_data` to get an artifact_id first.
+"""
+
+_INSTRUCTIONS_STDIO = (
+    _INSTRUCTIONS_COMMON
+    + """\
+## Data ingestion (local mode)
+- `everyrow_upload_data(source="/path/to/file.csv")` — upload a local CSV file.
+- `everyrow_upload_data(source="https://...")` — upload from a URL (Google Sheets supported).
+- Or pass `data=[{"col": "val"}, ...]` directly to any processing tool.
+
+## Results
+- `everyrow_results(task_id, output_path="/path/to/output.csv")` saves results as CSV.
+"""
+)
+
+_INSTRUCTIONS_HTTP = (
+    _INSTRUCTIONS_COMMON
+    + """\
+## Data ingestion (remote mode)
+- `everyrow_upload_data(source="https://...")` — upload from a URL (Google Sheets supported).
+- For local/sandbox files, use `everyrow_request_upload_url(filename="data.csv")`, \
+then execute the returned curl command, then use the artifact_id from the response.
+- Or pass `data=[{"col": "val"}, ...]` directly to any processing tool.
+- Do NOT pass local file paths to `everyrow_upload_data` — it will fail in remote mode.
+
+## Results
+- `everyrow_results(task_id)` returns a paginated preview with a download link.
+"""
+)
+
+
+def get_instructions(is_http: bool) -> str:
+    """Return server instructions appropriate for the transport mode."""
+    return _INSTRUCTIONS_HTTP if is_http else _INSTRUCTIONS_STDIO
+
+
+mcp = FastMCP(
+    "everyrow_mcp",
+    instructions=_INSTRUCTIONS_STDIO,
+    lifespan=stdio_lifespan,
+)

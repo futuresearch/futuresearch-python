@@ -775,14 +775,14 @@ a:hover{text-decoration:underline}
 import{App}from"SCRIPT_SRC";
 const app=new App({name:"EveryRow Session",version:"1.0.0"});
 const el=document.getElementById("c");
-let pollUrl=null,pollTimer=null,sessionUrl="",wasDone=false;
+let pollUrl=null,pollToken=null,pollTimer=null,sessionUrl="",wasDone=false;
 function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 
 app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
   try{
     const d=JSON.parse(t.text);sessionUrl=d.session_url||"";render(d);
-    if(d.progress_url&&!pollTimer){pollUrl=d.progress_url;startPoll()}
+    if(d.progress_url&&!pollTimer){pollUrl=d.progress_url;pollToken=d.poll_token||null;startPoll()}
   }catch{el.textContent=t.text}
 };
 
@@ -848,8 +848,9 @@ function fmtTime(s){
 }
 
 function startPoll(){
+  const opts=pollToken?{headers:{"Authorization":"Bearer "+pollToken}}:{};
   pollTimer=setInterval(async()=>{
-    try{const r=await fetch(pollUrl);if(r.ok)render(await r.json())}catch{}
+    try{const r=await fetch(pollUrl,opts);if(r.ok)render(await r.json())}catch{}
   },5000);
 }
 

@@ -75,7 +75,7 @@
     },
     {
       "name": "everyrow_upload_data",
-      "description": "Upload data from a URL or local file. Returns an artifact_id for use in processing tools."
+      "description": "Upload data from a URL. Returns an artifact_id for use in processing tools."
     }
   ],
   "user_config": {

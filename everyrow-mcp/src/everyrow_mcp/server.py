@@ -9,7 +9,7 @@ from textwrap import dedent
 from pydantic import BaseModel
 
 import everyrow_mcp.tools  # noqa: F401  — registers @mcp.tool() decorators
-from everyrow_mcp.app import mcp
+from everyrow_mcp.app import get_instructions, mcp
 from everyrow_mcp.config import settings
 from everyrow_mcp.http_config import configure_http_mode
 from everyrow_mcp.redis_store import Transport
@@ -74,6 +74,7 @@ def main():
     os.environ["EVERYROW_MCP_SERVER"] = "1"
     transport = Transport.HTTP if input_args.http else Transport.STDIO
     settings.transport = transport.value
+    mcp._mcp_server.instructions = get_instructions(is_http=input_args.http)
 
     # tools.py registers everyrow_results_stdio by default.
     # Override with the HTTP variant when running in HTTP mode.

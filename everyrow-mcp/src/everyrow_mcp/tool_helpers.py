@@ -98,9 +98,8 @@ async def _submission_ui_json(
         "status": "submitted",
     }
     if mcp_server_url:
-        data["progress_url"] = (
-            f"{mcp_server_url}/api/progress/{task_id}?token={poll_token}"
-        )
+        data["progress_url"] = f"{mcp_server_url}/api/progress/{task_id}"
+        data["poll_token"] = poll_token
     return json.dumps(data)
 
 

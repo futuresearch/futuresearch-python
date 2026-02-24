@@ -89,6 +89,10 @@ class Settings(BaseSettings):
         default=50 * 1024 * 1024,
         description="Maximum upload file size in bytes (50 MB).",
     )
+    max_upload_rows: int = Field(
+        default=100_000,
+        description="Maximum rows to read from an uploaded CSV file.",
+    )
 
     everyrow_api_key: str | None = None
 

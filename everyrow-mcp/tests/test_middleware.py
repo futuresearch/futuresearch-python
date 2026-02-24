@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from redis.exceptions import ConnectionError as RedisConnectionError
 from starlette.applications import Starlette
@@ -147,8 +147,20 @@ class TestRateLimitMiddleware:
         assert len(keys) == 1
         assert "rate" in keys[0]
 
-    def test_fails_open_when_redis_unavailable(self):
-        """If Redis raises RedisError, requests still pass through (fail-open)."""
+    def test_rejects_unknown_client_ip(self):
+        """Returns 400 when client IP cannot be determined."""
+        redis_mock = _make_redis_mock()
+        app = _make_app(redis_mock, max_requests=5)
+        client = TestClient(app)
+
+        # Patch get_client_ip to return None
+        with patch("everyrow_mcp.middleware.get_client_ip", return_value=None):
+            resp = client.get("/")
+            assert resp.status_code == 400
+            assert resp.json() == {"detail": "Could not determine client IP"}
+
+    def test_in_memory_fallback_when_redis_unavailable(self):
+        """In-memory fallback rate-limits when Redis is down."""
 
         @asynccontextmanager
         async def _failing_pipeline():
@@ -158,13 +170,18 @@ class TestRateLimitMiddleware:
         redis_mock = AsyncMock()
         redis_mock.pipeline = _failing_pipeline
 
-        app = _make_app(redis_mock, max_requests=1)
+        app = _make_app(redis_mock, max_requests=3)
         client = TestClient(app)
 
-        # Even many requests should pass when Redis is down
-        for _ in range(10):
+        # First 3 requests should pass via in-memory fallback
+        for _ in range(3):
             resp = client.get("/")
             assert resp.status_code == 200
+
+        # 4th request should be rate-limited by in-memory fallback
+        resp = client.get("/")
+        assert resp.status_code == 429
+        assert resp.json() == {"detail": "Rate limit exceeded"}
 
     def test_counter_resets_after_window(self):
         """Requests in a new time window should not be blocked."""

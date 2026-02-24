@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 def _cors_headers() -> dict[str, str]:
-    origin = settings.mcp_server_url or "http://localhost:8000"
+    origin = settings.mcp_server_url
+    if not origin:
+        logger.warning(
+            "mcp_server_url is empty; CORS Access-Control-Allow-Origin will be blank"
+        )
     return {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET",
@@ -40,10 +44,20 @@ def _validate_uuid(task_id: str) -> JSONResponse | None:
 
 
 async def _validate_poll_token(task_id: str, request: Request) -> JSONResponse | None:
-    """Return an error response if the poll token is missing/invalid, else None."""
+    """Return an error response if the poll token is missing/invalid, else None.
+
+    Checks Authorization: Bearer header first, falls back to ?token= query
+    param (for clickable CSV download links).
+    """
     expected = await redis_store.get_poll_token(task_id)
-    provided = request.query_params.get("token", "")
-    if not expected or not secrets.compare_digest(provided, expected):
+    # Try Authorization header first
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        provided = auth_header[7:]
+    else:
+        # Fall back to query param (for download links)
+        provided = request.query_params.get("token", "")
+    if not expected or not provided or not secrets.compare_digest(provided, expected):
         return JSONResponse(
             {"error": "Unauthorized"}, status_code=403, headers=_cors_headers()
         )
