@@ -18,13 +18,6 @@ on:
         type: boolean
         required: false
         default: false
-  pull_request:
-    paths:
-      - "everyrow-mcp/**"
-      - "src/everyrow/**"
-      - ".github/workflows/deploy-mcp.yaml"
-      - "pyproject.toml"
-      - "uv.lock"
 
 env:
   GKE_ZONE: ${{ vars.BETA_CLUSTER_REGION }}
