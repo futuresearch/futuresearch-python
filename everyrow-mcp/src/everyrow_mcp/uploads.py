@@ -205,7 +205,7 @@ async def handle_upload(request: Request) -> JSONResponse:
     try:
         from everyrow.api_utils import create_client  # noqa: PLC0415
 
-        with create_client() as client:
+        async with create_client() as client:
             async with create_session(client=client) as session:
                 artifact_id = await create_table_artifact(df, session)
     except Exception as exc:

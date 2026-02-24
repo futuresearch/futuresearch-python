@@ -61,19 +61,6 @@ from everyrow_mcp.tool_helpers import (
 )
 from everyrow_mcp.utils import _is_url, fetch_csv_from_url, save_result_to_csv
 
-
-def _resolve_input(params) -> UUID | pd.DataFrame:
-    """Resolve artifact_id or data to a UUID or DataFrame for SDK ops."""
-    if params.artifact_id:
-        return UUID(params.artifact_id)
-    return pd.DataFrame(params.data)
-
-
-def _input_source(params) -> str:
-    """Return a label describing which input field was used."""
-    return "artifact_id" if params.artifact_id else "data"
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +95,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
 
     _clear_task_state()
-    input_data = _resolve_input(params)
+    input_data = params._aid_or_dataframe
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -131,7 +118,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
             task_type=PublicTaskType.AGENT,
             session_url=session_url,
             total=total,
-            input_source=_input_source(params),
+            input_source=params._input_data_mode.value,
         )
 
     return await create_tool_response(
@@ -256,7 +243,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     client = _get_client(ctx)
 
     _clear_task_state()
-    input_data = _resolve_input(params)
+    input_data = params._aid_or_dataframe
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -280,7 +267,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
             task_type=PublicTaskType.RANK,
             session_url=session_url,
             total=total,
-            input_source=_input_source(params),
+            input_source=params._input_data_mode.value,
         )
 
     return await create_tool_response(
@@ -340,7 +327,7 @@ async def everyrow_screen(
     client = _get_client(ctx)
 
     _clear_task_state()
-    input_data = _resolve_input(params)
+    input_data = params._aid_or_dataframe
 
     response_model: type[BaseModel] | None = None
     if params.response_schema:
@@ -361,7 +348,7 @@ async def everyrow_screen(
             task_type=PublicTaskType.SCREEN,
             session_url=session_url,
             total=total,
-            input_source=_input_source(params),
+            input_source=params._input_data_mode.value,
         )
 
     return await create_tool_response(
@@ -417,7 +404,7 @@ async def everyrow_dedupe(
     client = _get_client(ctx)
     _clear_task_state()
 
-    input_data = _resolve_input(params)
+    input_data = params._aid_or_dataframe
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -433,7 +420,7 @@ async def everyrow_dedupe(
             task_type=PublicTaskType.DEDUPE,
             session_url=session_url,
             total=total,
-            input_source=_input_source(params),
+            input_source=params._input_data_mode.value,
         )
 
     return await create_tool_response(
@@ -498,17 +485,8 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
     client = _get_client(ctx)
     _clear_task_state()
 
-    left_input: UUID | pd.DataFrame
-    if params.left_artifact_id:
-        left_input = UUID(params.left_artifact_id)
-    else:
-        left_input = pd.DataFrame(params.left_data)
-
-    right_input: UUID | pd.DataFrame
-    if params.right_artifact_id:
-        right_input = UUID(params.right_artifact_id)
-    else:
-        right_input = pd.DataFrame(params.right_data)
+    left_input = params._left_aid_or_dataframe
+    right_input = params._right_aid_or_dataframe
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -524,14 +502,12 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
         )
         task_id = str(cohort_task.task_id)
         total = len(left_input) if isinstance(left_input, pd.DataFrame) else 0
-        left_src = "artifact_id" if params.left_artifact_id else "data"
-        right_src = "artifact_id" if params.right_artifact_id else "data"
         write_initial_task_state(
             task_id,
             task_type=PublicTaskType.MERGE,
             session_url=session_url,
             total=total,
-            input_source=f"left={left_src}, right={right_src}",
+            input_source=f"left={params._left_input_data_mode.value}, right={params._right_input_data_mode.value}",
         )
 
     return await create_tool_response(
@@ -585,7 +561,7 @@ async def everyrow_forecast(
     client = _get_client(ctx)
 
     _clear_task_state()
-    input_data = _resolve_input(params)
+    input_data = params._aid_or_dataframe
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
@@ -601,7 +577,7 @@ async def everyrow_forecast(
             task_type=PublicTaskType.FORECAST,
             session_url=session_url,
             total=total,
-            input_source=_input_source(params),
+            input_source=params._input_data_mode.value,
         )
 
     return await create_tool_response(
@@ -649,6 +625,8 @@ async def everyrow_upload_data(
         df = await fetch_csv_from_url(params.source)
     else:
         df = pd.read_csv(params.source)
+        if df.empty:
+            raise ValueError(f"CSV file is empty: {params.source}")
 
     async with create_session(client=client) as session:
         artifact_id = await create_table_artifact(df, session)

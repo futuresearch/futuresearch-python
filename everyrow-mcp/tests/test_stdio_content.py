@@ -740,9 +740,7 @@ class TestStdioMcpIntegration:
             yield sdk_client
 
     @pytest.mark.asyncio
-    async def test_screen_pipeline_stdio_clean(
-        self, _real_stdio_client, jobs_csv, tmp_path
-    ):
+    async def test_screen_pipeline_stdio_clean(self, _real_stdio_client, tmp_path):
         """Screen: submit → poll → results. Every response must be stdio-clean."""
         async with _stdio_mcp_client(_real_stdio_client) as session:
             # ── Submit ──
@@ -751,7 +749,10 @@ class TestStdioMcpIntegration:
                 {
                     "params": {
                         "task": "Filter for remote positions",
-                        "input_csv": jobs_csv,
+                        "data": [
+                            {"company": "Airtable", "role": "Engineer", "remote": True},
+                            {"company": "Notion", "role": "Designer", "remote": False},
+                        ],
                     }
                 },
             )
@@ -817,10 +818,6 @@ class TestStdioMcpIntegration:
     @pytest.mark.asyncio
     async def test_agent_pipeline_stdio_clean(self, _real_stdio_client, tmp_path):
         """Agent: submit → poll → results. Every response must be stdio-clean."""
-        # Minimal input to keep cost low
-        input_csv = tmp_path / "input.csv"
-        pd.DataFrame([{"name": "Anthropic"}]).to_csv(input_csv, index=False)
-
         async with _stdio_mcp_client(_real_stdio_client) as session:
             # ── Submit ──
             submit = await session.call_tool(
@@ -828,7 +825,7 @@ class TestStdioMcpIntegration:
                 {
                     "params": {
                         "task": "Find this company's headquarters city.",
-                        "input_csv": str(input_csv),
+                        "data": [{"name": "Anthropic"}],
                         "response_schema": {
                             "properties": {
                                 "headquarters": {

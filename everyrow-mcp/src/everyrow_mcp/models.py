@@ -1,9 +1,11 @@
 """Input models and schema helpers for everyrow MCP tools."""
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
+import pandas as pd
 from jsonschema import SchemaError
 from jsonschema.validators import validator_for
 from pydantic import (
@@ -26,6 +28,11 @@ JSON_TYPE_MAP = {
     "array": list,
     "object": dict,
 }
+
+
+class InputDataMode(StrEnum):
+    dataframe = "DATAFRAME"
+    artifact_id = "ARTIFACT_ID"
 
 
 def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -172,6 +179,20 @@ class _SingleSourceInput(BaseModel):
             label="Input",
         )
         return self
+
+    @property
+    def _input_data_mode(self) -> InputDataMode:
+        return (
+            InputDataMode.artifact_id
+            if self.artifact_id is not None
+            else InputDataMode.dataframe
+        )
+
+    @property
+    def _aid_or_dataframe(self) -> UUID | pd.DataFrame:
+        if self.artifact_id is not None:
+            return UUID(self.artifact_id)
+        return pd.DataFrame(self.data)
 
 
 class AgentInput(_SingleSourceInput):
@@ -344,6 +365,34 @@ class MergeInput(BaseModel):
             label="Right table",
         )
         return self
+
+    @property
+    def _left_input_data_mode(self) -> InputDataMode:
+        return (
+            InputDataMode.artifact_id
+            if self.left_artifact_id is not None
+            else InputDataMode.dataframe
+        )
+
+    @property
+    def _left_aid_or_dataframe(self) -> UUID | pd.DataFrame:
+        if self.left_artifact_id is not None:
+            return UUID(self.left_artifact_id)
+        return pd.DataFrame(self.left_data)
+
+    @property
+    def _right_input_data_mode(self) -> InputDataMode:
+        return (
+            InputDataMode.artifact_id
+            if self.right_artifact_id is not None
+            else InputDataMode.dataframe
+        )
+
+    @property
+    def _right_aid_or_dataframe(self) -> UUID | pd.DataFrame:
+        if self.right_artifact_id is not None:
+            return UUID(self.right_artifact_id)
+        return pd.DataFrame(self.right_data)
 
 
 class ForecastInput(_SingleSourceInput):

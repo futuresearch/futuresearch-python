@@ -13,10 +13,6 @@ class Settings(BaseSettings):
 
     everyrow_api_url: str = Field(default="https://everyrow.io/api/v0")
     preview_size: int = Field(default=1000)
-    max_inline_rows: int = Field(
-        default=50_000,
-        description="Maximum number of rows allowed in inline JSON data",
-    )
     max_schema_properties: int = Field(
         default=50,
         description="Maximum number of properties allowed in a response schema",
