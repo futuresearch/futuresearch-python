@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 
 import pandas as pd
 from mcp.types import TextContent
@@ -23,6 +24,20 @@ from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_records(records: list[dict]) -> list[dict]:
+    """Replace NaN/Inf float values with None for valid JSON serialization.
+
+    pandas ``to_dict(orient="records")`` preserves ``float('nan')`` which
+    ``json.dumps`` serializes as ``NaN`` — invalid JSON that breaks
+    ``JSON.parse()`` on the client side.
+    """
+    for row in records:
+        for k, v in row.items():
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                row[k] = None
+    return records
 
 
 def _format_columns(columns: list[str]) -> str:
@@ -163,7 +178,7 @@ async def try_cached_result(
                 )
                 return None
             df = pd.read_csv(io.StringIO(csv_text))
-            all_records = df.to_dict(orient="records")
+            all_records = _sanitize_records(df.to_dict(orient="records"))
             clamped = min(offset, len(all_records))
             preview_records = all_records[clamped : clamped + page_size]
             await redis_store.store_result_page(
@@ -228,7 +243,7 @@ async def try_store_result(
         # Build and cache page preview
         clamped_offset = min(offset, total)
         page_df = df.iloc[clamped_offset : clamped_offset + page_size]
-        preview_records = page_df.to_dict(orient="records")
+        preview_records = _sanitize_records(page_df.to_dict(orient="records"))
         await redis_store.store_result_page(
             task_id=task_id,
             offset=offset,
