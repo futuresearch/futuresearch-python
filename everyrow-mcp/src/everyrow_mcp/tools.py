@@ -525,7 +525,7 @@ async def everyrow_forecast(
     client = _get_client(ctx)
 
     _clear_task_state()
-    df = load_data(input_csv=params.input_csv)
+    df = load_data(data=params.data, input_csv=params.input_csv)
 
     async with create_session(client=client) as session:
         session_url = session.get_url()
