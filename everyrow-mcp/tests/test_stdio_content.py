@@ -618,11 +618,17 @@ class TestHttpModeIncludesWidgets:
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.agent_map_async"
         )
+        fake_token = MagicMock()
+        fake_token.client_id = "test-user-123"
         with (
             patches[0],
             patches[1],
             patch.object(settings, "transport", Transport.HTTP),
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
+            patch(
+                "everyrow_mcp.tool_helpers.get_access_token",
+                return_value=fake_token,
+            ),
         ):
             result = await everyrow_agent(
                 AgentInput(task="Find HQ", data=[{"name": "TechStart"}]), ctx
@@ -652,6 +658,11 @@ class TestHttpModeIncludesWidgets:
             ),
             patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
             patch("everyrow_mcp.tools.write_initial_task_state"),
+            patch(
+                "everyrow_mcp.tools._check_task_ownership",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
 
@@ -675,6 +686,11 @@ class TestHttpModeIncludesWidgets:
             ),
             patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
             patch("everyrow_mcp.tools.write_initial_task_state"),
+            patch(
+                "everyrow_mcp.tools._check_task_ownership",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
 

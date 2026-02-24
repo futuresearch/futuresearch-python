@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import base64
 import logging
 import re
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from redis.asyncio import Redis, Sentinel
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
@@ -41,12 +46,50 @@ def build_key(*parts: str) -> str:
     return "mcp:" + ":".join(sanitized)
 
 
+# ── Token encryption at rest ─────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def _get_fernet() -> Fernet | None:
+    """Get a Fernet cipher for encrypting sensitive values in Redis.
+
+    Returns None when encryption is not configured (e.g. stdio mode
+    where UPLOAD_SECRET is typically unset).
+    """
+    if not settings.upload_secret:
+        return None
+    key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"everyrow-mcp-fernet",
+    ).derive(settings.upload_secret.encode())
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def encrypt_value(value: str) -> str:
+    """Encrypt a string value for Redis storage. No-op without UPLOAD_SECRET."""
+    f = _get_fernet()
+    if f is None:
+        return value
+    return f.encrypt(value.encode()).decode()
+
+
+def decrypt_value(value: str) -> str:
+    """Decrypt a string value from Redis. No-op without UPLOAD_SECRET."""
+    f = _get_fernet()
+    if f is None:
+        return value
+    return f.decrypt(value.encode()).decode()
+
+
 def create_redis_client(
     *,
     host: str = "localhost",
     port: int = 6379,
     db: int = settings.redis_db,
     password: str | None = None,
+    ssl: bool = False,
     sentinel_endpoints: str | None = None,
     sentinel_master_name: str | None = None,
 ) -> Redis:
@@ -65,18 +108,26 @@ def create_redis_client(
 
         sentinel = Sentinel(
             sentinels,
-            sentinel_kwargs={"password": password} if password else {},
+            sentinel_kwargs={"password": password, "ssl": ssl}
+            if password
+            else {"ssl": ssl},
             retry=retry,
         )
         client: Redis = sentinel.master_for(
             sentinel_master_name,
             db=db,
             password=password,
+            ssl=ssl,
             decode_responses=True,
             health_check_interval=HEALTH_CHECK_INTERVAL,
             retry=retry,
         )
-        logger.info("Redis: Sentinel mode, master=%s, db=%d", sentinel_master_name, db)
+        logger.info(
+            "Redis: Sentinel mode, master=%s, db=%d, ssl=%s",
+            sentinel_master_name,
+            db,
+            ssl,
+        )
         return client
 
     client = Redis(
@@ -84,11 +135,12 @@ def create_redis_client(
         port=port,
         db=db,
         password=password,
+        ssl=ssl,
         decode_responses=True,
         health_check_interval=HEALTH_CHECK_INTERVAL,
         retry=retry,
     )
-    logger.info("Redis: direct mode, host=%s:%d, db=%d", host, port, db)
+    logger.info("Redis: direct mode, host=%s:%d, db=%d, ssl=%s", host, port, db, ssl)
     return client
 
 
@@ -103,6 +155,7 @@ def get_redis_client() -> Redis:
             port=settings.redis_port,
             db=settings.redis_db,
             password=settings.redis_password,
+            ssl=settings.redis_ssl,
             sentinel_endpoints=settings.redis_sentinel_endpoints,
             sentinel_master_name=settings.redis_sentinel_master_name,
         )
@@ -170,11 +223,16 @@ async def get_result_csv(task_id: str) -> str | None:
 
 
 async def store_task_token(task_id: str, token: str) -> None:
-    await get_redis_client().setex(build_key("task_token", task_id), TOKEN_TTL, token)
+    await get_redis_client().setex(
+        build_key("task_token", task_id), TOKEN_TTL, encrypt_value(token)
+    )
 
 
 async def get_task_token(task_id: str) -> str | None:
-    return await get_redis_client().get(build_key("task_token", task_id))
+    encrypted = await get_redis_client().get(build_key("task_token", task_id))
+    if encrypted is None:
+        return None
+    return decrypt_value(encrypted)
 
 
 async def pop_task_token(task_id: str) -> None:
@@ -188,12 +246,28 @@ async def store_poll_token(task_id: str, poll_token: str) -> None:
     await get_redis_client().setex(
         name=build_key("poll_token", task_id),
         time=TOKEN_TTL,
-        value=poll_token,
+        value=encrypt_value(poll_token),
     )
 
 
 async def get_poll_token(task_id: str) -> str | None:
-    return await get_redis_client().get(build_key("poll_token", task_id))
+    encrypted = await get_redis_client().get(build_key("poll_token", task_id))
+    if encrypted is None:
+        return None
+    return decrypt_value(encrypted)
+
+
+# ── Task ownership (user-scoped data isolation) ──────────────
+
+
+async def store_task_owner(task_id: str, user_id: str) -> None:
+    """Record which user submitted a task (for cross-user access checks)."""
+    await get_redis_client().setex(build_key("task_owner", task_id), TOKEN_TTL, user_id)
+
+
+async def get_task_owner(task_id: str) -> str | None:
+    """Return the user_id that owns a task, or None if not recorded."""
+    return await get_redis_client().get(build_key("task_owner", task_id))
 
 
 # ── Upload metadata ───────────────────────────────────────────

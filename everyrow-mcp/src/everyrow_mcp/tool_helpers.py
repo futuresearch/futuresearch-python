@@ -24,6 +24,7 @@ from everyrow.generated.models.task_result_response_data_type_1 import (
 from everyrow.generated.models.task_status import TaskStatus
 from everyrow.generated.models.task_status_response import TaskStatusResponse
 from everyrow.generated.types import Unset
+from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import TextContent
@@ -91,6 +92,18 @@ async def _submission_ui_json(
     poll_token = secrets.token_urlsafe(32)
     await redis_store.store_task_token(task_id, token)
     await redis_store.store_poll_token(task_id, poll_token)
+
+    # Record task owner for cross-user access checks (HTTP mode only).
+    # This MUST succeed — downstream ownership checks deny access when no
+    # owner is recorded, so a silent failure here would lock the user out
+    # of their own task.
+    if settings.is_http:
+        access_token = get_access_token()
+        if not access_token or not access_token.client_id:
+            raise RuntimeError(
+                f"Cannot record task owner for {task_id}: no authenticated user"
+            )
+        await redis_store.store_task_owner(task_id, access_token.client_id)
     data: dict[str, Any] = {
         "session_url": session_url,
         "task_id": task_id,
@@ -98,9 +111,8 @@ async def _submission_ui_json(
         "status": "submitted",
     }
     if mcp_server_url:
-        data["progress_url"] = (
-            f"{mcp_server_url}/api/progress/{task_id}?token={poll_token}"
-        )
+        data["progress_url"] = f"{mcp_server_url}/api/progress/{task_id}"
+        data["poll_token"] = poll_token
     return json.dumps(data)
 
 

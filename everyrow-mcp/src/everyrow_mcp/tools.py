@@ -25,11 +25,13 @@ from everyrow.ops import (
 )
 from everyrow.session import create_session, get_session_url, list_sessions
 from everyrow.task import cancel_task
+from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.types import TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.app import _clear_task_state, mcp
+from everyrow_mcp.config import settings
 from everyrow_mcp.models import (
     AgentInput,
     CancelInput,
@@ -62,6 +64,38 @@ from everyrow_mcp.tool_helpers import (
 from everyrow_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
+    """Verify the current user owns *task_id*. Returns an error response if
+    access should be denied, or ``None`` if the caller may proceed.
+
+    Only active in HTTP mode; always returns ``None`` for stdio.
+    Fail-closed: if ownership cannot be verified, access is denied.
+    """
+    if not settings.is_http:
+        return None
+
+    owner = await redis_store.get_task_owner(task_id)
+    if not owner:
+        logger.error("No owner recorded for task %s — denying access", task_id)
+        return [
+            TextContent(
+                type="text",
+                text="Access denied: task ownership could not be verified.",
+            )
+        ]
+
+    access_token = get_access_token()
+    user_id = access_token.client_id if access_token else None
+    if not user_id or user_id != owner:
+        return [
+            TextContent(
+                type="text",
+                text="Access denied: this task belongs to another user.",
+            )
+        ]
+    return None
 
 
 @mcp.tool(
@@ -613,7 +647,12 @@ async def everyrow_upload_data(
 
     Supported sources:
     - HTTP(S) URLs (including Google Sheets — auto-converted to CSV export)
-    - Local CSV file paths (stdio mode only)
+    - Local CSV file paths (stdio/local mode only — not available over HTTP)
+
+    For local files over HTTP, use everyrow_request_upload_url instead:
+    1. Call everyrow_request_upload_url with the filename
+    2. Execute the returned curl command to upload the file
+    3. Use the artifact_id from the curl response in your processing tool
 
     Returns an artifact_id (UUID) that can be passed to any processing tool's
     artifact_id parameter. The data is stored server-side and can be reused
@@ -667,8 +706,20 @@ async def everyrow_progress(
     Do not add commentary between progress calls, just call again immediately.
     """
     client = _get_client(ctx)
-
     task_id = params.task_id
+
+    # ── Cross-user access check ──────────────────────────────────
+    try:
+        if denied := await _check_task_ownership(task_id):
+            return denied
+    except Exception:
+        logger.exception("Could not verify task ownership for %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text="Unable to verify task ownership. Please try again.",
+            )
+        ]
 
     # Block server-side before polling — controls the cadence
     await asyncio.sleep(redis_store.PROGRESS_POLL_DELAY)
@@ -742,7 +793,7 @@ async def everyrow_results_stdio(
     ]
 
 
-async def everyrow_results_http(
+async def everyrow_results_http(  # noqa: PLR0911
     params: HttpResultsInput, ctx: EveryRowContext
 ) -> list[TextContent]:
     """Retrieve results from a completed everyrow task.
@@ -753,6 +804,19 @@ async def everyrow_results_http(
     client = _get_client(ctx)
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
+
+    # ── Cross-user access check ──────────────────────────────────
+    try:
+        if denied := await _check_task_ownership(task_id):
+            return denied
+    except Exception:
+        logger.exception("Could not verify task ownership for %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text="Unable to verify task ownership. Please try again.",
+            )
+        ]
 
     # ── Return from cache if available ───────────────────────────
     cached = await try_cached_result(
@@ -870,8 +934,21 @@ async def everyrow_cancel(
 ) -> list[TextContent]:
     """Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."""
     client = _get_client(ctx)
-
     task_id = params.task_id
+
+    # ── Cross-user access check ──────────────────────────────────
+    try:
+        if denied := await _check_task_ownership(task_id):
+            return denied
+    except Exception:
+        logger.exception("Could not verify task ownership for %s", task_id)
+        return [
+            TextContent(
+                type="text",
+                text="Unable to verify task ownership. Please try again.",
+            )
+        ]
+
     try:
         await cancel_task(task_id=UUID(task_id), client=client)
         _clear_task_state()

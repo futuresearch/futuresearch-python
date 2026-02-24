@@ -1416,6 +1416,9 @@ class TestStdioVsHttpGating:
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
+        fake_token = MagicMock()
+        fake_token.client_id = "test-user-123"
+
         with (
             override_settings(transport="streamable-http"),
             patch(
@@ -1426,6 +1429,10 @@ class TestStdioVsHttpGating:
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
+            patch(
+                "everyrow_mcp.tool_helpers.get_access_token",
+                return_value=fake_token,
+            ),
         ):
             mock_op.return_value = mock_task
             params = AgentInput(
@@ -1483,6 +1490,11 @@ class TestStdioVsHttpGating:
             ),
             patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
             patch("everyrow_mcp.tools.write_initial_task_state"),
+            patch(
+                "everyrow_mcp.tools._check_task_ownership",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
 

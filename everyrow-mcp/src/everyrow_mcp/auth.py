@@ -29,7 +29,7 @@ from starlette.responses import RedirectResponse
 
 from everyrow_mcp.config import settings
 from everyrow_mcp.middleware import get_client_ip
-from everyrow_mcp.redis_store import build_key
+from everyrow_mcp.redis_store import build_key, decrypt_value, encrypt_value
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
@@ -149,6 +149,18 @@ class PendingAuth(BaseModel):
     supabase_redirect_url: str
 
 
+def _decode_trusted_server_jwt(token: str) -> dict[str, Any]:
+    """Decode a Supabase JWT received from a trusted server-to-server exchange.
+
+    Skips signature verification — the token came from Supabase's token
+    endpoint over HTTPS and was never exposed to the client.
+    NEVER use this for tokens received from end users.
+    """
+    return pyjwt.decode(
+        token, options={"verify_signature": False}, algorithms=["RS256"]
+    )
+
+
 # ── OAuth provider ────────────────────────────────────────────────────
 #
 # Auth flow:
@@ -191,18 +203,6 @@ class EveryRowAuthProvider(
 
     async def aclose(self) -> None:
         await self._http_client.aclose()
-
-    @staticmethod
-    def _UNSAFE_decode_server_jwt(token: str) -> dict[str, Any]:
-        """Decode a Supabase JWT received from a trusted server-to-server exchange.
-
-        Skips signature verification — the token came from Supabase's token
-        endpoint over HTTPS and was never exposed to the client.
-        NEVER use this for tokens received from end users.
-        """
-        return pyjwt.decode(
-            token, options={"verify_signature": False}, algorithms=["RS256"]
-        )
 
     @staticmethod
     def _client_ip(request: Request) -> str:
@@ -310,7 +310,7 @@ class EveryRowAuthProvider(
         self, request: Request
     ) -> tuple[PendingAuth, SupabaseTokenResponse]:
         code = request.query_params.get("code")
-        state = request.cookies.get("mcp_auth_state")
+        state = request.cookies.get("__Host-mcp_auth_state")
         if not code:
             raise HTTPException(status_code=400, detail="Missing code")
         pending = await self._validate_auth_request(
@@ -368,13 +368,13 @@ class EveryRowAuthProvider(
         state = request.path_params.get("state", "")
         response = RedirectResponse(url=pending.supabase_redirect_url, status_code=302)
         response.set_cookie(
-            key="mcp_auth_state",
+            key="__Host-mcp_auth_state",
             value=state,
             max_age=settings.pending_auth_ttl,
             httponly=True,
             samesite="lax",
             secure=True,
-            path="/auth/callback",
+            path="/",
         )
         return response
 
@@ -397,7 +397,7 @@ class EveryRowAuthProvider(
         await self._redis.setex(
             name=build_key("authcode", code),
             time=settings.auth_code_ttl,
-            value=auth_code.model_dump_json(),
+            value=encrypt_value(auth_code.model_dump_json()),
         )
         return code
 
@@ -408,8 +408,8 @@ class EveryRowAuthProvider(
         url = f"{pending.params.redirect_uri}?{urlencode(redirect_params)}"
         response = RedirectResponse(url=url, status_code=302)
         response.delete_cookie(
-            "mcp_auth_state",
-            path="/auth/callback",
+            "__Host-mcp_auth_state",
+            path="/",
             httponly=True,
             samesite="lax",
             secure=True,
@@ -426,16 +426,17 @@ class EveryRowAuthProvider(
 
         key = build_key("authcode", authorization_code)
         # GETDEL atomically consumes the code — no race between concurrent requests.
-        code_data = await self._redis.getdel(key)
-        if code_data is None:
+        code_data_encrypted = await self._redis.getdel(key)
+        if code_data_encrypted is None:
             return None
+        code_data = decrypt_value(code_data_encrypted)
         code_obj = EveryRowAuthorizationCode.model_validate_json(code_data)
         if code_obj.expires_at and code_obj.expires_at < time.time():
             return None
         if code_obj.client_id != client.client_id:
             # Re-store so the legitimate client can still use it.
             remaining = max(1, int((code_obj.expires_at or 0) - time.time()))
-            await self._redis.setex(key, remaining, code_data)
+            await self._redis.setex(key, remaining, code_data_encrypted)
             return None
         return code_obj
 
@@ -446,7 +447,7 @@ class EveryRowAuthProvider(
         scopes: list[str],
         supabase_refresh_token: str,
     ) -> OAuthToken:
-        jwt_claims = self._UNSAFE_decode_server_jwt(access_token)
+        jwt_claims = _decode_trusted_server_jwt(access_token)
         expires_in = max(0, jwt_claims.get("exp", 0) - int(time.time()))
 
         rt_str = secrets.token_urlsafe(32)
@@ -459,7 +460,7 @@ class EveryRowAuthProvider(
         await self._redis.setex(
             name=build_key("refresh", rt_str),
             time=settings.refresh_token_ttl,
-            value=rt.model_dump_json(),
+            value=encrypt_value(rt.model_dump_json()),
         )
 
         return OAuthToken(
@@ -493,13 +494,13 @@ class EveryRowAuthProvider(
 
         key = build_key("refresh", refresh_token)
         # GETDEL atomically consumes the token — no race between concurrent requests.
-        data = await self._redis.getdel(key)
-        if data is None:
+        data_encrypted = await self._redis.getdel(key)
+        if data_encrypted is None:
             return None
-        rt = EveryRowRefreshToken.model_validate_json(data)
+        rt = EveryRowRefreshToken.model_validate_json(decrypt_value(data_encrypted))
         if rt.client_id != client.client_id:
             # Re-store so the legitimate client can still use it.
-            await self._redis.setex(key, settings.refresh_token_ttl, data)
+            await self._redis.setex(key, settings.refresh_token_ttl, data_encrypted)
             return None
         return rt
 
@@ -519,7 +520,7 @@ class EveryRowAuthProvider(
             await self._redis.setex(
                 name=build_key("refresh", refresh_token.token),
                 time=settings.refresh_token_ttl,
-                value=refresh_token.model_dump_json(),
+                value=encrypt_value(refresh_token.model_dump_json()),
             )
             raise
         assert client.client_id is not None

@@ -435,7 +435,10 @@ class UploadDataInput(BaseModel):
         if settings.is_http:
             raise ValueError(
                 "Local file paths are not supported in HTTP mode. "
-                "Use a URL or request_upload_url instead."
+                "To upload a local file: "
+                "1) call everyrow_request_upload_url with the filename, "
+                "2) execute the returned curl command, "
+                "3) use the artifact_id from the response in your processing tool."
             )
         validate_csv_path(v)
         return v

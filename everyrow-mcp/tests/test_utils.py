@@ -1,12 +1,16 @@
 """Tests for utility functions."""
 
+import socket
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from everyrow_mcp.utils import (
+    _is_blocked_ip,
     _normalise_google_sheets_url,
+    _validate_url_target,
     is_url,
     resolve_output_path,
     save_result_to_csv,
@@ -49,6 +53,19 @@ class TestValidateCsvPath:
 
         with pytest.raises(ValueError, match="must be a CSV"):
             validate_csv_path(str(txt_file))
+
+    def test_path_traversal_resolved(self, tmp_path: Path):
+        """Path with /../ segments is resolved before validation."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        # Construct a path with traversal: /tmp/xxx/sub/../test.csv
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        traversal_path = str(sub) + "/../test.csv"
+
+        # Should resolve to the real file and pass
+        validate_csv_path(traversal_path)
 
 
 class TestValidateOutputPath:
@@ -191,3 +208,88 @@ class TestNormaliseGoogleSheetsUrl:
         url = "https://example.com/data.csv"
         result = _normalise_google_sheets_url(url)
         assert result == url
+
+
+# ── SSRF protection tests ─────────────────────────────────────
+
+
+def _mock_resolve(hostname, resolved_ip):  # noqa: ARG001
+    """Return a mock getaddrinfo result resolving hostname to a single IP."""
+    return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", (resolved_ip, 0))]
+
+
+class TestSsrfProtection:
+    """Tests for SSRF protection in URL validation."""
+
+    def test_blocks_localhost(self):
+        assert _is_blocked_ip("127.0.0.1") is True
+
+    def test_blocks_10_x(self):
+        assert _is_blocked_ip("10.0.0.1") is True
+
+    def test_blocks_172_16_x(self):
+        assert _is_blocked_ip("172.16.0.1") is True
+
+    def test_blocks_192_168_x(self):
+        assert _is_blocked_ip("192.168.1.1") is True
+
+    def test_blocks_link_local(self):
+        assert _is_blocked_ip("169.254.169.254") is True
+
+    def test_blocks_ipv6_loopback(self):
+        assert _is_blocked_ip("::1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_loopback(self):
+        assert _is_blocked_ip("::ffff:127.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_private(self):
+        assert _is_blocked_ip("::ffff:10.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_metadata(self):
+        assert _is_blocked_ip("::ffff:169.254.169.254") is True
+
+    def test_allows_public_ip(self):
+        assert _is_blocked_ip("8.8.8.8") is False
+
+    def test_allows_public_ip_2(self):
+        assert _is_blocked_ip("93.184.216.34") is False
+
+    def test_validate_url_target_blocks_localhost(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("localhost", "127.0.0.1"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                _validate_url_target("http://localhost/secret")
+
+    def test_validate_url_target_blocks_10_x(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("internal.corp", "10.0.0.5"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                _validate_url_target("http://internal.corp/data")
+
+    def test_validate_url_target_blocks_metadata_endpoint(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("metadata", "169.254.169.254"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                _validate_url_target("http://metadata/latest/api-token")
+
+    def test_validate_url_target_allows_public(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            # Should not raise
+            _validate_url_target("https://example.com/data.csv")
+
+    def test_validate_url_target_blocks_unresolvable(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name resolution failed"),
+        ):
+            with pytest.raises(ValueError, match="Could not resolve"):
+                _validate_url_target("http://nonexistent.invalid/data")

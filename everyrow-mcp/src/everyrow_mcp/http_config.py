@@ -18,7 +18,11 @@ from starlette.responses import JSONResponse, Response
 from everyrow_mcp.app import http_lifespan, no_auth_http_lifespan
 from everyrow_mcp.auth import EveryRowAuthProvider, SupabaseTokenVerifier
 from everyrow_mcp.config import settings
-from everyrow_mcp.middleware import RateLimitMiddleware
+from everyrow_mcp.middleware import (
+    BodySizeLimitMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from everyrow_mcp.redis_store import get_redis_client
 from everyrow_mcp.routes import api_download, api_progress
 from everyrow_mcp.templates import RESULTS_HTML, SESSION_HTML
@@ -66,9 +70,20 @@ def configure_http_mode(
     mcp.settings.host = host
     mcp.settings.port = port
 
+    if not no_auth and not settings.upload_secret:
+        raise RuntimeError(
+            "UPLOAD_SECRET must be set in HTTP mode for HMAC signing. "
+            'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+        )
+    if settings.is_http and not no_auth and not settings.redis_password:
+        logger.warning(
+            "REDIS_PASSWORD is not set — Redis is unauthenticated. "
+            "Set REDIS_PASSWORD for production deployments."
+        )
+
     _register_widgets(mcp, mcp_server_url)
-    _register_routes(mcp, redis_client, auth_provider)
-    _add_middleware(mcp, redis_client, rate_limit=not no_auth)
+    _register_routes(mcp, redis_client, auth_provider if not no_auth else None)
+    _add_middleware(mcp, redis_client)
 
 
 def _register_widgets(mcp: FastMCP, mcp_server_url: str) -> None:
@@ -173,17 +188,20 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
 def _add_middleware(
     mcp: FastMCP,
     redis_client: Redis,
-    *,
-    rate_limit: bool = True,
 ) -> None:
-    """Wrap the ASGI app with request logging and optional rate limiting."""
+    """Wrap the ASGI app with request logging, rate limiting, and security headers."""
     _original = mcp.streamable_http_app
 
     def _wrapped():
         app = _original()
-        if rate_limit:
-            app.add_middleware(RateLimitMiddleware, redis=redis_client)
+        app.add_middleware(RateLimitMiddleware, redis=redis_client)
         app.add_middleware(_RequestLoggingMiddleware)
-        return app
+        # Pure-ASGI middlewares — outermost wraps first.
+        # SecurityHeaders → BodySizeLimit → Starlette app
+        asgi_app = BodySizeLimitMiddleware(
+            app, max_bytes=settings.max_upload_size_bytes
+        )
+        asgi_app = SecurityHeadersMiddleware(asgi_app)
+        return asgi_app
 
     mcp.streamable_http_app = _wrapped

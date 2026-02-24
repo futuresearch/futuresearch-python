@@ -25,7 +25,11 @@ class Settings(BaseSettings):
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
     redis_db: int = Field(default=13)
-    redis_password: str | None = Field(default=None)
+    redis_password: str | None = Field(default=None, repr=False)
+    redis_ssl: bool = Field(
+        default=False,
+        description="Enable TLS for Redis connections. Required when Redis is on a separate host.",
+    )
     redis_sentinel_endpoints: str | None = Field(
         default=None, description="Comma-separated host:port pairs"
     )
@@ -33,14 +37,19 @@ class Settings(BaseSettings):
 
     trust_proxy_headers: bool = Field(
         default=False,
-        description="Trust X-Forwarded-For and CF-Connecting-IP headers for client IP. "
-        "Enable only when behind a trusted reverse proxy (e.g. Cloudflare).",
+        description="Trust the header named by trusted_ip_header for client IP. "
+        "Enable only when behind a trusted reverse proxy.",
+    )
+    trusted_ip_header: str = Field(
+        default="X-Forwarded-For",
+        description="HTTP header containing the real client IP. "
+        "Use 'CF-Connecting-IP' behind Cloudflare, 'X-Forwarded-For' behind GKE/nginx.",
     )
 
     # HTTP-only settings — unused in stdio mode
     mcp_server_url: str = Field(default="")
     supabase_url: str = Field(default="")
-    supabase_anon_key: str = Field(default="")
+    supabase_anon_key: str = Field(default="", repr=False)
 
     registration_rate_limit: PositiveInt = Field(
         default=10,
@@ -80,6 +89,7 @@ class Settings(BaseSettings):
     upload_secret: str = Field(
         default="",
         description="HMAC-SHA256 secret for signing upload URLs. Required in HTTP mode.",
+        repr=False,
     )
     upload_url_ttl: int = Field(
         default=300,
@@ -89,8 +99,16 @@ class Settings(BaseSettings):
         default=50 * 1024 * 1024,
         description="Maximum upload file size in bytes (50 MB).",
     )
+    max_upload_rows: int = Field(
+        default=50_000,
+        description="Maximum rows allowed in an uploaded CSV file.",
+    )
+    max_fetch_size_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        description="Maximum response size when fetching CSV from a URL (50 MB).",
+    )
 
-    everyrow_api_key: str | None = None
+    everyrow_api_key: str | None = Field(default=None, repr=False)
 
     @property
     def is_http(self) -> bool:
