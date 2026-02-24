@@ -29,6 +29,7 @@ def _cors_headers() -> dict[str, str]:
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET",
         "Access-Control-Allow-Headers": "Authorization",
+        "Vary": "Origin",
     }
 
 
@@ -68,7 +69,10 @@ async def api_progress(request: Request) -> Response:
     """REST endpoint for the session widget to poll task progress."""
     cors = _cors_headers()
     if request.method == "OPTIONS":
-        return Response(status_code=204, headers=cors)
+        return Response(
+            status_code=204,
+            headers={**cors, "Access-Control-Max-Age": "3600"},
+        )
 
     task_id = request.path_params["task_id"]
 
@@ -116,7 +120,10 @@ async def api_download(request: Request) -> Response:
     """REST endpoint to download task results as CSV."""
     cors = _cors_headers()
     if request.method == "OPTIONS":
-        return Response(status_code=204, headers=cors)
+        return Response(
+            status_code=204,
+            headers={**cors, "Access-Control-Max-Age": "3600"},
+        )
 
     task_id = request.path_params["task_id"]
 
@@ -140,5 +147,6 @@ async def api_download(request: Request) -> Response:
             **cors,
             "Content-Disposition": f'attachment; filename="results_{safe_prefix}.csv"',
             "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
         },
     )

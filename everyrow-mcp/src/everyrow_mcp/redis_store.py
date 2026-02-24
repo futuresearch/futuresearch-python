@@ -47,6 +47,7 @@ def create_redis_client(
     port: int = 6379,
     db: int = settings.redis_db,
     password: str | None = None,
+    ssl: bool = False,
     sentinel_endpoints: str | None = None,
     sentinel_master_name: str | None = None,
 ) -> Redis:
@@ -65,18 +66,26 @@ def create_redis_client(
 
         sentinel = Sentinel(
             sentinels,
-            sentinel_kwargs={"password": password} if password else {},
+            sentinel_kwargs={"password": password, "ssl": ssl}
+            if password
+            else {"ssl": ssl},
             retry=retry,
         )
         client: Redis = sentinel.master_for(
             sentinel_master_name,
             db=db,
             password=password,
+            ssl=ssl,
             decode_responses=True,
             health_check_interval=HEALTH_CHECK_INTERVAL,
             retry=retry,
         )
-        logger.info("Redis: Sentinel mode, master=%s, db=%d", sentinel_master_name, db)
+        logger.info(
+            "Redis: Sentinel mode, master=%s, db=%d, ssl=%s",
+            sentinel_master_name,
+            db,
+            ssl,
+        )
         return client
 
     client = Redis(
@@ -84,11 +93,12 @@ def create_redis_client(
         port=port,
         db=db,
         password=password,
+        ssl=ssl,
         decode_responses=True,
         health_check_interval=HEALTH_CHECK_INTERVAL,
         retry=retry,
     )
-    logger.info("Redis: direct mode, host=%s:%d, db=%d", host, port, db)
+    logger.info("Redis: direct mode, host=%s:%d, db=%d, ssl=%s", host, port, db, ssl)
     return client
 
 
@@ -103,6 +113,7 @@ def get_redis_client() -> Redis:
             port=settings.redis_port,
             db=settings.redis_db,
             password=settings.redis_password,
+            ssl=settings.redis_ssl,
             sentinel_endpoints=settings.redis_sentinel_endpoints,
             sentinel_master_name=settings.redis_sentinel_master_name,
         )

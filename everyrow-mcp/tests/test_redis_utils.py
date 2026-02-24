@@ -70,6 +70,7 @@ class TestCreateRedisClient:
             "mymaster",
             db=settings.redis_db,
             password=None,
+            ssl=False,
             decode_responses=True,
             health_check_interval=30,
             retry=mock_sentinel.master_for.call_args[1]["retry"],

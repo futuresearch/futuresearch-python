@@ -64,6 +64,10 @@ def parse_args() -> InputArgs:
         )
         sys.exit(1)
 
+    # Default to localhost in --no-auth mode to avoid exposing on all interfaces
+    if input_args.no_auth and input_args.host == "0.0.0.0":
+        input_args.host = "127.0.0.1"
+
     return input_args
 
 

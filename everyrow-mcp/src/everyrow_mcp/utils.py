@@ -13,6 +13,8 @@ from urllib.parse import urlparse
 import httpx
 import pandas as pd
 
+from everyrow_mcp.config import settings
+
 logger = logging.getLogger(__name__)
 
 # ── SSRF protection ────────────────────────────────────────────
@@ -60,7 +62,8 @@ def _validate_url_target(url: str) -> None:
     for family, _, _, _, sockaddr in addrinfos:
         ip_str = sockaddr[0]
         if _is_blocked_ip(ip_str):
-            raise ValueError(f"URL resolves to blocked address: {hostname} -> {ip_str}")
+            logger.warning("SSRF blocked: %s resolved to %s", hostname, ip_str)
+            raise ValueError(f"URL target is not permitted: {hostname}")
 
 
 def _is_url(value: str) -> bool:
@@ -144,14 +147,32 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
         timeout=60.0,
         event_hooks={"response": [_check_redirect]},
     ) as client:
-        response = await client.get(url)
-        response.raise_for_status()
+        # Stream the response to enforce a size limit before buffering
+        async with client.stream("GET", url) as response:
+            response.raise_for_status()
+            content_length = response.headers.get("content-length")
+            if content_length and int(content_length) > settings.max_fetch_size_bytes:
+                raise ValueError(
+                    f"Response too large ({content_length} bytes, "
+                    f"limit {settings.max_fetch_size_bytes})"
+                )
+            chunks: list[bytes] = []
+            total = 0
+            async for chunk in response.aiter_bytes():
+                total += len(chunk)
+                if total > settings.max_fetch_size_bytes:
+                    raise ValueError(
+                        f"Response exceeded size limit ({settings.max_fetch_size_bytes} bytes)"
+                    )
+                chunks.append(chunk)
+            raw_bytes = b"".join(chunks)
 
     content_type = response.headers.get("content-type", "")
+    text = raw_bytes.decode("utf-8", errors="replace")
 
     # Try CSV first
     try:
-        df = pd.read_csv(StringIO(response.text))
+        df = pd.read_csv(StringIO(text))
         if df.empty:
             raise ValueError(f"URL returned empty CSV data (headers only): {url}")
         return df
@@ -162,7 +183,7 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
 
     # Try JSON array
     try:
-        data = json.loads(response.text)
+        data = json.loads(text)
         if isinstance(data, list) and data:
             return pd.DataFrame(data)
     except (json.JSONDecodeError, ValueError):
@@ -187,6 +208,9 @@ def validate_csv_path(path: str) -> None:
 
     if not p.is_absolute():
         raise ValueError(f"Path must be absolute: {path}")
+
+    # Resolve symlinks and /../ to prevent path traversal
+    p = p.resolve()
 
     if not p.exists():
         raise ValueError(f"File does not exist: {path}")

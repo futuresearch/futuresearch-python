@@ -13,7 +13,7 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from everyrow_mcp.middleware import RateLimitMiddleware
+from everyrow_mcp.middleware import BodySizeLimitMiddleware, RateLimitMiddleware
 
 # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -204,3 +204,57 @@ class TestRateLimitMiddleware:
         # New window — counter resets (new key)
         resp4 = client.get("/")
         assert resp4.status_code == 200
+
+
+# ── BodySizeLimitMiddleware tests ────────────────────────────────
+
+
+def _make_upload_app(*, max_bytes: int = 100) -> Starlette:
+    """Build a Starlette app with BodySizeLimitMiddleware on /api/uploads/."""
+
+    async def _upload(request: Request):
+        body = await request.body()
+        return PlainTextResponse(f"received {len(body)} bytes")
+
+    async def _other(_request: Request):
+        return PlainTextResponse("ok")
+
+    inner = Starlette(
+        routes=[
+            Route("/api/uploads/{upload_id}", _upload, methods=["PUT"]),
+            Route("/other", _other),
+        ],
+    )
+    return BodySizeLimitMiddleware(inner, max_bytes=max_bytes)
+
+
+class TestBodySizeLimitMiddleware:
+    def test_small_upload_passes(self):
+        """Uploads under the limit succeed."""
+        app = _make_upload_app(max_bytes=1000)
+        client = TestClient(app)
+        resp = client.put("/api/uploads/abc", content=b"a,b\n1,2\n")
+        assert resp.status_code == 200
+        assert "received" in resp.text
+
+    def test_oversized_upload_returns_413(self):
+        """Uploads exceeding the limit get 413."""
+        app = _make_upload_app(max_bytes=10)
+        client = TestClient(app)
+        resp = client.put("/api/uploads/abc", content=b"x" * 50)
+        assert resp.status_code == 413
+        assert resp.json() == {"error": "File too large"}
+
+    def test_non_upload_path_not_limited(self):
+        """Non-upload paths are not affected by the body limit."""
+        app = _make_upload_app(max_bytes=10)
+        client = TestClient(app)
+        resp = client.get("/other")
+        assert resp.status_code == 200
+
+    def test_exact_limit_passes(self):
+        """A body exactly at the limit should pass."""
+        app = _make_upload_app(max_bytes=10)
+        client = TestClient(app)
+        resp = client.put("/api/uploads/abc", content=b"x" * 10)
+        assert resp.status_code == 200
