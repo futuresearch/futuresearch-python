@@ -12,6 +12,7 @@ export interface BlogPostMeta {
   date: Date;
   authors: string[];
   tags: string[];
+  heroImage?: string;
 }
 
 export interface BlogPost extends BlogPostMeta {
@@ -26,6 +27,7 @@ function extractMeta(data: Record<string, unknown>, slug: string): Omit<BlogPost
     date: data.date instanceof Date ? data.date : new Date(data.date as string),
     authors: (data.authors as string[]) || [],
     tags: (data.tags as string[]) || [],
+    heroImage: (data.heroImage as string) || undefined,
   };
 }
 

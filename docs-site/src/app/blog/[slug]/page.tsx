@@ -55,6 +55,13 @@ export default async function BlogPostPage({ params }: PageProps) {
             <span className="blog-post-author">{post.authors.join(", ")}</span>
           )}
         </div>
+        {post.heroImage && (
+          <img
+            src={post.heroImage}
+            alt={post.title}
+            className="blog-post-hero"
+          />
+        )}
         <MDXContent source={post.content} />
       </article>
     </DocsLayout>

@@ -717,6 +717,14 @@ noscript + .installation-tabs .tab-content:first-child {
   margin-right: 0.75rem;
 }
 
+.blog-post-hero {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
 .blog-listing-subtitle {
   font-size: 1rem;
   color: var(--muted);

@@ -1,0 +1,168 @@
+---
+title: "What to Put in a Claude Code Skill for Reviewing Your Team's Code"
+subtitle: "Every tutorial shows you how to set up AI code review. None of them show you what to actually put in the review prompt. We're publishing ours."
+date: 2026-02-25
+description: "We publish the 300-line Claude Code review skill we use in production, covering five key rules: trusting your types, deferring to linters, avoiding over-engineering, skipping backwards compatibility, and encoding domain knowledge."
+authors:
+  - "Christoph Sträter"
+tags:
+  - "Claude Code"
+  - "AI Code Review"
+  - "Developer Tools"
+  - "Skills"
+heroImage: /docs/images/claude-review-skill.png
+---
+
+# What to Put in a Claude Code Skill for Reviewing Your Team's Code
+
+*Every tutorial shows you how to set up AI code review. None of them show you what to actually put in the review prompt. We're publishing ours  [HERE](/docs/files/review_code_skill.md).*
+
+---
+
+Code review is one of those things that scales terribly. Your team grows from four to twelve, PRs pile up, and suddenly your senior engineers are spending half their day leaving the same comments: "run the linter instead of reformatting manually," or "don't add a helper function for something we do once." The knowledge exists, it's just trapped in people's heads, repeated one PR at a time.
+
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) and other automated review tools change this equation. Anthropic's coding agent can review pull requests: you `@claude` mention it in a GitHub PR, or wire it into CI via [`claude-code-action`](https://github.com/anthropics/claude-code-action). It brings genuine understanding of code, not just pattern matching. The [setup guides](https://docs.anthropic.com/en/docs/claude-code/github-actions) are excellent and you can be up and running in ten minutes.
+
+But here's what we learned the hard way: **the setup isn't the hard part. The prompt is.**
+
+Anthropic's own [prompting best practices](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-4-best-practices) acknowledge that Claude has known tendencies: over-engineering solutions, creating unnecessary abstractions, adding flexibility that wasn't requested. They recommend adding explicit guidance to counter this. Good advice. But what does that guidance actually look like for a real team? That's the part nobody publishes.
+
+And that's exactly the problem. A few weeks in, we kept seeing the same failure modes: unnecessary safety checks on typed fields, formatting fixes that diverged from our linter, backwards-compatibility shims nobody asked for. Every comment technically reasonable. None of them matching how we actually write code.
+
+So we built a [`review-code` skill](https://github.com/futuresearch/delphos/pull/3762), a `SKILL.md` that teaches Claude our actual standards. In Claude Code, **Skills** are markdown playbooks that the agent reads before acting. Think of it as the onboarding doc you wish every reviewer actually read, except this one reads it every time, without skimming.
+
+Here are five things we encoded that made the biggest difference.
+
+---
+
+## 1. No Defensive Coding: Trust Your Types
+
+Left to its own defaults, Claude adds defensive checks everywhere. Got a dictionary with known keys? Claude wraps it in `.get()` chains with empty-dict fallbacks. Got a user object with a required email field? Claude adds `if user and user.email:` before using it.
+
+This looks careful. It's actually harmful. If your types say a field exists, a defensive check hides real bugs under silent `None` values. When something does break, you get a confusing failure three layers downstream instead of an immediate error at the source.
+
+Our rule in the skill:
+
+```python
+# Bad: checking for None when the type says it's not optional
+if user and user.email:
+    send_email(user.email)
+
+# Good: the type says User has email, just use it
+send_email(user.email)
+```
+
+Before adding defensive code, the skill tells Claude to check whether the field is actually optional in the type definition, trace where the data comes from to see if it's validated upstream, and only then, if truly uncertain, add proper type narrowing instead of a silent fallback.
+
+The result: Claude now flags unnecessary defensive code in PRs instead of adding more of it.
+
+---
+
+## 2. Linters, Not Rewrites
+
+This one is marked critical in our skill for a reason:
+
+```
+CRITICAL: Never fix formatting issues by rewriting code manually.
+
+- Python: Run `uv run ruff check --fix`
+- TypeScript/NextJS: Run `pnpm run lint:fix`
+```
+
+Without this rule, Claude will reformat code while reviewing it: reordering imports, adjusting spacing, wrapping long lines. The result is a review comment that's technically about a real issue but buried in a diff full of whitespace changes.
+
+It gets worse. Manual reformatting often diverges from what your linter would actually produce. You merge the suggestion, run the linter anyway, and now you have a follow-up commit just to fix the formatting that was "fixed."
+
+The rule is simple: if there's a formatting issue, say "run the linter." Don't rewrite the code. Review comments stay focused on logic and semantics, not aesthetics that a tool handles better.
+
+---
+
+## 3. No Over-Engineering: Do What Was Asked, Nothing More
+
+Anthropic themselves call this out. Their [prompting best practices](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/claude-4-best-practices) note that Claude "has a tendency to overengineer by creating extra files, adding unnecessary abstractions, or building in flexibility that wasn't requested" and suggest adding guidance to keep solutions minimal. They even provide a sample prompt.
+
+We found the sample prompt wasn't enough. Claude would still ask to fix a bug and come back with the fix _plus_ a new helper function, an extra config option, error handling for three scenarios that can't happen, and the surrounding code "cleaned up." Each change defensible on its own. Together they triple the review surface for a one-line fix.
+
+So our skill gets specific:
+
+```
+- Only make changes directly requested or clearly necessary
+- A bug fix doesn't need surrounding code cleaned up
+- A simple feature doesn't need extra configurability
+- Don't add error handling for scenarios that can't happen
+- Trust internal code and framework guarantees
+- Only validate at system boundaries (user input, external APIs)
+- Don't create helpers/utilities/abstractions for one-time operations
+- Three similar lines of code is better than a premature abstraction
+```
+
+That last line does a lot of work. LLMs have a strong pull toward DRY code. If they see three blocks that look similar, they'll extract a function. But "similar" doesn't mean "same," and the abstraction often obscures what each callsite actually needs. We'd rather have three clear, slightly repetitive blocks than a `_process_thing(mode="variant_a")` helper that nobody can read without jumping to the definition.
+
+The "only validate at system boundaries" rule matters too. Without it, Claude adds input validation deep inside internal functions, checking that arguments aren't `None`, that lists aren't empty, that strings match expected formats, even when the caller already guarantees all of this. You end up with validation logic scattered across every layer instead of concentrated where data enters the system.
+
+---
+
+## 4. No Backwards Compatibility (Unless You're Shipping a Public API)
+
+By default, Claude is conservative. It keeps old code around, adds shims, re-exports moved types "just in case something depends on it." For a library with external consumers, that's the right instinct. For a team that owns every callsite, it's just clutter.
+
+Our skill spells it out:
+
+```
+We don't do backwards compatibility by default. Keep implementations clean:
+
+- No "keeping this for backwards compatibility" code paths
+- No deprecated parameter shims
+- No re-exporting moved types/functions
+- No renaming unused _vars to preserve signatures
+- No `// removed` comments for deleted code
+- If something is unused, delete it completely
+- If an API changes, update all callers
+```
+
+The list of specific patterns matters. Without it, Claude will add `# kept for backwards compatibility` comments, rename removed parameters to `_old_param`, or keep parallel code paths "for safety." With the explicit list, it flags those patterns instead.
+
+The carve-out is important too: "Only add backwards compatibility if the user explicitly asks for it (e.g., public API with external consumers)." Claude can tell the difference between internal refactoring and a public SDK, but it needs to know which situation it's in.
+
+---
+
+## 5. Encode Your Domain Knowledge (Ours: Tracing)
+
+Generic review prompts can't know about your observability stack. Our skill has a whole section on [Langfuse](https://langfuse.com/) tracing that's caught real production problems.
+
+The biggest one: trace size. A decorator like `@observe(capture_input=True)` on a function that processes user data can produce 20MB+ traces. Langfuse doesn't reject them, but they make the UI unusable and cause export timeouts. The skill flags any `@observe` with `capture_input=True` on functions that handle large list or dict data.
+
+It also checks for context propagation across service boundaries: that Celery tasks serialize tracing context in their args, and that short-running scripts call `force_flush()` before exit so traces actually get exported.
+
+None of this would come from a generic review prompt. All of it has caught real bugs. Whatever your team's equivalent is (your ORM conventions, your feature flag patterns, your deployment constraints), that's the stuff worth encoding.
+
+---
+
+## The Other 200 Lines
+
+The rest of the skill covers things like: comments policy (no historical comments like `# removed X from here`, no docstrings on code you didn't change), Python specifics (modern 3.13 type hints, Pydantic over bare dicts, `cast()` only as an absolute last resort), React patterns (no `useEffect` for syncing local state, separate data preparation from JSX rendering), and testing guidelines (test behavior not implementation, minimize mocking, one assertion per test).
+
+None of these are controversial on their own. The value is having them written down in a place Claude actually reads, so you don't have to repeat yourself across PRs.
+
+The skill ends with a checklist. We found this matters more than you'd expect. Without it, Claude tends to write long-form commentary on the one or two things that catch its attention and ignore everything else. A checklist forces it to at least consider each item:
+
+```
+- [ ] No manual formatting fixes (use linters)
+- [ ] No unnecessary useEffect
+- [ ] No useless comments, no historical "removed X" comments
+...
+```
+
+---
+
+## What We Didn't Do: Auto-Review
+
+One more thing worth sharing. We disabled automatic review on every PR and switched to interactive-only `@claude` mentions.
+
+Auto-review on routine PRs produced too much noise. A one-line config change doesn't need a 12-point review; it needs a human to glance at it for 30 seconds. When every PR gets reviewed automatically, developers start ignoring the comments, which defeats the purpose entirely.
+
+We now trigger the skill manually on PRs that benefit from it: complex diffs, unfamiliar parts of the codebase, security-adjacent changes. The signal-to-noise ratio is much higher.
+
+---
+
+The full skill is published [HERE](/docs/files/review_code_skill.md). Feel free to copy it and adapt it to your team's needs.
