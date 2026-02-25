@@ -1,5 +1,6 @@
 """Utility functions for the everyrow MCP server."""
 
+import asyncio
 import ipaddress
 import json
 import logging
@@ -68,11 +69,12 @@ def _is_blocked_ip(addr: str) -> bool:
     return any(ip in net for net in _BLOCKED_NETWORKS)
 
 
-def _resolve_and_validate(hostname: str) -> str:
+async def _resolve_and_validate(hostname: str) -> str:
     """Resolve a hostname, validate all IPs, and return the first safe IP.
 
     For IP literals, validates directly and returns the canonical form.
-    For DNS names, resolves via ``getaddrinfo`` and checks every result.
+    For DNS names, resolves via ``getaddrinfo`` (offloaded to a thread pool
+    to avoid blocking the event loop) and checks every result.
 
     The returned IP is used by ``_SSRFSafeTransport`` to **pin** the TCP
     connection, eliminating the TOCTOU gap between DNS validation and the
@@ -100,10 +102,16 @@ def _resolve_and_validate(hostname: str) -> str:
             raise ValueError(f"Connection to blocked IP: {hostname}")
         return str(parsed_ip)
 
-    # DNS name — resolve and validate all addresses
+    # DNS name — resolve in a thread pool to avoid blocking the event loop
+    loop = asyncio.get_running_loop()
     try:
-        addrinfos = socket.getaddrinfo(
-            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        addrinfos = await loop.run_in_executor(
+            None,
+            socket.getaddrinfo,
+            hostname,
+            None,
+            socket.AF_UNSPEC,
+            socket.SOCK_STREAM,
         )
     except socket.gaierror:
         raise ValueError(f"Could not resolve hostname: {hostname}")
@@ -120,7 +128,7 @@ def _resolve_and_validate(hostname: str) -> str:
     return addrinfos[0][4][0]
 
 
-def _validate_url_target(url: str) -> None:
+async def _validate_url_target(url: str) -> None:
     """Resolve a URL's hostname and reject if any resolved IP is internal or port is blocked.
 
     Raises:
@@ -132,7 +140,7 @@ def _validate_url_target(url: str) -> None:
     if not hostname:
         raise ValueError(f"URL has no hostname: {url}")
     _validate_port(parsed.port)
-    _resolve_and_validate(hostname)
+    await _resolve_and_validate(hostname)
 
 
 def is_url(value: str) -> bool:
@@ -190,7 +198,7 @@ async def _check_redirect(response: httpx.Response) -> None:
         location = response.headers.get("location", "")
         if location:
             try:
-                _validate_url_target(location)
+                await _validate_url_target(location)
             except ValueError:
                 # TooManyRedirects aborts the redirect chain — httpx
                 # has no "redirect rejected" error type.
@@ -228,7 +236,7 @@ class _SSRFSafeTransport(httpx.AsyncBaseTransport):
         _validate_port(request.url.port)
 
         # Resolve DNS and validate — returns the first safe IP
-        resolved_ip = _resolve_and_validate(hostname)
+        resolved_ip = await _resolve_and_validate(hostname)
 
         # Pin the URL to the validated IP so the inner transport connects
         # directly without a second (unvalidated) DNS lookup.
@@ -276,7 +284,7 @@ async def fetch_csv_from_url(url: str) -> pd.DataFrame:
         httpx.HTTPStatusError: On non-2xx responses.
     """
     url = _normalise_google_sheets_url(url)
-    _validate_url_target(url)
+    await _validate_url_target(url)
 
     async with httpx.AsyncClient(
         transport=_SSRFSafeTransport(),
