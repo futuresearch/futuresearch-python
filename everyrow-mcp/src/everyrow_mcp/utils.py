@@ -120,15 +120,6 @@ def _resolve_and_validate(hostname: str) -> str:
     return addrinfos[0][4][0]
 
 
-def _validate_hostname(hostname: str) -> None:
-    """Validate that a hostname doesn't resolve to blocked IPs or metadata services.
-
-    Thin wrapper around ``_resolve_and_validate`` for callers that only
-    need the validation side-effect and not the resolved IP.
-    """
-    _resolve_and_validate(hostname)
-
-
 def _validate_url_target(url: str) -> None:
     """Resolve a URL's hostname and reject if any resolved IP is internal or port is blocked.
 
@@ -141,7 +132,7 @@ def _validate_url_target(url: str) -> None:
     if not hostname:
         raise ValueError(f"URL has no hostname: {url}")
     _validate_port(parsed.port)
-    _validate_hostname(hostname)
+    _resolve_and_validate(hostname)
 
 
 def is_url(value: str) -> bool:
