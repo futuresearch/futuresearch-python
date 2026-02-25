@@ -1,7 +1,6 @@
 import { MetadataRoute } from "next";
 import { getDocSlugs } from "@/utils/docs";
 import { getNotebookSlugs } from "@/utils/notebooks";
-import { getBlogPostSlugs } from "@/utils/blog";
 
 export const dynamic = "force-static";
 
@@ -10,9 +9,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const docSlugs = getDocSlugs();
   const notebookSlugs = getNotebookSlugs();
-  const blogSlugs = getBlogPostSlugs();
 
-  const hubSlugs = new Set(["guides", "case-studies", "api", "blog"]);
+  const hubSlugs = new Set(["guides", "case-studies", "api"]);
 
   const docPages = docSlugs.map((slug) => ({
     url: `${baseUrl}/${slug}`,
@@ -28,13 +26,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  const blogPages = blogSlugs.map((slug) => ({
-    url: `${baseUrl}/blog/${slug}`,
-    lastModified: new Date(),
-    changeFrequency: "monthly" as const,
-    priority: 0.7,
-  }));
-
   return [
     {
       url: baseUrl,
@@ -44,6 +35,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     ...docPages,
     ...notebookPages,
-    ...blogPages,
   ];
 }

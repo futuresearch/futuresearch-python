@@ -82,7 +82,8 @@ function SectionCard({ section }: { section: NavSection }) {
             <path d="M9 18h6" />
             <path d="M10 22h4" />
           </svg>
-        )}      </div>
+        )}
+      </div>
       <h2 className="landing-card-title">{section.title}</h2>
       <p className="landing-card-description">{description}</p>
       <div className="landing-card-count">
