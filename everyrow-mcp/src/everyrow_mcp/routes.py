@@ -77,29 +77,6 @@ async def _validate_poll_token(task_id: str, request: Request) -> JSONResponse |
     return None
 
 
-async def _validate_and_consume_poll_token(
-    task_id: str, request: Request
-) -> JSONResponse | None:
-    """Like _validate_poll_token but atomically consumes the token (single-use).
-
-    Used for the download endpoint to prevent replay of leaked download URLs.
-    The token is popped first (GETDEL) and re-stored if the comparison fails,
-    so an invalid attempt doesn't destroy the legitimate token.
-    """
-    expected = await redis_store.pop_poll_token(task_id)
-    provided = _extract_bearer_or_query_token(request, task_id)
-    if not expected or not provided or not secrets.compare_digest(provided, expected):
-        # Re-store the token if it existed — an invalid attempt should not
-        # burn the legitimate user's download link.
-        if expected:
-            await redis_store.store_poll_token(task_id, expected)
-        logger.warning("Invalid or already-consumed poll token for task %s", task_id)
-        return JSONResponse(
-            {"error": "Unauthorized"}, status_code=403, headers=_cors_headers()
-        )
-    return None
-
-
 async def api_progress(request: Request) -> Response:
     """REST endpoint for the session widget to poll task progress."""
     cors = _cors_headers()
@@ -154,11 +131,7 @@ async def api_progress(request: Request) -> Response:
 
 
 async def api_download(request: Request) -> Response:
-    """REST endpoint to download task results as CSV.
-
-    The poll token is consumed on use (GETDEL) so each download URL is
-    single-use.  A new token is generated for each everyrow_results call.
-    """
+    """REST endpoint to download task results as CSV."""
     cors = _cors_headers()
     if request.method == "OPTIONS":
         return Response(
@@ -171,24 +144,14 @@ async def api_download(request: Request) -> Response:
     if err := _validate_uuid(task_id):
         return err
 
-    if err := await _validate_and_consume_poll_token(task_id, request):
+    if err := await _validate_poll_token(task_id, request):
         return err
 
     csv_text = await redis_store.get_result_csv(task_id)
     if csv_text is None:
-        # Re-store the consumed token so progress polling and future
-        # downloads aren't permanently broken when CSV expires before token.
-        provided = _extract_bearer_or_query_token(request, task_id)
-        if provided:
-            await redis_store.store_poll_token(task_id, provided)
         return JSONResponse(
             {"error": "Results not found or expired"}, status_code=404, headers=cors
         )
-
-    # Regenerate a fresh poll token so subsequent everyrow_results() calls
-    # can still build download URLs from the cached CSV in Redis.
-    new_token = secrets.token_urlsafe(32)
-    await redis_store.store_poll_token(task_id, new_token)
 
     safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
     return Response(

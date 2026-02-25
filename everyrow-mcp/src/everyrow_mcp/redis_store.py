@@ -265,14 +265,6 @@ async def get_poll_token(task_id: str) -> str | None:
     return decrypt_value(encrypted)
 
 
-async def pop_poll_token(task_id: str) -> str | None:
-    """Atomically get and delete the poll token (single-use for downloads)."""
-    encrypted = await get_redis_client().getdel(build_key("poll_token", task_id))
-    if encrypted is None:
-        return None
-    return decrypt_value(encrypted)
-
-
 # ── Task ownership (user-scoped data isolation) ──────────────
 
 
