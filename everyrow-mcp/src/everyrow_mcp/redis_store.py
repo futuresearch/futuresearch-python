@@ -250,12 +250,20 @@ async def pop_task_token(task_id: str) -> None:
 # ── Poll tokens ───────────────────────────────────────────────
 
 
-async def store_poll_token(task_id: str, poll_token: str) -> None:
-    await get_redis_client().setex(
+async def store_poll_token(task_id: str, poll_token: str, user_id: str = "") -> None:
+    """Store an encrypted poll token, optionally bound to a user identity."""
+    client = get_redis_client()
+    await client.setex(
         name=build_key("poll_token", task_id),
         time=TOKEN_TTL,
         value=encrypt_value(poll_token),
     )
+    if user_id:
+        await client.setex(
+            name=build_key("poll_owner", task_id),
+            time=TOKEN_TTL,
+            value=user_id,
+        )
 
 
 async def get_poll_token(task_id: str) -> str | None:
@@ -263,6 +271,11 @@ async def get_poll_token(task_id: str) -> str | None:
     if encrypted is None:
         return None
     return decrypt_value(encrypted)
+
+
+async def get_poll_token_owner(task_id: str) -> str | None:
+    """Return the user_id bound to a poll token, or None if not set."""
+    return await get_redis_client().get(build_key("poll_owner", task_id))
 
 
 # ── Task ownership (user-scoped data isolation) ──────────────

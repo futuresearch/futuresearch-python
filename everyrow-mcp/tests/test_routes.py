@@ -111,10 +111,62 @@ class TestApiProgress:
         assert resp.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_missing_task_token_returns_404(self):
+    async def test_denied_without_owner(self):
+        """Valid poll token but no task owner → fail-closed 403."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token)
+        # No task owner stored
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 403
+        body = json.loads(bytes(resp.body).decode())
+        assert body["error"] == "Task ownership could not be verified"
+
+    @pytest.mark.asyncio
+    async def test_denied_without_poll_owner(self):
+        """Task owner exists but poll token has no bound user → fail-closed 403."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token)  # no user_id
+        await redis_store.store_task_owner(task_id, "test-user")
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 403
+        body = json.loads(bytes(resp.body).decode())
+        assert body["error"] == "Task ownership could not be verified"
+
+    @pytest.mark.asyncio
+    async def test_denied_on_owner_mismatch(self):
+        """Poll token bound to user-A but task_owner tampered to user-B → 403."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="user-A")
+        await redis_store.store_task_owner(task_id, "user-B")
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 403
+        body = json.loads(bytes(resp.body).decode())
+        assert body["error"] == "Task ownership could not be verified"
+
+    @pytest.mark.asyncio
+    async def test_missing_task_token_returns_404(self):
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
         # No task token stored
 
         req = FakeRequest(
@@ -131,8 +183,9 @@ class TestApiProgress:
         """Poll token sent via Authorization: Bearer header works."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key-123")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         status_resp = _make_status_response(
             status="running", completed=3, total=10, failed=1, running=2
@@ -166,8 +219,9 @@ class TestApiProgress:
         """Poll token via ?token= query param still works (for download links)."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key-123")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         status_resp = _make_status_response(
             status="running", completed=3, total=10, failed=1, running=2
@@ -200,8 +254,9 @@ class TestApiProgress:
     async def test_completed_task_pops_tokens(self):
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         status_resp = _make_status_response(status="completed", completed=10, total=10)
 
@@ -229,8 +284,9 @@ class TestApiProgress:
     async def test_api_error_returns_500(self):
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         req = FakeRequest(
             path_params={"task_id": task_id},

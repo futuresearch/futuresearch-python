@@ -382,8 +382,9 @@ class TestApiDownload:
         poll_token = secrets.token_urlsafe(16)
         csv_text = "name,score\nAlice,95\nBob,87\n"
 
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_task_owner(task_id, "test-user")
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": poll_token}
@@ -407,11 +408,28 @@ class TestApiDownload:
         assert resp.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_missing_csv_returns_404(self, client: httpx.AsyncClient):
+    async def test_denied_without_owner(self, client: httpx.AsyncClient):
+        """Valid poll token but no task owner → fail-closed 403."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
 
         await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_result_csv(task_id, "data")
+        # No task owner stored
+
+        resp = await client.get(
+            f"/api/results/{task_id}/download", params={"token": poll_token}
+        )
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "Task ownership could not be verified"
+
+    @pytest.mark.asyncio
+    async def test_missing_csv_returns_404(self, client: httpx.AsyncClient):
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
         # No CSV stored
 
         resp = await client.get(

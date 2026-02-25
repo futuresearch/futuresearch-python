@@ -91,19 +91,24 @@ async def _submission_ui_json(
     """Build JSON for the session MCP App widget, and store the token for polling."""
     poll_token = secrets.token_urlsafe(32)
     await redis_store.store_task_token(task_id, token)
-    await redis_store.store_poll_token(task_id, poll_token)
 
     # Record task owner for cross-user access checks (HTTP mode only).
     # This MUST succeed — downstream ownership checks deny access when no
     # owner is recorded, so a silent failure here would lock the user out
     # of their own task.
+    user_id = ""
     if settings.is_http:
         access_token = get_access_token()
         if not access_token or not access_token.client_id:
             raise RuntimeError(
                 f"Cannot record task owner for {task_id}: no authenticated user"
             )
-        await redis_store.store_task_owner(task_id, access_token.client_id)
+        user_id = access_token.client_id
+        await redis_store.store_task_owner(task_id, user_id)
+
+    # Bind the poll token to the same user identity so the REST layer
+    # can cross-check poll_owner == task_owner.
+    await redis_store.store_poll_token(task_id, poll_token, user_id=user_id)
     data: dict[str, Any] = {
         "session_url": session_url,
         "task_id": task_id,

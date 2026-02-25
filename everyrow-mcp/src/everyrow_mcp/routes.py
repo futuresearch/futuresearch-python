@@ -73,7 +73,57 @@ async def _validate_poll_token(task_id: str, request: Request) -> JSONResponse |
     return None
 
 
-async def api_progress(request: Request) -> Response:
+async def _validate_task_owner(task_id: str) -> JSONResponse | None:
+    """Verify the task has a recorded owner and that the poll token was
+    issued for the same user.  Returns a 403 response if ownership cannot
+    be verified, or ``None`` if the caller may proceed.
+
+    Fail-closed: tasks without an ownership record are rejected.  When a
+    poll-token owner is recorded, it must match the task owner — this
+    cross-check detects ownership-record tampering and ensures the poll
+    token was legitimately issued for this task/user pair.
+    """
+    owner = await redis_store.get_task_owner(task_id)
+    if not owner:
+        logger.warning(
+            "REST access denied for task %s: no owner recorded (fail-closed)",
+            task_id,
+        )
+        return JSONResponse(
+            {"error": "Task ownership could not be verified"},
+            status_code=403,
+            headers=_cors_headers(),
+        )
+
+    poll_owner = await redis_store.get_poll_token_owner(task_id)
+    if not poll_owner:
+        logger.warning(
+            "REST access denied for task %s: no poll_owner recorded (fail-closed)",
+            task_id,
+        )
+        return JSONResponse(
+            {"error": "Task ownership could not be verified"},
+            status_code=403,
+            headers=_cors_headers(),
+        )
+    if poll_owner != owner:
+        logger.warning(
+            "REST access denied for task %s: poll_owner=%s != task_owner=%s",
+            task_id,
+            poll_owner,
+            owner,
+        )
+        return JSONResponse(
+            {"error": "Task ownership could not be verified"},
+            status_code=403,
+            headers=_cors_headers(),
+        )
+
+    logger.debug("REST access granted for task %s (owner=%s)", task_id, owner)
+    return None
+
+
+async def api_progress(request: Request) -> Response:  # noqa: PLR0911
     """REST endpoint for the session widget to poll task progress."""
     cors = _cors_headers()
     if request.method == "OPTIONS":
@@ -88,6 +138,9 @@ async def api_progress(request: Request) -> Response:
         return err
 
     if err := await _validate_poll_token(task_id, request):
+        return err
+
+    if err := await _validate_task_owner(task_id):
         return err
 
     api_key = await redis_store.get_task_token(task_id)
@@ -141,6 +194,9 @@ async def api_download(request: Request) -> Response:
         return err
 
     if err := await _validate_poll_token(task_id, request):
+        return err
+
+    if err := await _validate_task_owner(task_id):
         return err
 
     csv_text = await redis_store.get_result_csv(task_id)

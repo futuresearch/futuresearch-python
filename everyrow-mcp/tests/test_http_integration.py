@@ -132,10 +132,25 @@ class TestProgressEndpoint:
         assert resp.status_code == 403
 
     @pytest.mark.asyncio
-    async def test_unknown_task_returns_404(self, client: httpx.AsyncClient):
+    async def test_denied_without_owner(self, client: httpx.AsyncClient):
+        """Poll token is valid but no task owner recorded → fail-closed 403."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token)
+        # No task owner stored — ownership check should reject
+
+        resp = await client.get(
+            f"/api/progress/{task_id}", params={"token": poll_token}
+        )
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "Task ownership could not be verified"
+
+    @pytest.mark.asyncio
+    async def test_unknown_task_returns_404(self, client: httpx.AsyncClient):
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
         # No task_token stored
 
         resp = await client.get(
@@ -148,8 +163,9 @@ class TestProgressEndpoint:
     async def test_running_task_returns_progress(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key-123")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         status_resp = _make_status_response(
             status="running", completed=7, total=20, failed=1, running=4
@@ -180,8 +196,9 @@ class TestProgressEndpoint:
     async def test_completed_task_cleans_up_tokens(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         status_resp = _make_status_response(
             status="completed", completed=10, total=10, failed=0, running=0
@@ -207,8 +224,9 @@ class TestProgressEndpoint:
     async def test_api_error_returns_500(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         with patch(
             "everyrow_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
@@ -237,8 +255,9 @@ class TestProgressLifecycle:
         poll_token = secrets.token_urlsafe(16)
 
         # 1. Store tokens (simulating what everyrow_agent does)
-        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_token(task_id, "api-key-for-polling")
+        await redis_store.store_task_owner(task_id, "test-user")
 
         # 2. Poll progress — task is running
         running_resp = _make_status_response(status="running", completed=1, total=3)
