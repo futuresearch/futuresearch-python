@@ -16,6 +16,9 @@ RUN uv sync --package everyrow-mcp --no-dev --no-sources --no-editable
 # Stage 2: Slim runtime
 FROM python:3.13-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 RUN groupadd -r -g 10000 mcp && useradd -r -u 10000 -g mcp -d /app -s /sbin/nologin mcp
 
 ENV PATH="/app/.venv/bin:$PATH"
