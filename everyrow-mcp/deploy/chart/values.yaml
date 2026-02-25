@@ -54,7 +54,8 @@ networkPolicy:
   redisPort: 6379
   redisSentinelPort: 26379
   redisCIDRs:
-    - 10.0.0.0/8  # TODO: narrow to actual Redis Sentinel IPs
+    - 10.0.0.0/8       # Pod network
+    - 34.118.224.0/20   # GKE service CIDR (covers ClusterIP 34.118.226.16)
 
 tolerations:
   - key: "hyperdiskonly"
