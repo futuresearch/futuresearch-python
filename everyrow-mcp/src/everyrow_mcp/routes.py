@@ -83,12 +83,16 @@ async def _validate_and_consume_poll_token(
     """Like _validate_poll_token but atomically consumes the token (single-use).
 
     Used for the download endpoint to prevent replay of leaked download URLs.
+    The token is popped first (GETDEL) and re-stored if the comparison fails,
+    so an invalid attempt doesn't destroy the legitimate token.
     """
-    # SECURITY: GETDEL atomically consumes the token — a leaked download URL
-    # can only be used once.
     expected = await redis_store.pop_poll_token(task_id)
     provided = _extract_bearer_or_query_token(request, task_id)
     if not expected or not provided or not secrets.compare_digest(provided, expected):
+        # Re-store the token if it existed — an invalid attempt should not
+        # burn the legitimate user's download link.
+        if expected:
+            await redis_store.store_poll_token(task_id, expected)
         logger.warning("Invalid or already-consumed poll token for task %s", task_id)
         return JSONResponse(
             {"error": "Unauthorized"}, status_code=403, headers=_cors_headers()
