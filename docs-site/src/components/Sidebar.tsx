@@ -21,10 +21,7 @@ export function Sidebar({ navigation, isOpen, onClose }: SidebarProps) {
     <aside className={`docs-sidebar ${isOpen ? "docs-sidebar-open" : ""}`}>
       <div className="docs-sidebar-logo">
         <a href="https://everyrow.io" className="docs-sidebar-logo-text">everyrow</a>
-        <div className="docs-sidebar-logo-chips">
-          <Link href="/" className="docs-sidebar-logo-chip" onClick={onClose}>docs</Link>
-          <Link href="/blog" className="docs-sidebar-logo-chip" onClick={onClose}>blog</Link>
-        </div>
+        <Link href="/" className="docs-sidebar-logo-chip" onClick={onClose}>docs</Link>
       </div>
 
       {navigation.map((section) => (
