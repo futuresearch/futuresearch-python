@@ -8,17 +8,16 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="InsufficientBalanceError")
+T = TypeVar("T", bound="InsufficientBalanceResponse")
 
 
 @_attrs_define
-class InsufficientBalanceError:
-    """Error response when user has insufficient balance for usage-based billing.
-
+class InsufficientBalanceResponse:
+    """
     Attributes:
-        message (str):
-        current_balance_dollars (float):
-        minimum_required_dollars (float):
+        message (str): Human-readable error message
+        current_balance_dollars (float): Current balance in dollars
+        minimum_required_dollars (float): Minimum required balance in dollars for the task
         error (str | Unset):  Default: 'INSUFFICIENT_BALANCE'.
     """
 
@@ -62,15 +61,15 @@ class InsufficientBalanceError:
 
         error = d.pop("error", UNSET)
 
-        insufficient_balance_error = cls(
+        insufficient_balance_response = cls(
             message=message,
             current_balance_dollars=current_balance_dollars,
             minimum_required_dollars=minimum_required_dollars,
             error=error,
         )
 
-        insufficient_balance_error.additional_properties = d
-        return insufficient_balance_error
+        insufficient_balance_response.additional_properties = d
+        return insufficient_balance_response
 
     @property
     def additional_keys(self) -> list[str]:
