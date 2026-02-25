@@ -64,13 +64,15 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Redis (Sentinel — external/cross-namespace IPs)
+    # Redis (master + Sentinel — cross-namespace IPs)
     {{- range .Values.networkPolicy.redisCIDRs }}
     - to:
         - ipBlock:
             cidr: {{ . }}
       ports:
         - port: {{ $.Values.networkPolicy.redisPort | default 6379 }}
+          protocol: TCP
+        - port: {{ $.Values.networkPolicy.redisSentinelPort | default 26379 }}
           protocol: TCP
     {{- end }}
     # External HTTPS (EveryRow API, Supabase, Google Sheets)

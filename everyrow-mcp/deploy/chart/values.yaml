@@ -52,6 +52,7 @@ networkPolicy:
   enabled: true
   gatewayNamespace: gke-managed-system
   redisPort: 6379
+  redisSentinelPort: 26379
   redisCIDRs:
     - 10.0.0.0/8  # TODO: narrow to actual Redis Sentinel IPs
 
