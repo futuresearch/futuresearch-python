@@ -16,6 +16,7 @@ import io
 import json
 import logging
 import math
+import secrets
 from typing import Any
 
 import pandas as pd
@@ -93,6 +94,8 @@ def _build_result_response(
     offset: int,
     page_size: int,
     session_url: str = "",
+    poll_token: str = "",
+    mcp_server_url: str = "",
     *,
     requested_page_size: int | None = None,
 ) -> list[TextContent]:
@@ -108,13 +111,18 @@ def _build_result_response(
         requested_page_size if requested_page_size is not None else page_size
     )
 
-    widget_data = {
+    widget_data: dict[str, Any] = {
         "csv_url": csv_url,
         "preview": preview_records,
         "total": total,
     }
     if session_url:
         widget_data["session_url"] = session_url
+    if poll_token:
+        widget_data["poll_token"] = poll_token
+        widget_data["download_token_url"] = (
+            f"{mcp_server_url}/api/results/{task_id}/download-token"
+        )
     widget_json = json.dumps(widget_data)
 
     has_more = offset + page_size < total
@@ -151,15 +159,23 @@ def _build_result_response(
     ]
 
 
-async def _get_csv_url(task_id: str, mcp_server_url: str) -> str | None:
-    """Build the CSV download URL with the current poll token.
+async def _get_csv_url(
+    task_id: str, mcp_server_url: str
+) -> tuple[str, str] | tuple[None, None]:
+    """Build a CSV download URL with a fresh single-use download token.
 
-    Returns None if the poll token has expired (24h TTL).
+    Returns ``(csv_url, poll_token)`` on success, or ``(None, None)``
+    if the poll token has expired (used as a proxy for "task is still
+    valid").  The download token is short-lived (5 min) and consumed on
+    use, so a leaked URL cannot be replayed.
     """
     poll_token = await redis_store.get_poll_token(task_id)
     if poll_token is None:
-        return None
-    return f"{mcp_server_url}/api/results/{task_id}/download?token={poll_token}"
+        return None, None
+    download_token = secrets.token_urlsafe(32)
+    await redis_store.store_download_token(download_token, task_id)
+    csv_url = f"{mcp_server_url}/api/results/{task_id}/download?token={download_token}"
+    return csv_url, poll_token
 
 
 async def try_cached_result(
@@ -199,7 +215,7 @@ async def try_cached_result(
             )
             return None
 
-    csv_url = await _get_csv_url(task_id, mcp_server_url)
+    csv_url, poll_token = await _get_csv_url(task_id, mcp_server_url)
     if csv_url is None:
         logger.warning("Poll token expired for task %s, falling back to API", task_id)
         return None
@@ -218,6 +234,8 @@ async def try_cached_result(
         offset=min(offset, meta["total"]),
         page_size=effective_page_size,
         session_url=meta.get("session_url", ""),
+        poll_token=poll_token,
+        mcp_server_url=mcp_server_url,
         requested_page_size=page_size,
     )
 
@@ -259,7 +277,7 @@ async def try_store_result(
             preview_json=json.dumps(preview_records),
         )
 
-        csv_url = await _get_csv_url(task_id, mcp_server_url)
+        csv_url, poll_token = await _get_csv_url(task_id, mcp_server_url)
         if csv_url is None:
             logger.warning(
                 "Poll token expired for task %s, cannot build download URL", task_id
@@ -280,6 +298,8 @@ async def try_store_result(
             offset=clamped_offset,
             page_size=effective_page_size,
             session_url=session_url,
+            poll_token=poll_token,
+            mcp_server_url=mcp_server_url,
             requested_page_size=page_size,
         )
     except Exception as exc:

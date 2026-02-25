@@ -194,6 +194,45 @@ class TestBuildResultResponse:
         summary = result[1].text
         assert "page_size=5" in summary
 
+    def test_poll_token_included_in_widget(self):
+        """When poll_token and mcp_server_url are provided, widget JSON includes them."""
+        preview = [{"a": 1}]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-poll/download?token=abc"
+        result = _build_result_response(
+            task_id="task-poll",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=1,
+            columns=["a"],
+            offset=0,
+            page_size=10,
+            poll_token="my-poll-token",
+            mcp_server_url=FAKE_SERVER_URL,
+        )
+        widget = json.loads(result[0].text)
+        assert widget["poll_token"] == "my-poll-token"
+        assert (
+            widget["download_token_url"]
+            == f"{FAKE_SERVER_URL}/api/results/task-poll/download-token"
+        )
+
+    def test_no_poll_token_when_empty(self):
+        """When poll_token is empty, widget JSON omits poll_token and download_token_url."""
+        preview = [{"a": 1}]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-nopoll/download?token=abc"
+        result = _build_result_response(
+            task_id="task-nopoll",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=1,
+            columns=["a"],
+            offset=0,
+            page_size=10,
+        )
+        widget = json.loads(result[0].text)
+        assert "poll_token" not in widget
+        assert "download_token_url" not in widget
+
 
 # ── Async functions ────────────────────────────────────────────
 
@@ -351,6 +390,65 @@ class TestTryStoreResult:
             )
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_widget_includes_poll_token_and_download_url(
+        self, sample_df, _http_state
+    ):
+        """try_store_result populates poll_token and download_token_url in widget JSON."""
+        task_id = "task-widget-poll"
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token)
+
+        result = await try_store_result(
+            task_id, sample_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
+        )
+        assert result is not None
+        widget = json.loads(result[0].text)
+
+        assert widget["poll_token"] == poll_token
+        assert widget["download_token_url"] == (
+            f"{FAKE_SERVER_URL}/api/results/{task_id}/download-token"
+        )
+
+    @pytest.mark.asyncio
+    async def test_cached_result_includes_poll_token(self, sample_df, _http_state):
+        """try_cached_result also populates poll_token and download_token_url."""
+        task_id = "task-cached-poll"
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token)
+
+        # Store first to populate Redis cache
+        await try_store_result(
+            task_id, sample_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
+        )
+
+        # Read from cache
+        cached = await try_cached_result(task_id, 0, 10, mcp_server_url=FAKE_SERVER_URL)
+        assert cached is not None
+        widget = json.loads(cached[0].text)
+
+        assert widget["poll_token"] == poll_token
+        assert f"/api/results/{task_id}/download-token" in widget["download_token_url"]
+
+    @pytest.mark.asyncio
+    async def test_download_token_url_matches_expected_shape(
+        self, sample_df, _http_state
+    ):
+        """The download_token_url is exactly {mcp_server_url}/api/results/{task_id}/download-token."""
+        task_id = "task-url-shape"
+        await redis_store.store_poll_token(task_id, "tok")
+
+        result = await try_store_result(
+            task_id, sample_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
+        )
+        assert result is not None
+        widget = json.loads(result[0].text)
+
+        expected = f"{FAKE_SERVER_URL}/api/results/{task_id}/download-token"
+        assert widget["download_token_url"] == expected
+        # Must not contain query params (token is sent via header, not URL)
+        assert "?" not in widget["download_token_url"]
+
 
 # ── Download endpoint ──────────────────────────────────────────
 
@@ -379,15 +477,14 @@ class TestApiDownload:
     @pytest.mark.asyncio
     async def test_valid_download(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
+        download_token = secrets.token_urlsafe(32)
         csv_text = "name,score\nAlice,95\nBob,87\n"
 
-        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_download_token(download_token, task_id)
         await redis_store.store_result_csv(task_id, csv_text)
-        await redis_store.store_task_owner(task_id, "test-user")
 
         resp = await client.get(
-            f"/api/results/{task_id}/download", params={"token": poll_token}
+            f"/api/results/{task_id}/download", params={"token": download_token}
         )
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "text/csv; charset=utf-8"
@@ -397,9 +494,7 @@ class TestApiDownload:
     @pytest.mark.asyncio
     async def test_bad_token_returns_403(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
 
-        await redis_store.store_poll_token(task_id, poll_token)
         await redis_store.store_result_csv(task_id, "data")
 
         resp = await client.get(
@@ -411,31 +506,73 @@ class TestApiDownload:
     async def test_denied_without_owner(self, client: httpx.AsyncClient):
         """Valid poll token but no task owner → fail-closed 403."""
         task_id = str(uuid4())
+        download_token = secrets.token_urlsafe(32)
+
+        await redis_store.store_download_token(download_token, task_id)
+        # No CSV stored
+
+        resp = await client.get(
+            f"/api/results/{task_id}/download", params={"token": download_token}
+        )
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_download_token_consumed_after_use(self, client: httpx.AsyncClient):
+        """A download token can only be used once — second request returns 403."""
+        task_id = str(uuid4())
+        download_token = secrets.token_urlsafe(32)
+        csv_text = "a,b\n1,2\n"
+
+        await redis_store.store_download_token(download_token, task_id)
+        await redis_store.store_result_csv(task_id, csv_text)
+
+        resp1 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": download_token}
+        )
+        assert resp1.status_code == 200
+
+        resp2 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": download_token}
+        )
+        assert resp2.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_task_id_mismatch_restores_token(self, client: httpx.AsyncClient):
+        """Token for task A used on task B's URL → 403, token still valid for A."""
+        task_a = str(uuid4())
+        task_b = str(uuid4())
+        download_token = secrets.token_urlsafe(32)
+        csv_text = "x\n1\n"
+
+        await redis_store.store_download_token(download_token, task_a)
+        await redis_store.store_result_csv(task_a, csv_text)
+        await redis_store.store_result_csv(task_b, csv_text)
+
+        # Use task_a's token on task_b's URL
+        resp = await client.get(
+            f"/api/results/{task_b}/download", params={"token": download_token}
+        )
+        assert resp.status_code == 403
+
+        # Token should have been restored — still works for task_a
+        resp2 = await client.get(
+            f"/api/results/{task_a}/download", params={"token": download_token}
+        )
+        assert resp2.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_poll_token_cannot_download(self, client: httpx.AsyncClient):
+        """A poll token used in the download URL should be rejected."""
+        task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
 
         await redis_store.store_poll_token(task_id, poll_token)
-        await redis_store.store_result_csv(task_id, "data")
-        # No task owner stored
+        await redis_store.store_result_csv(task_id, "col\nval\n")
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": poll_token}
         )
         assert resp.status_code == 403
-        assert resp.json()["error"] == "Task ownership could not be verified"
-
-    @pytest.mark.asyncio
-    async def test_missing_csv_returns_404(self, client: httpx.AsyncClient):
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-
-        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
-        await redis_store.store_task_owner(task_id, "test-user")
-        # No CSV stored
-
-        resp = await client.get(
-            f"/api/results/{task_id}/download", params={"token": poll_token}
-        )
-        assert resp.status_code == 404
 
 
 # ── Token budget clamping ─────────────────────────────────────

@@ -15,7 +15,12 @@ from everyrow.generated.models.task_status import TaskStatus
 from everyrow.generated.models.task_status_response import TaskStatusResponse
 
 from everyrow_mcp import redis_store
-from everyrow_mcp.routes import _cors_headers, api_progress
+from everyrow_mcp.routes import (
+    _cors_headers,
+    api_download,
+    api_download_token,
+    api_progress,
+)
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -303,6 +308,122 @@ class TestApiProgress:
         assert resp.status_code == 500
         body = json.loads(bytes(resp.body).decode())
         assert body["error"] == "Internal server error"
+
+
+class TestApiDownloadToken:
+    """Tests for the download-token minting endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_options_returns_204(self):
+        req = FakeRequest(method="OPTIONS", path_params={"task_id": "abc"})
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 204
+        assert resp.headers["Access-Control-Allow-Origin"] == "*"
+
+    @pytest.mark.asyncio
+    async def test_valid_poll_token_returns_download_url(self):
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, "a,b\n1,2\n")
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 200
+        body = json.loads(bytes(resp.body).decode())
+        assert "download_url" in body
+        assert f"/api/results/{task_id}/download?token=" in body["download_url"]
+
+    @pytest.mark.asyncio
+    async def test_query_param_token_rejected(self):
+        """Poll token via ?token= query param should be rejected (bearer only)."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token)
+        await redis_store.store_result_csv(task_id, "a\n1\n")
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            query_params={"token": poll_token},
+        )
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_invalid_poll_token_returns_403(self):
+        task_id = str(uuid4())
+        await redis_store.store_poll_token(task_id, "correct-token")
+        await redis_store.store_result_csv(task_id, "a\n1\n")
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": "Bearer wrong-token"},
+        )
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_expired_csv_returns_404(self):
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        # No CSV stored — simulates expired CSV
+
+        req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 404
+        body = json.loads(bytes(resp.body).decode())
+        assert body["error"] == "Results not found or expired"
+
+    @pytest.mark.asyncio
+    async def test_invalid_uuid_returns_400(self):
+        req = FakeRequest(
+            path_params={"task_id": "not-a-uuid"},
+            headers={"authorization": "Bearer some-token"},
+        )
+        resp = await api_download_token(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_minted_token_works_for_download(self):
+        """End-to-end: mint a download token, then use it to download CSV."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        csv_text = "col_a,col_b\nval1,val2\n"
+
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, csv_text)
+
+        # Step 1: Mint a download token
+        mint_req = FakeRequest(
+            path_params={"task_id": task_id},
+            headers={"authorization": f"Bearer {poll_token}"},
+        )
+        mint_resp = await api_download_token(mint_req)  # pyright: ignore[reportArgumentType]
+        assert mint_resp.status_code == 200
+        mint_body = json.loads(bytes(mint_resp.body).decode())
+        download_url = mint_body["download_url"]
+
+        # Extract token from URL
+        dl_token = download_url.split("token=")[1]
+
+        # Step 2: Use the minted token to download
+        dl_req = FakeRequest(
+            path_params={"task_id": task_id},
+            query_params={"token": dl_token},
+        )
+        dl_resp = await api_download(dl_req)  # pyright: ignore[reportArgumentType]
+        assert dl_resp.status_code == 200
+        assert dl_resp.body.decode() == csv_text
 
 
 class TestCorsHeaders:

@@ -143,7 +143,7 @@ const copyArea=document.getElementById("copyArea");
 const closeCopyModal=document.getElementById("closeCopyModal");
 const sessionLinkEl=document.getElementById("sessionLink");
 
-let sessionUrl="",csvUrl="";
+let sessionUrl="",csvUrl="",pollToken="",downloadTokenUrl="";
 const TRUNC=200;
 let didDrag=false;
 let copyFmt="tsv";
@@ -651,10 +651,22 @@ async function copyToClipboard(text){
   return false;
 }
 
+async function getFreshDownloadUrl(){
+  if(downloadTokenUrl&&pollToken){
+    try{
+      const r=await fetch(downloadTokenUrl,{headers:{"Authorization":"Bearer "+pollToken}});
+      if(r.ok){const d=await r.json();if(d.download_url){csvUrl=d.download_url;return d.download_url;}}
+      else{showToast("Download link expired — please re-run the query");}
+    }catch(e){showToast("Failed to refresh download link");}
+  }
+  return csvUrl;
+}
 function updateDownloadLink(){updateSessionLink();}
-document.getElementById("exportLink")?.addEventListener("click",()=>{
-  if(!csvUrl){showToast("No download link yet");return;}
-  copyToClipboard(csvUrl).then(ok=>{if(ok)showToast("Link copied");});
+document.getElementById("exportLink")?.addEventListener("click",async()=>{
+  if(!csvUrl&&!downloadTokenUrl){showToast("No download link yet");return;}
+  const url=await getFreshDownloadUrl();
+  if(!url){showToast("No download link yet");return;}
+  copyToClipboard(url).then(ok=>{if(ok)showToast("Link copied (valid 5 min, single use)");});
 });
 
 /* --- row resize (drag bottom border) --- */
@@ -704,9 +716,11 @@ function updateSessionLink(){
     e.preventDefault();
     if(!/^https?:\\/\\//i.test(sessionUrl))return;app.openLink({url:sessionUrl}).catch(()=>window.open(sessionUrl,"_blank"));
   });
-  document.getElementById("csvOpenLink")?.addEventListener("click",e=>{
+  document.getElementById("csvOpenLink")?.addEventListener("click",async e=>{
     e.preventDefault();
-    if(!/^https?:\\/\\//i.test(csvUrl))return;app.openLink({url:csvUrl}).catch(()=>window.open(csvUrl,"_blank"));
+    const url=await getFreshDownloadUrl();
+    if(!url||!/^https?:\\/\\//i.test(url))return;
+    app.openLink({url}).catch(()=>window.open(url,"_blank"));
   });
 }
 
@@ -728,6 +742,8 @@ app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
   let meta;try{meta=JSON.parse(t.text);}catch{sum.textContent=t.text;return;}
   if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
+  if(meta.poll_token){pollToken=meta.poll_token;}
+  if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
   if(meta.csv_url){csvUrl=meta.csv_url;updateDownloadLink();}
   if(meta.results_url){
     if(meta.preview)processData(meta.preview);

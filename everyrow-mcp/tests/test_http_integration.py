@@ -10,12 +10,14 @@ request parsing, CORS headers, and response serialization.
 
 from __future__ import annotations
 
+import json
 import secrets
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import httpx
+import pandas as pd
 import pytest
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.generated.models.task_progress_info import TaskProgressInfo
@@ -26,7 +28,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from everyrow_mcp import redis_store
-from everyrow_mcp.routes import api_progress
+from everyrow_mcp.result_store import try_cached_result, try_store_result
+from everyrow_mcp.routes import api_download, api_download_token, api_progress
 from tests.conftest import override_settings
 
 # ── Fixtures ───────────────────────────────────────────────────
@@ -54,6 +57,16 @@ def app(_http_state):
             Route(
                 "/api/progress/{task_id}",
                 api_progress,
+                methods=["GET", "OPTIONS"],
+            ),
+            Route(
+                "/api/results/{task_id}/download-token",
+                api_download_token,
+                methods=["GET", "OPTIONS"],
+            ),
+            Route(
+                "/api/results/{task_id}/download",
+                api_download,
                 methods=["GET", "OPTIONS"],
             ),
             Route("/health", _health_endpoint, methods=["GET"]),
@@ -296,3 +309,291 @@ class TestProgressLifecycle:
             params={"token": poll_token},
         )
         assert resp.status_code == 404
+
+
+# ── Download-token endpoint ──────────────────────────────────
+
+
+class TestDownloadTokenEndpoint:
+    """ASGI-level tests for the download-token minting endpoint.
+
+    These go through real Starlette routing, header parsing, and URL
+    query-param parsing — unlike the FakeRequest unit tests in test_routes.py.
+    """
+
+    @pytest.mark.asyncio
+    async def test_bearer_auth_via_real_http_header(self, client: httpx.AsyncClient):
+        """Authorization: Bearer header is parsed correctly by Starlette."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, "a,b\n1,2\n")
+
+        resp = await client.get(
+            f"/api/results/{task_id}/download-token",
+            headers={"Authorization": f"Bearer {poll_token}"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "download_url" in body
+        assert f"/api/results/{task_id}/download?token=" in body["download_url"]
+
+    @pytest.mark.asyncio
+    async def test_cors_preflight(self, client: httpx.AsyncClient):
+        """OPTIONS request through Starlette returns proper CORS headers."""
+        task_id = str(uuid4())
+        resp = await client.options(
+            f"/api/results/{task_id}/download-token",
+        )
+        assert resp.status_code == 204
+        assert resp.headers["access-control-allow-origin"] == "*"
+        assert resp.headers["access-control-allow-methods"] == "GET"
+        assert resp.headers["access-control-allow-headers"] == "Authorization"
+        assert resp.headers["access-control-max-age"] == "3600"
+
+    @pytest.mark.asyncio
+    async def test_query_param_rejected_through_real_url(
+        self, client: httpx.AsyncClient
+    ):
+        """Poll token via ?token= query param in a real URL is rejected."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, "a\n1\n")
+
+        resp = await client.get(
+            f"/api/results/{task_id}/download-token",
+            params={"token": poll_token},
+        )
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_multiple_mints_produce_distinct_tokens(
+        self, client: httpx.AsyncClient
+    ):
+        """Two sequential mints for the same task produce different download tokens."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, "col\nval\n")
+
+        headers = {"Authorization": f"Bearer {poll_token}"}
+        resp1 = await client.get(
+            f"/api/results/{task_id}/download-token", headers=headers
+        )
+        resp2 = await client.get(
+            f"/api/results/{task_id}/download-token", headers=headers
+        )
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+
+        url1 = resp1.json()["download_url"]
+        url2 = resp2.json()["download_url"]
+        assert url1 != url2
+
+    @pytest.mark.asyncio
+    async def test_minted_token_is_single_use(self, client: httpx.AsyncClient):
+        """Mint → download (200) → download again with same token (403)."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        csv_text = "x,y\n1,2\n"
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_result_csv(task_id, csv_text)
+
+        # Mint
+        mint_resp = await client.get(
+            f"/api/results/{task_id}/download-token",
+            headers={"Authorization": f"Bearer {poll_token}"},
+        )
+        assert mint_resp.status_code == 200
+        dl_token = mint_resp.json()["download_url"].split("token=")[1]
+
+        # First download succeeds
+        resp1 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": dl_token}
+        )
+        assert resp1.status_code == 200
+        assert resp1.text == csv_text
+
+        # Second download with same token fails
+        resp2 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": dl_token}
+        )
+        assert resp2.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_wrong_task_id_restores_minted_token(self, client: httpx.AsyncClient):
+        """Token minted for task A, used on task B's URL → 403; still works for A."""
+        task_a = str(uuid4())
+        task_b = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        csv_text = "v\n1\n"
+
+        await redis_store.store_poll_token(task_a, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_a, "test-user")
+        await redis_store.store_result_csv(task_a, csv_text)
+        await redis_store.store_result_csv(task_b, csv_text)
+
+        # Mint for task A
+        mint_resp = await client.get(
+            f"/api/results/{task_a}/download-token",
+            headers={"Authorization": f"Bearer {poll_token}"},
+        )
+        dl_token = mint_resp.json()["download_url"].split("token=")[1]
+
+        # Try on task B → 403, token restored
+        resp_b = await client.get(
+            f"/api/results/{task_b}/download", params={"token": dl_token}
+        )
+        assert resp_b.status_code == 403
+
+        # Use on task A → 200
+        resp_a = await client.get(
+            f"/api/results/{task_a}/download", params={"token": dl_token}
+        )
+        assert resp_a.status_code == 200
+        assert resp_a.text == csv_text
+
+
+# ── Download-token lifecycle ─────────────────────────────────
+
+
+class TestDownloadTokenLifecycle:
+    """Full lifecycle: store results via result_store → extract widget data →
+    mint fresh download token → download CSV.
+
+    This simulates the real user journey: the MCP tool stores results,
+    the widget receives the JSON (with poll_token + download_token_url),
+    the user clicks "Download CSV", the widget calls the minting endpoint,
+    and the browser downloads the file.
+    """
+
+    @pytest.mark.asyncio
+    async def test_store_result_to_download(self, client: httpx.AsyncClient):
+        """End-to-end: try_store_result → widget JSON → mint → download."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        csv_data = {"name": ["Alice", "Bob"], "score": [95, 87]}
+        df = pd.DataFrame(csv_data)
+
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+
+        # 1. Store results (simulates what everyrow_results tool does)
+        result = await try_store_result(
+            task_id, df, 0, 10, mcp_server_url="http://testserver"
+        )
+        assert result is not None
+
+        # 2. Parse widget JSON — the data the widget receives via ontoolresult
+        widget = json.loads(result[0].text)
+        assert "poll_token" in widget
+        assert "download_token_url" in widget
+        assert widget["download_token_url"] == (
+            f"http://testserver/api/results/{task_id}/download-token"
+        )
+
+        # 3. Widget calls download-token endpoint (simulates getFreshDownloadUrl)
+        mint_resp = await client.get(
+            widget["download_token_url"],
+            headers={"Authorization": f"Bearer {widget['poll_token']}"},
+        )
+        assert mint_resp.status_code == 200
+        download_url = mint_resp.json()["download_url"]
+        assert f"/api/results/{task_id}/download?token=" in download_url
+
+        # 4. Browser follows the download URL
+        dl_token = download_url.split("token=")[1]
+        dl_resp = await client.get(
+            f"/api/results/{task_id}/download", params={"token": dl_token}
+        )
+        assert dl_resp.status_code == 200
+        assert dl_resp.headers["content-type"] == "text/csv; charset=utf-8"
+
+        # Verify the downloaded CSV matches the original data
+        downloaded_df = pd.read_csv(pd.io.common.StringIO(dl_resp.text))
+        assert list(downloaded_df.columns) == ["name", "score"]
+        assert len(downloaded_df) == 2
+
+    @pytest.mark.asyncio
+    async def test_original_baked_token_expired_then_mint_fresh(
+        self, client: httpx.AsyncClient
+    ):
+        """Simulates the bug: baked-in download token is consumed/expired,
+        but minting a fresh one via the endpoint still works."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        df = pd.DataFrame({"col": [1, 2, 3]})
+
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+
+        result = await try_store_result(
+            task_id, df, 0, 10, mcp_server_url="http://testserver"
+        )
+        assert result is not None
+        widget = json.loads(result[0].text)
+
+        # Extract and consume the baked-in download token (simulates first click)
+        baked_token = widget["csv_url"].split("token=")[1]
+        resp1 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": baked_token}
+        )
+        assert resp1.status_code == 200
+
+        # Baked-in token is now consumed — second use fails
+        resp2 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": baked_token}
+        )
+        assert resp2.status_code == 403
+
+        # Mint a fresh token via the endpoint — this is the fix
+        mint_resp = await client.get(
+            widget["download_token_url"],
+            headers={"Authorization": f"Bearer {widget['poll_token']}"},
+        )
+        assert mint_resp.status_code == 200
+        fresh_url = mint_resp.json()["download_url"]
+        fresh_token = fresh_url.split("token=")[1]
+
+        # Download with fresh token succeeds
+        resp3 = await client.get(
+            f"/api/results/{task_id}/download", params={"token": fresh_token}
+        )
+        assert resp3.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_cached_result_also_includes_mint_data(
+        self, client: httpx.AsyncClient
+    ):
+        """try_cached_result also populates poll_token + download_token_url."""
+        task_id = str(uuid4())
+        poll_token = secrets.token_urlsafe(16)
+        df = pd.DataFrame({"a": [1, 2]})
+
+        await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
+        await redis_store.store_task_owner(task_id, "test-user")
+
+        # Store once to populate Redis cache
+        await try_store_result(task_id, df, 0, 10, mcp_server_url="http://testserver")
+
+        # Now read from cache
+        cached = await try_cached_result(
+            task_id, 0, 10, mcp_server_url="http://testserver"
+        )
+        assert cached is not None
+
+        widget = json.loads(cached[0].text)
+        assert widget["poll_token"] == poll_token
+        assert f"/api/results/{task_id}/download-token" in widget["download_token_url"]
+
+        # Verify the cached poll_token can mint a fresh download token
+        mint_resp = await client.get(
+            widget["download_token_url"],
+            headers={"Authorization": f"Bearer {widget['poll_token']}"},
+        )
+        assert mint_resp.status_code == 200
