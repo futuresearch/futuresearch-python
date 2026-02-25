@@ -65,17 +65,21 @@ def _get_client(ctx: EveryRowContext) -> AuthenticatedClient:
     return ctx.request_context.lifespan_context.client_factory()
 
 
-def _submission_text(label: str, session_url: str, task_id: str) -> str:
+def _submission_text(
+    label: str, session_url: str, task_id: str, session_id: str = ""
+) -> str:
     """Build human-readable text for submission tool results."""
     if settings.is_stdio:
+        session_line = f"\nSession ID: {session_id}" if session_id else ""
         return dedent(f"""\
         {label}
-        Session: {session_url}
+        Session: {session_url}{session_line}
         Task ID: {task_id}
 
         Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}').""")
+    session_line = f"\nSession ID: {session_id}" if session_id else ""
     return dedent(f"""\
-        {label}
+        {label}{session_line}
         Task ID: {task_id}
 
         Immediately call everyrow_progress(task_id='{task_id}').""")
@@ -87,6 +91,7 @@ async def _submission_ui_json(
     total: int,
     token: str,
     mcp_server_url: str = "",
+    session_id: str = "",
 ) -> str:
     """Build JSON for the session MCP App widget, and store the token for polling."""
     poll_token = secrets.token_urlsafe(32)
@@ -115,6 +120,8 @@ async def _submission_ui_json(
         "total": total,
         "status": "submitted",
     }
+    if session_id:
+        data["session_id"] = session_id
     if mcp_server_url:
         data["progress_url"] = f"{mcp_server_url}/api/progress/{task_id}"
         data["poll_token"] = poll_token
@@ -129,13 +136,14 @@ async def create_tool_response(
     token: str,
     total: int,
     mcp_server_url: str = "",
+    session_id: str = "",
 ) -> list[TextContent]:
     """Build the standard submission response for a tool.
 
     Returns human-readable text in all modes, plus a widget JSON
     prepended in HTTP mode.
     """
-    text = _submission_text(label, session_url, task_id)
+    text = _submission_text(label, session_url, task_id, session_id=session_id)
     main_content = TextContent(type="text", text=text)
     if settings.is_http:
         ui_json = await _submission_ui_json(
@@ -144,6 +152,7 @@ async def create_tool_response(
             total=total,
             token=token,
             mcp_server_url=mcp_server_url,
+            session_id=session_id,
         )
         return [TextContent(type="text", text=ui_json), main_content]
     return [main_content]

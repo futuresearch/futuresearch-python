@@ -34,6 +34,16 @@ class SessionInfo:
         return get_session_url(self.session_id)
 
 
+@dataclass
+class SessionListResult:
+    """Paginated session listing result."""
+
+    sessions: list[SessionInfo]
+    total: int
+    offset: int
+    limit: int
+
+
 class Session:
     """Session object containing client and session_id."""
 
@@ -50,40 +60,61 @@ class Session:
 async def create_session(
     client: AuthenticatedClient | None = None,
     name: str | None = None,
+    session_id: UUID | str | None = None,
 ) -> AsyncGenerator[Session, None]:
-    """Create a new session and yield it as an async context manager.
+    """Create a new session — or resume an existing one — and yield it.
 
     Args:
         client: Optional authenticated client. If not provided, one will be created
                 automatically using the EVERYROW_API_KEY environment variable and
                 managed within this context manager.
-        name: Name for the session. If not provided, defaults to
-              "everyrow-sdk-session-{timestamp}".
+        name: Name for a *new* session. If not provided, defaults to
+              "everyrow-sdk-session-{timestamp}". Mutually exclusive with
+              ``session_id``.
+        session_id: UUID (or string) of an existing session to resume.
+                    When provided, no ``POST /sessions`` call is made —
+                    the context manager yields a ``Session`` pointing at the
+                    given ID directly. Mutually exclusive with ``name``.
+
+    Raises:
+        ValueError: If both ``session_id`` and ``name`` are provided, or if
+                    ``session_id`` is not a valid UUID.
 
     Example:
-        # With explicit client (client lifecycle managed externally)
-        async with create_client() as client:
-            async with create_session(client=client, name="My Session") as session:
-                ...
+        # Create a new session
+        async with create_session(client=client, name="My Session") as session:
+            ...
 
-        # Without client (client created and managed internally)
-        async with create_session(name="My Session") as session:
+        # Resume an existing session
+        async with create_session(client=client, session_id="...") as session:
             ...
     """
+    if session_id is not None and name is not None:
+        raise ValueError(
+            "session_id and name are mutually exclusive — "
+            "pass session_id to resume an existing session, "
+            "or name to create a new one."
+        )
+
     owns_client = client is None
     if owns_client:
         client = create_client()
         await client.__aenter__()
 
     try:
-        response = await create_session_endpoint_sessions_post.asyncio(
-            client=client,
-            body=CreateSession(
-                name=name or f"everyrow-sdk-session-{datetime.now().isoformat()}"
-            ),
-        )
-        response = handle_response(response)
-        session = Session(client=client, session_id=response.session_id)
+        if session_id is not None:
+            if not isinstance(session_id, UUID):
+                session_id = UUID(str(session_id))
+            session = Session(client=client, session_id=session_id)
+        else:
+            response = await create_session_endpoint_sessions_post.asyncio(
+                client=client,
+                body=CreateSession(
+                    name=name or f"everyrow-sdk-session-{datetime.now().isoformat()}"
+                ),
+            )
+            response = handle_response(response)
+            session = Session(client=client, session_id=response.session_id)
         yield session
     finally:
         if owns_client:
@@ -92,15 +123,19 @@ async def create_session(
 
 async def list_sessions(
     client: AuthenticatedClient | None = None,
-) -> list[SessionInfo]:
-    """List all sessions owned by the authenticated user.
+    offset: int = 0,
+    limit: int = 25,
+) -> SessionListResult:
+    """List sessions owned by the authenticated user with pagination.
 
     Args:
         client: Optional authenticated client. If not provided, one will be created
                 automatically using the EVERYROW_API_KEY environment variable.
+        offset: Number of sessions to skip (default 0).
+        limit: Max sessions per page (default 25, max 1000).
 
     Returns:
-        A list of SessionInfo objects.
+        A SessionListResult with sessions and pagination metadata.
     """
     owns_client = client is None
     if owns_client:
@@ -108,17 +143,24 @@ async def list_sessions(
         await client.__aenter__()
 
     try:
-        response = await list_sessions_endpoint_sessions_get.asyncio(client=client)
+        response = await list_sessions_endpoint_sessions_get.asyncio(
+            client=client, offset=offset, limit=limit
+        )
         response = handle_response(response)
-        return [
-            SessionInfo(
-                session_id=item.session_id,
-                name=item.name,
-                created_at=item.created_at,
-                updated_at=item.updated_at,
-            )
-            for item in response.sessions
-        ]
+        return SessionListResult(
+            sessions=[
+                SessionInfo(
+                    session_id=item.session_id,
+                    name=item.name,
+                    created_at=item.created_at,
+                    updated_at=item.updated_at,
+                )
+                for item in response.sessions
+            ],
+            total=response.total,
+            offset=response.offset,
+            limit=response.limit,
+        )
     finally:
         if owns_client:
             await client.__aexit__()

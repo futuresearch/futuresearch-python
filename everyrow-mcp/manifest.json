@@ -67,7 +67,7 @@
     },
     {
       "name": "everyrow_list_sessions",
-      "description": "List all everyrow sessions owned by the authenticated user."
+      "description": "List everyrow sessions owned by the authenticated user (paginated)."
     },
     {
       "name": "everyrow_cancel",

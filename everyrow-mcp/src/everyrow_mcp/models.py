@@ -138,6 +138,28 @@ def _check_exactly_one(
         raise ValueError(f"{prefix}Provide exactly one of {fields}.")
 
 
+def _validate_session_id(v: str | None) -> str | None:
+    """Validate session_id is a valid UUID string."""
+    if v is not None:
+        try:
+            UUID(v)
+        except ValueError as exc:
+            raise ValueError(f"session_id must be a valid UUID: {v}") from exc
+    return v
+
+
+def _check_session_exclusivity(
+    session_id: str | None, session_name: str | None
+) -> None:
+    """Raise if both session_id and session_name are provided."""
+    if session_id is not None and session_name is not None:
+        raise ValueError(
+            "session_id and session_name are mutually exclusive — "
+            "pass session_id to resume an existing session, "
+            "or session_name to create a new one."
+        )
+
+
 class _SingleSourceInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -149,6 +171,14 @@ class _SingleSourceInput(BaseModel):
         default=None,
         description="Inline data as a list of row objects.",
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+    )
+    session_name: str | None = Field(
+        default=None,
+        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+    )
 
     @field_validator("artifact_id")
     @classmethod
@@ -159,6 +189,11 @@ class _SingleSourceInput(BaseModel):
             except ValueError as exc:
                 raise ValueError(f"artifact_id must be a valid UUID: {v}") from exc
         return v
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: str | None) -> str | None:
+        return _validate_session_id(v)
 
     @field_validator("data")
     @classmethod
@@ -181,6 +216,7 @@ class _SingleSourceInput(BaseModel):
             field_names=("artifact_id", "data"),
             label="Input",
         )
+        _check_session_exclusivity(self.session_id, self.session_name)
         return self
 
     @property
@@ -334,6 +370,15 @@ class MergeInput(BaseModel):
         description="Relationship type: many_to_one (default) or one_to_one.",
     )
 
+    session_id: str | None = Field(
+        default=None,
+        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+    )
+    session_name: str | None = Field(
+        default=None,
+        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+    )
+
     @field_validator("left_artifact_id", "right_artifact_id")
     @classmethod
     def validate_artifact_ids(cls, v: str | None) -> str | None:
@@ -343,6 +388,11 @@ class MergeInput(BaseModel):
             except ValueError as exc:
                 raise ValueError(f"artifact_id must be a valid UUID: {v}") from exc
         return v
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: str | None) -> str | None:
+        return _validate_session_id(v)
 
     @field_validator("left_data", "right_data")
     @classmethod
@@ -370,6 +420,7 @@ class MergeInput(BaseModel):
             field_names=("right_artifact_id", "right_data"),
             label="Right table",
         )
+        _check_session_exclusivity(self.session_id, self.session_name)
         return self
 
     @property
@@ -425,6 +476,14 @@ class UploadDataInput(BaseModel):
         "or absolute local file path (stdio mode only).",
         min_length=1,
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+    )
+    session_name: str | None = Field(
+        default=None,
+        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+    )
 
     @field_validator("source")
     @classmethod
@@ -442,6 +501,16 @@ class UploadDataInput(BaseModel):
             )
         validate_csv_path(v)
         return v
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: str | None) -> str | None:
+        return _validate_session_id(v)
+
+    @model_validator(mode="after")
+    def check_session_exclusivity(self) -> "UploadDataInput":
+        _check_session_exclusivity(self.session_id, self.session_name)
+        return self
 
 
 class SingleAgentInput(BaseModel):
@@ -462,6 +531,14 @@ class SingleAgentInput(BaseModel):
         default=None,
         description="Optional JSON schema for the agent response.",
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+    )
+    session_name: str | None = Field(
+        default=None,
+        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+    )
 
     @field_validator("response_schema")
     @classmethod
@@ -469,6 +546,16 @@ class SingleAgentInput(BaseModel):
         cls, v: dict[str, Any] | None
     ) -> dict[str, Any] | None:
         return _validate_response_schema(v)
+
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id(cls, v: str | None) -> str | None:
+        return _validate_session_id(v)
+
+    @model_validator(mode="after")
+    def check_session_exclusivity(self) -> "SingleAgentInput":
+        _check_session_exclusivity(self.session_id, self.session_name)
+        return self
 
 
 def _validate_task_id(v: str) -> str:
@@ -582,3 +669,14 @@ class HttpResultsInput(BaseModel):
         if v is not None and not v.lower().endswith(".csv"):
             raise ValueError("output_path must end in .csv")
         return v
+
+
+class ListSessionsInput(BaseModel):
+    """Input for listing sessions with pagination."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    offset: int = Field(0, ge=0, description="Number of sessions to skip")
+    limit: int = Field(
+        25, ge=1, le=1000, description="Max sessions per page (default 25, max 1000)"
+    )

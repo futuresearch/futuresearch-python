@@ -38,6 +38,7 @@ from everyrow_mcp.models import (
     DedupeInput,
     ForecastInput,
     HttpResultsInput,
+    ListSessionsInput,
     MergeInput,
     ProgressInput,
     RankInput,
@@ -140,8 +141,11 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
     if params.response_schema:
         response_model = _schema_to_model("AgentResult", params.response_schema)
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         kwargs: dict[str, Any] = {
             "task": params.task,
             "session": session,
@@ -169,6 +173,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -218,8 +223,11 @@ async def everyrow_single_agent(
         DynamicInput = create_model("DynamicInput", **fields)  # pyright: ignore[reportArgumentType, reportCallIssue]
         input_model = DynamicInput()
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         kwargs: dict[str, Any] = {"task": params.task, "session": session}
         if input_model is not None:
             kwargs["input"] = input_model
@@ -242,6 +250,7 @@ async def everyrow_single_agent(
         token=client.token,
         total=1,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -294,8 +303,11 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     if params.response_schema:
         response_model = _schema_to_model("RankResult", params.response_schema)
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         cohort_task = await rank_async(
             task=params.task,
             session=session,
@@ -324,6 +336,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -383,8 +396,11 @@ async def everyrow_screen(
     if params.response_schema:
         response_model = _schema_to_model("ScreenResult", params.response_schema)
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         cohort_task = await screen_async(
             task=params.task,
             session=session,
@@ -410,6 +426,7 @@ async def everyrow_screen(
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -461,8 +478,11 @@ async def everyrow_dedupe(
 
     input_data = params._aid_or_dataframe
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         cohort_task = await dedupe_async(
             equivalence_relation=params.equivalence_relation,
             session=session,
@@ -487,6 +507,7 @@ async def everyrow_dedupe(
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -549,8 +570,11 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
     left_input = params._left_aid_or_dataframe
     right_input = params._right_aid_or_dataframe
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         cohort_task = await merge_async(
             task=params.task,
             session=session,
@@ -580,6 +604,7 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -629,8 +654,11 @@ async def everyrow_forecast(
     _clear_task_state()
     input_data = params._aid_or_dataframe
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
         session_url = session.get_url()
+        session_id_str = str(session.session_id)
         cohort_task = await forecast_async(
             task=params.context or "",
             session=session,
@@ -655,6 +683,7 @@ async def everyrow_forecast(
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
     )
 
 
@@ -700,7 +729,10 @@ async def everyrow_upload_data(
         if df.empty:
             raise ValueError(f"CSV file is empty: {params.source}")
 
-    async with create_session(client=client) as session:
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
+        session_id_str = str(session.session_id)
         artifact_id = await create_table_artifact(df, session)
 
     return [
@@ -709,6 +741,7 @@ async def everyrow_upload_data(
             text=json.dumps(
                 {
                     "artifact_id": str(artifact_id),
+                    "session_id": session_id_str,
                     "rows": len(df),
                     "columns": list(df.columns),
                 }
@@ -923,30 +956,58 @@ async def everyrow_results_http(  # noqa: PLR0911
         openWorldHint=False,
     ),
 )
-async def everyrow_list_sessions(ctx: EveryRowContext) -> list[TextContent]:
-    """List all everyrow sessions owned by the authenticated user.
+async def everyrow_list_sessions(
+    params: ListSessionsInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """List everyrow sessions owned by the authenticated user (paginated).
 
     Returns session names, IDs, timestamps, and dashboard URLs.
     Use this to find past sessions or check what's been run.
+    Results are paginated — 25 sessions per page by default.
     """
     client = _get_client(ctx)
 
     try:
-        sessions = await list_sessions(client=client)
+        result = await list_sessions(
+            client=client, offset=params.offset, limit=params.limit
+        )
     except Exception as e:
         return [TextContent(type="text", text=f"Error listing sessions: {e!r}")]
 
-    if not sessions:
+    if not result.sessions:
+        if result.total > 0:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"No sessions on this page (offset={params.offset}). "
+                    f"Total sessions: {result.total}.",
+                )
+            ]
         return [TextContent(type="text", text="No sessions found.")]
 
-    lines = [f"Found {len(sessions)} session(s):\n"]
-    for s in sessions:
+    start = result.offset + 1
+    end = result.offset + len(result.sessions)
+    total_pages = (result.total + result.limit - 1) // result.limit
+    current_page = (result.offset // result.limit) + 1
+
+    lines = [f"Found {result.total} session(s) (showing {start}-{end}):\n"]
+    for s in result.sessions:
         lines.append(
             f"- **{s.name}** (id: {s.session_id})\n"
             f"  Created: {s.created_at:%Y-%m-%d %H:%M UTC} | "
             f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}\n"
             f"  URL: {s.get_url()}"
         )
+
+    has_more = (result.offset + result.limit) < result.total
+    lines.append(
+        f"\nPage {current_page} of {total_pages}"
+        + (
+            f" | Use offset={result.offset + result.limit} to see next page"
+            if has_more
+            else ""
+        )
+    )
 
     return [TextContent(type="text", text="\n".join(lines))]
 

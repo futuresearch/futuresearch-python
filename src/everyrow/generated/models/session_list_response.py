@@ -18,9 +18,15 @@ class SessionListResponse:
     """
     Attributes:
         sessions (list[SessionListItem]): List of sessions
+        total (int): Total number of sessions matching the query
+        offset (int): Current offset
+        limit (int): Current page size
     """
 
     sessions: list[SessionListItem]
+    total: int
+    offset: int
+    limit: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -29,11 +35,20 @@ class SessionListResponse:
             sessions_item = sessions_item_data.to_dict()
             sessions.append(sessions_item)
 
+        total = self.total
+
+        offset = self.offset
+
+        limit = self.limit
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "sessions": sessions,
+                "total": total,
+                "offset": offset,
+                "limit": limit,
             }
         )
 
@@ -51,8 +66,17 @@ class SessionListResponse:
 
             sessions.append(sessions_item)
 
+        total = d.pop("total")
+
+        offset = d.pop("offset")
+
+        limit = d.pop("limit")
+
         session_list_response = cls(
             sessions=sessions,
+            total=total,
+            offset=offset,
+            limit=limit,
         )
 
         session_list_response.additional_properties = d

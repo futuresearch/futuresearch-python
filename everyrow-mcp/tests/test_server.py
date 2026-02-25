@@ -36,6 +36,7 @@ from everyrow_mcp.models import (
     CancelInput,
     DedupeInput,
     HttpResultsInput,
+    ListSessionsInput,
     MergeInput,
     ProgressInput,
     RankInput,
@@ -817,6 +818,17 @@ class TestResults:
 class TestListSessions:
     """Tests for everyrow_list_sessions."""
 
+    @staticmethod
+    def _make_session_list_result(sessions, *, total=None, offset=0, limit=25):
+        """Create a mock SessionListResult."""
+        tc = total if total is not None else len(sessions)
+        result = MagicMock()
+        result.sessions = sessions
+        result.total = tc
+        result.offset = offset
+        result.limit = limit
+        return result
+
     @pytest.mark.asyncio
     async def test_list_sessions_returns_sessions(self):
         """Test that list_sessions returns formatted session info."""
@@ -842,9 +854,9 @@ class TestListSessions:
         with patch(
             "everyrow_mcp.tools.list_sessions",
             new_callable=AsyncMock,
-            return_value=mock_sessions,
+            return_value=self._make_session_list_result(mock_sessions),
         ):
-            result = await everyrow_list_sessions(ctx)
+            result = await everyrow_list_sessions(ListSessionsInput(), ctx)
 
         text = result[0].text
         assert "2 session(s)" in text
@@ -860,9 +872,9 @@ class TestListSessions:
         with patch(
             "everyrow_mcp.tools.list_sessions",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=self._make_session_list_result([]),
         ):
-            result = await everyrow_list_sessions(ctx)
+            result = await everyrow_list_sessions(ListSessionsInput(), ctx)
 
         assert "No sessions found" in result[0].text
 
@@ -877,24 +889,24 @@ class TestListSessions:
             new_callable=AsyncMock,
             side_effect=RuntimeError("API error"),
         ):
-            result = await everyrow_list_sessions(ctx)
+            result = await everyrow_list_sessions(ListSessionsInput(), ctx)
 
         assert "Error listing sessions" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_list_sessions_passes_client_from_context(self):
-        """Test that the tool passes the context client to list_sessions."""
+    async def test_list_sessions_passes_client_and_pagination(self):
+        """Test that the tool passes the context client and pagination params to list_sessions."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
         with patch(
             "everyrow_mcp.tools.list_sessions",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=self._make_session_list_result([], offset=5, limit=10),
         ) as mock_ls:
-            await everyrow_list_sessions(ctx)
+            await everyrow_list_sessions(ListSessionsInput(offset=5, limit=10), ctx)
 
-        mock_ls.assert_called_once_with(client=mock_client)
+        mock_ls.assert_called_once_with(client=mock_client, offset=5, limit=10)
 
     @pytest.mark.asyncio
     async def test_list_sessions_output_contains_urls_and_dates(self):
@@ -915,15 +927,79 @@ class TestListSessions:
         with patch(
             "everyrow_mcp.tools.list_sessions",
             new_callable=AsyncMock,
-            return_value=mock_sessions,
+            return_value=self._make_session_list_result(mock_sessions),
         ):
-            result = await everyrow_list_sessions(ctx)
+            result = await everyrow_list_sessions(ListSessionsInput(), ctx)
 
         text = result[0].text
         assert "Pipeline Run" in text
         assert "2025-08-15 09:30 UTC" in text
         assert "2025-08-15 10:45 UTC" in text
         assert f"https://everyrow.io/sessions/{session_id}" in text
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_pagination_params(self):
+        """Test that limit and offset are passed through to SDK."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=self._make_session_list_result(
+                [], total=0, offset=5, limit=10
+            ),
+        ) as mock_ls:
+            await everyrow_list_sessions(ListSessionsInput(limit=10, offset=5), ctx)
+
+        mock_ls.assert_called_once_with(client=mock_client, offset=5, limit=10)
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_shows_pagination_info(self):
+        """Test that output includes page info and next-page hint."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        now = datetime.now(UTC)
+        mock_sessions = [
+            MagicMock(
+                session_id=uuid4(),
+                name=f"Session {i}",
+                created_at=now,
+                updated_at=now,
+                get_url=lambda: "https://everyrow.io/sessions/x",
+            )
+            for i in range(10)
+        ]
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=self._make_session_list_result(
+                mock_sessions, total=30, offset=0, limit=10
+            ),
+        ):
+            result = await everyrow_list_sessions(ListSessionsInput(limit=10), ctx)
+
+        text = result[0].text
+        assert "showing 1-10" in text
+        assert "30 session(s)" in text
+        assert "Page 1 of 3" in text
+        assert "offset=10" in text
+
+    @pytest.mark.asyncio
+    async def test_list_sessions_default_pagination(self):
+        """Test that default params are offset=0, limit=25."""
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with patch(
+            "everyrow_mcp.tools.list_sessions",
+            new_callable=AsyncMock,
+            return_value=self._make_session_list_result([]),
+        ) as mock_ls:
+            await everyrow_list_sessions(ListSessionsInput(), ctx)
+
+        mock_ls.assert_called_once_with(client=mock_client, offset=0, limit=25)
 
 
 class TestCancel:
@@ -1670,3 +1746,213 @@ class TestResultsWidgetData:
         assert len(result) == 2
         widget_data = json.loads(result[0].text)
         assert widget_data["session_url"] == session_url
+
+
+# ---------- Session resumption / naming ----------
+
+
+class TestSessionParams:
+    """Tests for session_id and session_name fields on input models."""
+
+    # ── Input validation ─────────────────────────────────────
+
+    def test_single_source_accepts_session_id(self):
+        uid = str(uuid4())
+        params = AgentInput(task="test", artifact_id=str(uuid4()), session_id=uid)
+        assert params.session_id == uid
+
+    def test_single_source_accepts_session_name(self):
+        params = AgentInput(
+            task="test", artifact_id=str(uuid4()), session_name="My Session"
+        )
+        assert params.session_name == "My Session"
+
+    def test_single_source_rejects_both_session_params(self):
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            AgentInput(
+                task="test",
+                artifact_id=str(uuid4()),
+                session_id=str(uuid4()),
+                session_name="conflict",
+            )
+
+    def test_single_source_rejects_invalid_session_id(self):
+        with pytest.raises(ValidationError, match="session_id must be a valid UUID"):
+            AgentInput(
+                task="test",
+                artifact_id=str(uuid4()),
+                session_id="not-a-uuid",
+            )
+
+    def test_merge_accepts_session_id(self):
+        params = MergeInput(
+            task="match",
+            left_data=[{"a": 1}],
+            right_data=[{"b": 2}],
+            session_id=str(uuid4()),
+        )
+        assert params.session_id is not None
+
+    def test_merge_rejects_both_session_params(self):
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            MergeInput(
+                task="match",
+                left_data=[{"a": 1}],
+                right_data=[{"b": 2}],
+                session_id=str(uuid4()),
+                session_name="conflict",
+            )
+
+    def test_single_agent_accepts_session_id(self):
+        params = SingleAgentInput(task="test", session_id=str(uuid4()))
+        assert params.session_id is not None
+
+    def test_single_agent_rejects_both_session_params(self):
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            SingleAgentInput(
+                task="test",
+                session_id=str(uuid4()),
+                session_name="conflict",
+            )
+
+    def test_upload_data_accepts_session_id(self):
+        params = UploadDataInput(
+            source="https://example.com/data.csv", session_id=str(uuid4())
+        )
+        assert params.session_id is not None
+
+    def test_upload_data_rejects_both_session_params(self):
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            UploadDataInput(
+                source="https://example.com/data.csv",
+                session_id=str(uuid4()),
+                session_name="conflict",
+            )
+
+    # ── Tool invocations ─────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_agent_passes_session_params(self):
+        """everyrow_agent forwards session_id and session_name to create_session."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        sid = str(uuid4())
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.tools.create_session") as mock_cs,
+        ):
+            mock_cs.return_value = _make_async_context_manager(mock_session)
+            mock_op.return_value = mock_task
+
+            params = AgentInput(
+                task="Find HQ",
+                data=[{"name": "Acme"}],
+                session_id=sid,
+            )
+            result = await everyrow_agent(params, ctx)
+
+            mock_cs.assert_called_once_with(
+                client=mock_client, session_id=sid, name=None
+            )
+            text = result[0].text
+            assert str(mock_session.session_id) in text
+
+    @pytest.mark.asyncio
+    async def test_agent_passes_session_name(self):
+        """everyrow_agent forwards session_name to create_session."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch("everyrow_mcp.tools.create_session") as mock_cs,
+        ):
+            mock_cs.return_value = _make_async_context_manager(mock_session)
+            mock_op.return_value = mock_task
+
+            params = AgentInput(
+                task="Find HQ",
+                data=[{"name": "Acme"}],
+                session_name="My Pipeline",
+            )
+            await everyrow_agent(params, ctx)
+
+            mock_cs.assert_called_once_with(
+                client=mock_client, session_id=None, name="My Pipeline"
+            )
+
+    @pytest.mark.asyncio
+    async def test_upload_data_passes_session_id(self):
+        """everyrow_upload_data forwards session_id to create_session."""
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        artifact_uuid = uuid4()
+        sid = str(uuid4())
+
+        mock_df = pd.DataFrame([{"a": 1}])
+
+        with (
+            patch(
+                "everyrow_mcp.tools.fetch_csv_from_url",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch("everyrow_mcp.tools.create_session") as mock_cs,
+            patch(
+                "everyrow_mcp.tools.create_table_artifact",
+                new_callable=AsyncMock,
+                return_value=artifact_uuid,
+            ),
+        ):
+            mock_cs.return_value = _make_async_context_manager(mock_session)
+
+            params = UploadDataInput(
+                source="https://example.com/data.csv", session_id=sid
+            )
+            result = await everyrow_upload_data(params, ctx)
+
+            mock_cs.assert_called_once_with(
+                client=mock_client, session_id=sid, name=None
+            )
+            data = json.loads(result[0].text)
+            assert data["session_id"] == str(mock_session.session_id)
+
+    # ── Response includes session_id ─────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_response_includes_session_id(self):
+        """Submission response text includes the session ID."""
+        mock_task = _make_mock_task()
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with (
+            patch(
+                "everyrow_mcp.tools.agent_map_async", new_callable=AsyncMock
+            ) as mock_op,
+            patch(
+                "everyrow_mcp.tools.create_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            mock_op.return_value = mock_task
+
+            params = AgentInput(
+                task="Find HQ",
+                data=[{"name": "Acme"}],
+            )
+            result = await everyrow_agent(params, ctx)
+
+        text = result[0].text
+        assert f"Session ID: {mock_session.session_id}" in text
