@@ -83,7 +83,10 @@ class SupabaseTokenVerifier(TokenVerifier):
         # Use the algorithm from the JWKS key (e.g. ES256, RS256) rather
         # than hardcoding, since Supabase may use any asymmetric algorithm.
         jwk_data = getattr(signing_key, "_jwk_data", None) or {}
-        alg = jwk_data.get("alg", "RS256")
+        alg = jwk_data.get("alg")
+        if not alg:
+            logger.warning("JWKS key missing 'alg' field, falling back to RS256")
+            alg = "RS256"
         return pyjwt.decode(
             token,
             signing_key.key,
@@ -147,18 +150,6 @@ class PendingAuth(BaseModel):
     params: AuthorizationParams
     supabase_code_verifier: str
     supabase_redirect_url: str
-
-
-def _decode_trusted_server_jwt(token: str) -> dict[str, Any]:
-    """Decode a Supabase JWT received from a trusted server-to-server exchange.
-
-    Skips signature verification — the token came from Supabase's token
-    endpoint over HTTPS and was never exposed to the client.
-    NEVER use this for tokens received from end users.
-    """
-    return pyjwt.decode(
-        token, options={"verify_signature": False}, algorithms=["RS256"]
-    )
 
 
 # ── OAuth provider ────────────────────────────────────────────────────
@@ -440,6 +431,11 @@ class EveryRowAuthProvider(
         if code_obj.expires_at and code_obj.expires_at < time.time():
             return None
         if code_obj.client_id != client.client_id:
+            logger.warning(
+                "Auth code client mismatch: code belongs to %s, presented by %s",
+                code_obj.client_id,
+                client.client_id,
+            )
             # Re-store so the legitimate client can still use it (NX prevents overwrite).
             remaining = max(1, int((code_obj.expires_at or 0) - time.time()))
             await self._redis.set(key, code_data_encrypted, ex=remaining, nx=True)
@@ -453,7 +449,16 @@ class EveryRowAuthProvider(
         scopes: list[str],
         supabase_refresh_token: str,
     ) -> OAuthToken:
-        jwt_claims = _decode_trusted_server_jwt(access_token)
+        # SECURITY: Extract exp from the Supabase JWT without signature
+        # verification.  This is safe ONLY because the token was just received
+        # from Supabase's token endpoint over HTTPS (server-to-server) and was
+        # never exposed to the client.  Do NOT copy this pattern for
+        # user-supplied tokens — use SupabaseTokenVerifier.verify_token instead.
+        jwt_claims = pyjwt.decode(
+            access_token,
+            options={"verify_signature": False},
+            algorithms=["RS256"],
+        )
         expires_in = max(0, jwt_claims.get("exp", 0) - int(time.time()))
 
         rt_str = secrets.token_urlsafe(32)
@@ -506,6 +511,11 @@ class EveryRowAuthProvider(
             return None
         rt = EveryRowRefreshToken.model_validate_json(decrypt_value(data_encrypted))
         if rt.client_id != client.client_id:
+            logger.warning(
+                "Refresh token client mismatch: token belongs to %s, presented by %s",
+                rt.client_id,
+                client.client_id,
+            )
             # Re-store so the legitimate client can still use it (NX prevents overwrite).
             await self._redis.set(
                 key, data_encrypted, ex=settings.refresh_token_ttl, nx=True

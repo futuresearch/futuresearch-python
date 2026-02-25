@@ -17,7 +17,7 @@ The MCP server's authentication and authorization implementation is **well-desig
 
 ### F-1: REST Endpoints Use Capability Tokens Without User Identity Verification
 
-**Severity:** Medium
+**Severity:** Medium — **FIXED** (download tokens are now single-use via GETDEL)
 **Files:** `routes.py:49-73`, `tool_helpers.py:92-116`, `result_store.py:154-162`
 
 **Description:**
@@ -53,25 +53,13 @@ For the progress endpoint (called from JavaScript widgets), add an optional user
 
 ### F-2: `_decode_trusted_server_jwt` Skips Signature Verification
 
-**Severity:** Medium
+**Severity:** Medium — **FIXED** (function removed; `exp` extraction inlined with `# SECURITY:` comment)
 **File:** `auth.py:152-161`
 
 **Description:**
-The helper `_decode_trusted_server_jwt()` decodes a JWT with `verify_signature: False`. It is currently used only in `_issue_token_response()` (`auth.py:456`) to extract the `exp` claim from a Supabase token that was received directly from Supabase's `/auth/v1/token` endpoint over HTTPS.
+The helper `_decode_trusted_server_jwt()` decoded a JWT with `verify_signature: False`. It was used only in `_issue_token_response()` to extract the `exp` claim from a Supabase token received directly from Supabase's `/auth/v1/token` endpoint over HTTPS.
 
-The current usage is safe. However, this function is a sharp tool that poses a refactoring hazard — if any future code path calls it with a user-supplied token, signature verification would be completely bypassed.
-
-```python
-# auth.py:152-161
-def _decode_trusted_server_jwt(token: str) -> dict[str, Any]:
-    """Decode a Supabase JWT received from a trusted server-to-server exchange.
-    ...
-    NEVER use this for tokens received from end users.
-    """
-    return pyjwt.decode(
-        token, options={"verify_signature": False}, algorithms=["RS256"]
-    )
-```
+The usage was safe. However, having a general-purpose no-verification JWT decoder as a named function posed a refactoring hazard — if any future code path called it with a user-supplied token, signature verification would be completely bypassed.
 
 **Proof of Concept:**
 ```python
@@ -82,23 +70,14 @@ claims = _decode_trusted_server_jwt(forged)
 # → claims["sub"] == "attacker" — full identity spoofing
 ```
 
-**Recommended Fix:**
-1. Make the function private to the module and add a runtime guard:
-```python
-def _decode_trusted_server_jwt(token: str, *, _caller: str = "") -> dict[str, Any]:
-    """Only call from _issue_token_response."""
-    if _caller != "_issue_token_response":
-        raise RuntimeError("_decode_trusted_server_jwt must not be used for user tokens")
-    ...
-```
-2. Or inline the `exp` extraction directly in `_issue_token_response` to remove the general-purpose function entirely.
-3. At minimum, keep the docstring warning and add a `# SECURITY:` comment at each call site.
+**Applied Fix:**
+The function was removed entirely. The `pyjwt.decode(..., verify_signature=False)` call is now inlined in `_issue_token_response` with a `# SECURITY:` comment explaining the trust boundary. This eliminates the reusable footgun while preserving the documented rationale at the single call site.
 
 ---
 
 ### F-3: JWKS Algorithm Fallback to RS256 Without Key Type Cross-Check
 
-**Severity:** Low
+**Severity:** Low — **FIXED** (added `logger.warning` on fallback path)
 **File:** `auth.py:82-94`
 
 **Description:**
@@ -216,7 +195,7 @@ Add a registration-specific rate limit (e.g., 5 registrations per IP per hour) u
 
 ### F-7: Authorization Code Client Mismatch Re-Stores Without Logging User Context
 
-**Severity:** Low
+**Severity:** Low — **FIXED** (added `logger.warning` with both client IDs)
 **File:** `auth.py:425-447`
 
 **Description:**
@@ -296,6 +275,9 @@ if code_obj.client_id != client.client_id:
 - **Per-user rate limiting** (`uploads.py:270-280`): Rate limited by hashed API token.
 - **Content-Type allowlist** (`uploads.py:36-41`): Only CSV-compatible content types are accepted.
 
+### CORS Policy (Positive — Conscious Decision)
+- **Wildcard `Access-Control-Allow-Origin: *`** (`routes.py:29-33`): The REST widget endpoints use a wildcard CORS origin. This is safe because authentication uses Bearer tokens (not cookies), so no ambient credentials are leaked. The decision is explicitly documented in the `_cors_headers()` docstring.
+
 ### Redis Key Security (Positive)
 - **Key sanitization** (`redis_store.py:40-46`): `build_key` replaces unsafe characters, preventing Redis key injection.
 - **Constant-time comparison** (`routes.py:68`): `secrets.compare_digest` for poll token validation.
@@ -310,14 +292,14 @@ if code_obj.client_id != client.client_id:
 
 ## Summary Table
 
-| ID  | Finding | Severity | Category |
-|-----|---------|----------|----------|
-| F-1 | REST endpoints use capability tokens without user identity | Medium | Authorization |
-| F-2 | `_decode_trusted_server_jwt` skips signature verification | Medium | JWT handling |
-| F-3 | JWKS algorithm fallback without logging | Low | JWT handling |
-| F-4 | `handle_start` state token can be re-consumed | Low | OAuth flow |
-| F-5 | Stored task tokens survive session revocation | Low | Token lifecycle |
-| F-6 | Client registration not independently rate-limited | Low | OAuth flow |
-| F-7 | Auth code client mismatch lacks detailed logging | Low | OAuth flow |
+| ID  | Finding | Severity | Status |
+|-----|---------|----------|--------|
+| F-1 | REST endpoints use capability tokens without user identity | Medium | **Fixed** — download tokens now single-use (GETDEL) |
+| F-2 | `_decode_trusted_server_jwt` skips signature verification | Medium | **Fixed** — function removed, exp extraction inlined |
+| F-3 | JWKS algorithm fallback without logging | Low | **Fixed** — added `logger.warning` |
+| F-4 | `handle_start` state token can be re-consumed | Low | Open |
+| F-5 | Stored task tokens survive session revocation | Low | Open (design trade-off) |
+| F-6 | Client registration not independently rate-limited | Low | Open |
+| F-7 | Auth code client mismatch lacks detailed logging | Low | **Fixed** — added `logger.warning` with client IDs |
 
-**Overall Assessment:** The authentication system is well-implemented with defense-in-depth. No critical or high-severity vulnerabilities were identified. The medium findings (F-1, F-2) represent design trade-offs that should be consciously accepted or hardened. The low findings are opportunities for incremental improvement.
+**Overall Assessment:** The authentication system is well-implemented with defense-in-depth. No critical or high-severity vulnerabilities were identified. Both medium findings have been fixed. Three low findings remain open as future hardening opportunities.

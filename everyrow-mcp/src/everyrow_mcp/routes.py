@@ -46,27 +46,50 @@ def _validate_uuid(task_id: str) -> JSONResponse | None:
     return None
 
 
+def _extract_bearer_or_query_token(request: Request, task_id: str) -> str:
+    """Extract a poll token from Authorization header or ?token= query param."""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:]
+    provided = request.query_params.get("token", "")
+    if provided:
+        logger.info(
+            "Poll token provided via query param for task %s — prefer Authorization header",
+            task_id,
+        )
+    return provided
+
+
 async def _validate_poll_token(task_id: str, request: Request) -> JSONResponse | None:
     """Return an error response if the poll token is missing/invalid, else None.
 
     Checks Authorization: Bearer header first, falls back to ?token= query
-    param (for clickable CSV download links).
+    param (for clickable CSV download links).  Non-destructive — the token
+    remains in Redis for repeated progress polling.
     """
     expected = await redis_store.get_poll_token(task_id)
-    # Try Authorization header first
-    auth_header = request.headers.get("authorization", "")
-    if auth_header.lower().startswith("bearer "):
-        provided = auth_header[7:]
-    else:
-        # Fall back to query param (for download links)
-        provided = request.query_params.get("token", "")
-        if provided:
-            logger.info(
-                "Poll token provided via query param for task %s — prefer Authorization header",
-                task_id,
-            )
+    provided = _extract_bearer_or_query_token(request, task_id)
     if not expected or not provided or not secrets.compare_digest(provided, expected):
         logger.warning("Invalid poll token for task %s", task_id)
+        return JSONResponse(
+            {"error": "Unauthorized"}, status_code=403, headers=_cors_headers()
+        )
+    return None
+
+
+async def _validate_and_consume_poll_token(
+    task_id: str, request: Request
+) -> JSONResponse | None:
+    """Like _validate_poll_token but atomically consumes the token (single-use).
+
+    Used for the download endpoint to prevent replay of leaked download URLs.
+    """
+    # SECURITY: GETDEL atomically consumes the token — a leaked download URL
+    # can only be used once.
+    expected = await redis_store.pop_poll_token(task_id)
+    provided = _extract_bearer_or_query_token(request, task_id)
+    if not expected or not provided or not secrets.compare_digest(provided, expected):
+        logger.warning("Invalid or already-consumed poll token for task %s", task_id)
         return JSONResponse(
             {"error": "Unauthorized"}, status_code=403, headers=_cors_headers()
         )
@@ -127,7 +150,11 @@ async def api_progress(request: Request) -> Response:
 
 
 async def api_download(request: Request) -> Response:
-    """REST endpoint to download task results as CSV."""
+    """REST endpoint to download task results as CSV.
+
+    The poll token is consumed on use (GETDEL) so each download URL is
+    single-use.  A new token is generated for each everyrow_results call.
+    """
     cors = _cors_headers()
     if request.method == "OPTIONS":
         return Response(
@@ -140,7 +167,7 @@ async def api_download(request: Request) -> Response:
     if err := _validate_uuid(task_id):
         return err
 
-    if err := await _validate_poll_token(task_id, request):
+    if err := await _validate_and_consume_poll_token(task_id, request):
         return err
 
     csv_text = await redis_store.get_result_csv(task_id)
