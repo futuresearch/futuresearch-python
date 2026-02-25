@@ -72,9 +72,9 @@ def configure_http_mode(
     mcp.settings.host = host
     mcp.settings.port = port
 
-    if not settings.upload_secret:
+    if not settings.upload_secret or len(settings.upload_secret) < 32:
         raise RuntimeError(
-            "UPLOAD_SECRET must be set in HTTP mode for HMAC signing. "
+            "UPLOAD_SECRET must be at least 32 characters in HTTP mode for HMAC signing. "
             'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
         )
     if not no_auth and not settings.redis_password:

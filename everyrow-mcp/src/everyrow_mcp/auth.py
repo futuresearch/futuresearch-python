@@ -276,11 +276,12 @@ class EveryRowAuthProvider(
             raise HTTPException(status_code=400, detail="Missing state")
 
         key = build_key("pending", state)
-        pending_data = (
+        pending_data_encrypted = (
             await self._redis.getdel(key) if consume else await self._redis.get(key)
         )
-        if pending_data is None:
+        if pending_data_encrypted is None:
             raise HTTPException(status_code=400, detail="Invalid or expired state")
+        pending_data = decrypt_value(pending_data_encrypted)
         return PendingAuth.model_validate_json(pending_data)
 
     async def _validate_client(self, pending: PendingAuth) -> None:
@@ -357,7 +358,7 @@ class EveryRowAuthProvider(
         await self._redis.setex(
             name=build_key("pending", state),
             time=settings.pending_auth_ttl,
-            value=pending.model_dump_json(),
+            value=encrypt_value(pending.model_dump_json()),
         )
         return f"{settings.mcp_server_url}/auth/start/{state}"
 
@@ -370,7 +371,7 @@ class EveryRowAuthProvider(
         await self._redis.setex(
             name=build_key("pending", state),
             time=settings.pending_auth_ttl,
-            value=pending.model_dump_json(),
+            value=encrypt_value(pending.model_dump_json()),
         )
         response = RedirectResponse(url=pending.supabase_redirect_url, status_code=302)
         response.set_cookie(

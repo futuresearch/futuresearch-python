@@ -30,7 +30,7 @@ key = HKDF(
 ).derive(settings.upload_secret.encode())
 ```
 
-**Impact:** Without a salt, the same `UPLOAD_SECRET` always produces the same Fernet key across all instances and restarts. An attacker who recovers the `UPLOAD_SECRET` from any environment (dev, staging, prod) immediately gains the key for every environment that shares that secret. HKDF without salt also removes the second layer of defense against brute-force — all instances collapse to a single target.
+**Impact:** Without a salt, the same `UPLOAD_SECRET` always produces the same Fernet key across all instances and restarts. An attacker who recovers the `UPLOAD_SECRET` from any environment (dev, staging, prod) immediately gains the key for every environment that shares that secret. Per RFC 5869, `salt=None` is treated as a zero-filled byte string and is allowed, but it reduces defense-in-depth by removing domain separation between environments.
 
 **PoC:** Two independent MCP processes with `UPLOAD_SECRET=same-value` will produce byte-identical ciphertext for the same plaintext, confirming no per-instance randomness.
 
@@ -41,11 +41,13 @@ salt=hashlib.sha256(socket.gethostname().encode()).digest()  # per-host determin
 ```
 If a random salt is used, it must be prepended to the ciphertext and stripped on decryption. Alternatively, use a per-environment salt derived from a stable identifier (hostname, pod name) so existing data remains readable after restarts.
 
+**Migration warning:** Changing the salt will produce a different Fernet key, immediately breaking decryption of all existing encrypted data in Redis (auth codes, refresh tokens, task tokens, poll tokens). All encrypted values are short-lived (max 24h TTL), so the safest migration path is: deploy the new salt during a low-traffic window and accept that in-flight tokens will expire naturally. Alternatively, use `MultiFernet` with both old (unsalted) and new (salted) keys during a transition period.
+
 ---
 
-### H-2: PendingAuth Stored Unencrypted in Redis (High)
+### H-2: PendingAuth Stored Unencrypted in Redis (High) — FIXED
 
-**File:** `everyrow-mcp/src/everyrow_mcp/auth.py:357-361`
+**Files:** `everyrow-mcp/src/everyrow_mcp/auth.py:357-361` and `auth.py:370-373` (re-store in `handle_start`)
 
 ```python
 await self._redis.setex(
@@ -134,7 +136,7 @@ When `UPLOAD_SECRET` is not set in stdio mode, `encrypt_value()` and `decrypt_va
 
 ---
 
-### M-4: No Minimum Entropy Validation for UPLOAD_SECRET (Medium)
+### M-4: No Minimum Entropy Validation for UPLOAD_SECRET (Medium) — FIXED
 
 **File:** `everyrow-mcp/src/everyrow_mcp/http_config.py:75-79`
 
@@ -272,7 +274,7 @@ run: |
 | HTTPS enforced for remote URLs | PASS | `config.py:134-147` rejects non-HTTPS for non-localhost URLs |
 | Redis SSL enforced in HTTP mode | PASS | `config.py:150-158` raises error for remote Redis without SSL |
 | REDIS_PASSWORD required in auth mode | PASS | `http_config.py:80-84` raises error if unset with auth enabled |
-| GitHub Actions uses OIDC for GCP | PASS | `deploy-mcp.yaml:89-91` — no long-lived service account keys in repo |
+| GCP auth via GitHub Secrets | NOTE | `deploy-mcp.yaml:89-91` uses `credentials_json` (long-lived service account key in GitHub Secrets). Consider migrating to OIDC Workload Identity Federation. |
 | `.dockerignore` excludes secrets | PASS | `deploy/.dockerignore` blocks `*.env` from build context |
 
 ---
@@ -282,11 +284,11 @@ run: |
 | ID | Severity | Finding | File | Line(s) |
 |---|---|---|---|---|
 | H-1 | **High** | HKDF with no salt — deterministic key derivation | `redis_store.py` | 61-66 |
-| H-2 | **High** | PendingAuth (contains PKCE verifier) stored unencrypted in Redis | `auth.py` | 357-361 |
+| H-2 | **High** | PendingAuth (contains PKCE verifier) stored unencrypted in Redis — **FIXED** | `auth.py` | 357-361, 370-373 |
 | M-1 | Medium | Poll token leaked in download URL query parameter | `result_store.py` | 154-162 |
 | M-2 | Medium | No Fernet key rotation mechanism | `redis_store.py` | 52-67 |
 | M-3 | Medium | Encryption silently disabled in stdio mode (no warning) | `redis_store.py` | 70-78 |
-| M-4 | Medium | No minimum entropy validation for UPLOAD_SECRET | `http_config.py` | 75-79 |
+| M-4 | Medium | No minimum entropy validation for UPLOAD_SECRET — **FIXED** | `http_config.py` | 75-79 |
 | M-5 | Medium | CSV parse error logs raw exception (may contain user data) | `uploads.py` | 292-293 |
 | L-1 | Low | Redis connection details logged at INFO level | `redis_store.py` | 133-151 |
 | L-2 | Low | Startup error `%r` format could leak secret material | `app.py` | 37-38 |
