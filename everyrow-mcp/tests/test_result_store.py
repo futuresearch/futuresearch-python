@@ -22,7 +22,6 @@ from starlette.routing import Route
 from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
 from everyrow_mcp.result_store import (
-    _build_curl_result_response,
     _build_result_response,
     _estimate_tokens,
     _format_columns,
@@ -380,16 +379,18 @@ class TestTryStoreResult:
         assert meta["session_url"] == "https://everyrow.io/sessions/abc"
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_failure(self, sample_df, _http_state):
-        with patch(
-            "everyrow_mcp.result_store.redis_store.store_result_csv",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("Redis down"),
+    async def test_raises_on_redis_failure(self, sample_df, _http_state):
+        with (
+            patch(
+                "everyrow_mcp.result_store.redis_store.store_result_csv",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("Redis down"),
+            ),
+            pytest.raises(RuntimeError, match="Redis down"),
         ):
-            result = await try_store_result(
+            await try_store_result(
                 "task-fail", sample_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
             )
-        assert result is None
 
     @pytest.mark.asyncio
     async def test_widget_includes_poll_token_and_download_url(
@@ -743,203 +744,39 @@ class TestTokenBudgetIntegration:
         assert "page_size=10" in summary
 
 
-# ── Curl-mode responses ──────────────────────────────────────
+# ── Widget results_url ──────────────────────────────────────
 
 
-class TestBuildCurlResultResponse:
-    def test_returns_curl_command_in_summary(self):
-        preview = [{"name": "Alice", "score": 95}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-curl/download?token=abc"
-        result = _build_curl_result_response(
-            task_id="task-curl",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=100,
-            columns=["name", "score"],
-        )
-        assert len(result) == 2
-        summary = result[1].text
-        assert "curl" in summary
-        assert csv_url in summary
-        assert "pd.read_csv" in summary
-
-    def test_preview_in_widget_json(self):
-        preview = [{"name": "Alice"}, {"name": "Bob"}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-curl2/download?token=abc"
-        result = _build_curl_result_response(
-            task_id="task-curl2",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=50,
-            columns=["name"],
-        )
-        widget = json.loads(result[0].text)
-        assert widget["total"] == 50
-        assert len(widget["preview"]) == 2
-        assert widget["csv_url"] == csv_url
-
-    def test_session_url_in_widget(self):
-        preview = [{"a": 1}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-curl3/download?token=abc"
-        result = _build_curl_result_response(
-            task_id="task-curl3",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=10,
-            columns=["a"],
-            session_url="https://everyrow.io/sessions/xyz",
-        )
-        widget = json.loads(result[0].text)
-        assert widget["session_url"] == "https://everyrow.io/sessions/xyz"
-
-    def test_poll_token_in_widget(self):
-        preview = [{"a": 1}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-curl4/download?token=abc"
-        result = _build_curl_result_response(
-            task_id="task-curl4",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=10,
-            columns=["a"],
-            poll_token="my-poll-token",
-            mcp_server_url=FAKE_SERVER_URL,
-        )
-        widget = json.loads(result[0].text)
-        assert widget["poll_token"] == "my-poll-token"
-        assert (
-            widget["download_token_url"]
-            == f"{FAKE_SERVER_URL}/api/results/task-curl4/download-token"
-        )
-
-    def test_summary_mentions_row_count(self):
-        preview = [{"x": i} for i in range(3)]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-curl5/download?token=abc"
-        result = _build_curl_result_response(
-            task_id="task-curl5",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=500,
-            columns=["x"],
-        )
-        summary = result[1].text
-        assert "500 rows" in summary
-        assert "3 rows" in summary  # preview count
-
-
-class TestTryStoreResultCurlMode:
+class TestWidgetResultsUrl:
     @pytest.mark.asyncio
-    async def test_curl_mode_returns_curl_command(self, sample_df, _http_state):
-        task_id = "task-curl-store"
+    async def test_store_result_includes_results_url(self, sample_df, _http_state):
+        task_id = "task-widget-url"
         await redis_store.store_poll_token(task_id, "test-token")
 
         result = await try_store_result(
             task_id,
             sample_df,
             0,
-            10,
+            50,
             mcp_server_url=FAKE_SERVER_URL,
-            curl_mode=True,
         )
 
-        assert result is not None
-        summary = result[1].text
-        assert "curl" in summary
-        assert "pd.read_csv" in summary
-
-    @pytest.mark.asyncio
-    async def test_curl_mode_skips_clamping(self, _http_state):
-        """Curl mode should not clamp to token budget — only preview rows matter."""
-        # Create a wide df that would normally be clamped
-        df = pd.DataFrame(
-            {
-                "id": range(20),
-                "text": [f"Long text {'x' * 2000}" for _ in range(20)],
-            }
-        )
-        task_id = "task-curl-noclamp"
-        await redis_store.store_poll_token(task_id, "tok")
-
-        with override_settings(token_budget=100, curl_preview_rows=3):
-            result = await try_store_result(
-                task_id,
-                df,
-                0,
-                20,
-                mcp_server_url=FAKE_SERVER_URL,
-                curl_mode=True,
-            )
-
-        assert result is not None
         widget = json.loads(result[0].text)
-        # Only curl_preview_rows shown, not clamped by token budget
-        assert len(widget["preview"]) == 3
-        assert widget["total"] == 20
+        assert "results_url" in widget
+        assert "format=json" in widget["results_url"]
 
     @pytest.mark.asyncio
-    async def test_curl_mode_preview_limited_by_setting(self, _http_state):
-        df = pd.DataFrame({"a": range(50)})
-        task_id = "task-curl-limit"
-        await redis_store.store_poll_token(task_id, "tok")
-
-        with override_settings(curl_preview_rows=7):
-            result = await try_store_result(
-                task_id,
-                df,
-                0,
-                50,
-                mcp_server_url=FAKE_SERVER_URL,
-                curl_mode=True,
-            )
-
-        assert result is not None
-        widget = json.loads(result[0].text)
-        assert len(widget["preview"]) == 7
-
-
-class TestTryCachedResultCurlMode:
-    @pytest.mark.asyncio
-    async def test_curl_mode_returns_curl_command(self, sample_df, _http_state):
-        task_id = "task-curl-cached"
+    async def test_cached_result_includes_results_url(self, sample_df, _http_state):
+        task_id = "task-widget-cached"
         await redis_store.store_poll_token(task_id, "test-token")
 
-        # Store first
         await try_store_result(
-            task_id, sample_df, 0, 10, mcp_server_url=FAKE_SERVER_URL
+            task_id, sample_df, 0, 50, mcp_server_url=FAKE_SERVER_URL
         )
 
-        # Read from cache in curl mode
-        cached = await try_cached_result(
-            task_id,
-            0,
-            10,
-            mcp_server_url=FAKE_SERVER_URL,
-            curl_mode=True,
-        )
-
-        assert cached is not None
-        summary = cached[1].text
-        assert "curl" in summary
-        assert "pd.read_csv" in summary
-
-    @pytest.mark.asyncio
-    async def test_curl_mode_limits_preview_rows(self, _http_state):
-        task_id = "task-curl-cached-limit"
-        df = pd.DataFrame({"x": range(30)})
-        await redis_store.store_poll_token(task_id, "tok")
-
-        # Store with default mode first
-        await try_store_result(task_id, df, 0, 30, mcp_server_url=FAKE_SERVER_URL)
-
-        with override_settings(curl_preview_rows=4):
-            cached = await try_cached_result(
-                task_id,
-                0,
-                30,
-                mcp_server_url=FAKE_SERVER_URL,
-                curl_mode=True,
-            )
+        cached = await try_cached_result(task_id, 0, 50, mcp_server_url=FAKE_SERVER_URL)
 
         assert cached is not None
         widget = json.loads(cached[0].text)
-        assert len(widget["preview"]) == 4
-        assert widget["total"] == 30
+        assert "results_url" in widget
+        assert "format=json" in widget["results_url"]

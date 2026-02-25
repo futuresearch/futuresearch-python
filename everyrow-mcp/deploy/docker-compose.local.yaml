@@ -7,5 +7,5 @@ services:
 
   mcp-server:
     environment:
-      MCP_SERVER_URL: "http://localhost:8000"
-      TRUST_PROXY_HEADERS: "false"
+      MCP_SERVER_URL: "${MCP_SERVER_URL:-http://localhost:8000}"
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"

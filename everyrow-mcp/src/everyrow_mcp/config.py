@@ -89,12 +89,6 @@ class Settings(BaseSettings):
         description="Maximum rows allowed in inline data (list[dict]).",
     )
 
-    # Curl download settings (HTTP mode only)
-    curl_preview_rows: int = Field(
-        default=5,
-        description="Number of preview rows included in curl-mode results responses.",
-    )
-
     # Upload settings (HTTP mode only)
     upload_secret: str = Field(
         default="",

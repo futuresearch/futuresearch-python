@@ -49,7 +49,6 @@ from everyrow_mcp.models import (
     _schema_to_model,
 )
 from everyrow_mcp.result_store import (
-    _sanitize_records,
     try_cached_result,
     try_store_result,
 )
@@ -859,15 +858,16 @@ async def everyrow_results_stdio(
     ]
 
 
-async def everyrow_results_http(  # noqa: PLR0911
+async def everyrow_results_http(
     params: HttpResultsInput, ctx: EveryRowContext
 ) -> list[TextContent]:
     """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    Returns a schema preview and a curl command to download the full CSV.
-    Execute the curl command to download the full CSV, then use
-    pd.read_csv('results.csv') to analyse the data.
+    Before calling this tool, ask the user how many rows they want you to
+    ingest in your context. If the dataset is small, don't bother asking.
+    Returns up to page_size rows (default 50) with a download link for
+    the full CSV. Tell the user how many rows you are showing vs the total.
     """
     client = _get_client(ctx)
     task_id = params.task_id
@@ -892,7 +892,6 @@ async def everyrow_results_http(  # noqa: PLR0911
         params.offset,
         params.page_size,
         mcp_server_url=mcp_server_url,
-        curl_mode=True,
     )
     if cached is not None:
         return cached
@@ -922,34 +921,15 @@ async def everyrow_results_http(  # noqa: PLR0911
     # output_path is accepted by the schema but ignored in HTTP mode —
     # the server must not write to its own filesystem on remote request.
 
-    # ── Store in Redis and return curl download response ──────────
-    store_response = await try_store_result(
+    # ── Store in Redis and return response ──────────────────────
+    return await try_store_result(
         task_id,
         df,
         params.offset,
         params.page_size,
         session_url,
         mcp_server_url=mcp_server_url,
-        curl_mode=True,
     )
-    if store_response is not None:
-        return store_response
-
-    # ── Fallback: return small inline preview when Redis is unavailable ──
-    preview_df = df.iloc[: settings.curl_preview_rows]
-    preview = _sanitize_records(preview_df.to_dict(orient="records"))
-    cols = ", ".join(df.columns)
-    return [
-        TextContent(
-            type="text",
-            text=json.dumps({"preview": preview, "total": len(df)}),
-        ),
-        TextContent(
-            type="text",
-            text=f"Results: {len(df)} rows, {len(df.columns)} columns ({cols}). "
-            f"Showing {len(preview_df)} row schema preview (Redis unavailable, no download link).",
-        ),
-    ]
 
 
 @mcp.tool(

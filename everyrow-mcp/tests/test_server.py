@@ -775,8 +775,8 @@ class TestResults:
         assert result == cached_response
 
     @pytest.mark.asyncio
-    async def test_results_http_store_failure_falls_back_to_inline(self):
-        """In HTTP mode, Redis failure falls back to inline results."""
+    async def test_results_http_store_failure_raises(self):
+        """In HTTP mode, Redis failure propagates as an error."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
@@ -803,17 +803,11 @@ class TestResults:
             patch(
                 "everyrow_mcp.tools.try_store_result",
                 new_callable=AsyncMock,
-                return_value=None,
+                side_effect=RuntimeError("Redis down"),
             ),
+            pytest.raises(RuntimeError, match="Redis down"),
         ):
-            result = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
-
-        assert len(result) == 2
-        widget_data = json.loads(result[0].text)
-        assert widget_data["preview"] == [{"name": "A"}]
-        assert widget_data["total"] == 1
-        assert "Redis unavailable" in result[1].text
-        assert "1 rows" in result[1].text
+            await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
 
 
 class TestListSessions:

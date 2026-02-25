@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import secrets
 from uuid import UUID
@@ -243,7 +245,7 @@ async def api_download_token(request: Request) -> Response:
     return JSONResponse({"download_url": download_url}, headers=cors)
 
 
-async def api_download(request: Request) -> Response:
+async def api_download(request: Request) -> Response:  # noqa: PLR0911
     """REST endpoint to download task results as CSV.
 
     Authenticates via a short-lived, single-use download token (not the
@@ -289,6 +291,13 @@ async def api_download(request: Request) -> Response:
         return JSONResponse(
             {"error": "Results not found or expired"}, status_code=404, headers=cors
         )
+
+    # Return JSON array if requested (used by the widget for full data fetch).
+    fmt = request.query_params.get("format", "csv")
+    if fmt == "json":
+        reader = csv.DictReader(io.StringIO(csv_text))
+        records = list(reader)
+        return JSONResponse(records, headers=cors)
 
     safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
     return Response(
