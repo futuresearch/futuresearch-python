@@ -38,6 +38,20 @@ deployment:
 secrets:
   enabled: true
 
+# NetworkPolicy: restrict pod ingress/egress.
+# gatewayNamespace must match the namespace where gateway data-plane proxy
+# pods run — verify with: kubectl get pods -A | grep gateway
+#
+# redisCIDRs: Production uses Redis Sentinel (cross-namespace/external).
+# List every Sentinel + master IP here. Use "kubectl get endpoints" or
+# check REDIS_SENTINEL_ENDPOINTS to find the IPs, then narrow the CIDRs.
+networkPolicy:
+  enabled: true
+  gatewayNamespace: gke-managed-system
+  redisPort: 6379
+  redisCIDRs:
+    - 10.0.0.0/8  # TODO: narrow to actual Redis Sentinel IPs
+
 tolerations:
   - key: "hyperdiskonly"
     operator: "Equal"
