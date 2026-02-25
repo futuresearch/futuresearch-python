@@ -11,6 +11,7 @@ from uuid import UUID
 import pandas as pd
 from everyrow.api_utils import handle_response
 from everyrow.constants import EveryrowError
+from everyrow.generated.api.billing import get_billing_balance_billing_get
 from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.ops import (
@@ -999,6 +1000,46 @@ async def everyrow_list_sessions(
     )
 
     return [TextContent(type="text", text="\n".join(lines))]
+
+
+@mcp.tool(
+    name="everyrow_balance",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Check Account Balance",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def everyrow_balance(ctx: EveryRowContext) -> list[TextContent]:
+    """Check the current billing balance for the authenticated user.
+
+    Returns the account balance in dollars. Use this to verify available
+    credits before submitting tasks.
+    """
+    client = _get_client(ctx)
+
+    try:
+        response = await get_billing_balance_billing_get.asyncio(client=client)
+        if response is None:
+            raise RuntimeError("Failed to get billing balance")
+    except Exception:
+        logger.exception("Failed to get billing balance")
+        return [
+            TextContent(
+                type="text",
+                text="Error retrieving billing balance. Please try again.",
+            )
+        ]
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Current balance: ${response.current_balance_dollars:.2f}",
+        )
+    ]
 
 
 @mcp.tool(

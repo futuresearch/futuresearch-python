@@ -76,6 +76,10 @@
     {
       "name": "everyrow_upload_data",
       "description": "Upload data from a URL or local file. Returns an artifact_id for use in processing tools."
+    },
+    {
+      "name": "everyrow_balance",
+      "description": "Check the current billing balance for the authenticated user."
     }
   ],
   "user_config": {

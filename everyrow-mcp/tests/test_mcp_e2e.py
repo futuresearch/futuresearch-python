@@ -173,6 +173,7 @@ class TestMcpProtocol:
             expected = sorted(
                 [
                     "everyrow_agent",
+                    "everyrow_balance",
                     "everyrow_cancel",
                     "everyrow_dedupe",
                     "everyrow_forecast",
@@ -369,6 +370,52 @@ class TestMcpProtocol:
             assert isinstance(result.content[-1], TextContent)
             human_text = result.content[-1].text
             assert "everyrow_results" in human_text
+
+    @pytest.mark.asyncio
+    async def test_call_balance_tool(self, _http_state):
+        """Check billing balance via MCP protocol."""
+        mock_response = MagicMock()
+        mock_response.current_balance_dollars = 42.50
+
+        async with mcp_client() as session:
+            with (
+                patch(
+                    "everyrow_mcp.tools._get_client",
+                    return_value=MagicMock(token="fake-token"),
+                ),
+                patch(
+                    "everyrow_mcp.tools.get_billing_balance_billing_get.asyncio",
+                    new_callable=AsyncMock,
+                    return_value=mock_response,
+                ),
+            ):
+                result = await session.call_tool("everyrow_balance", {})
+
+            assert not result.isError
+            assert len(result.content) == 1
+            assert isinstance(result.content[0], TextContent)
+            assert "$42.50" in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_call_balance_tool_error(self, _http_state):
+        """Balance tool returns a friendly error on API failure."""
+        async with mcp_client() as session:
+            with (
+                patch(
+                    "everyrow_mcp.tools._get_client",
+                    return_value=MagicMock(token="fake-token"),
+                ),
+                patch(
+                    "everyrow_mcp.tools.get_billing_balance_billing_get.asyncio",
+                    new_callable=AsyncMock,
+                    side_effect=RuntimeError("API down"),
+                ),
+            ):
+                result = await session.call_tool("everyrow_balance", {})
+
+            assert not result.isError
+            assert len(result.content) == 1
+            assert "Error" in result.content[0].text
 
 
 # ── TestMcpE2ERealApi — real API tests ────────────────────────
