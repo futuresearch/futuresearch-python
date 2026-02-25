@@ -63,6 +63,8 @@ def fix_empty_items(schema: dict) -> dict:
 
 The fix needs to be applied recursively to the entire schema. And it needs to be applied in two cases: when generating structured output and when specifying tool signatures. Easy to miss the second one.
 
+Interestingly, I can reproduce the problem when using their API directly but not with their `genai` Python package. Perhaps they're aware of this issue, but they decided to address it in the Python package rather than in their backend. Or more likely: the team that maintains the Python package got fed up waiting for the backend team to do something about this.
+
 ### OpenAI can't agree with itself on structured output
 
 When generating structured output with OpenAI's `responses` API, you need to pass the schema in a specific format:
