@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,12 +77,12 @@ class TestRequestUploadUrlInput:
 
     def test_extra_fields_rejected(self):
         with pytest.raises(ValidationError):
-            RequestUploadUrlInput(filename="data.csv", extra="x")  # type: ignore[call-arg]
+            RequestUploadUrlInput(filename="data.csv", extra="x")  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
 
 def _capture_tool_fn(mock_mcp: MagicMock):
     """Register upload tool on a mock FastMCP and return the captured function."""
-    captured: list = []
+    captured: list[Any] = []
 
     def capture_tool(**_kwargs):
         def decorator(fn):
@@ -243,7 +244,7 @@ class TestHandleUpload:
             resp = await handle_upload(request)
 
         assert resp.status_code == 403
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         assert body["error"] == "Upload authorization missing"
 
     @pytest.mark.asyncio
@@ -311,7 +312,7 @@ class TestHandleUpload:
             resp = await handle_upload(request)
 
         assert resp.status_code == 400
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         # Error message should be generic, not contain internal exception details
         assert "Could not parse CSV file" in body["error"]
         assert "Ensure it is valid UTF-8 CSV" in body["error"]
@@ -352,7 +353,7 @@ class TestHandleUpload:
             resp = await handle_upload(request)
 
         assert resp.status_code == 500
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         assert body["error"] == "Failed to create artifact. Please try again."
         assert "DB connection" not in body["error"]
 
@@ -410,7 +411,7 @@ class TestContentTypeValidation:
             resp = await handle_upload(request)
 
         assert resp.status_code == 415
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         assert "Unsupported Content-Type" in body["error"]
 
     @pytest.mark.asyncio
@@ -481,7 +482,7 @@ class TestUploadRateLimitPreservesUrl:
             resp = await handle_upload(request)
 
         assert resp.status_code == 429
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         assert "rate limit" in body["error"].lower()
         # pop_upload_meta must NOT have been called
         pop_mock.assert_not_called()

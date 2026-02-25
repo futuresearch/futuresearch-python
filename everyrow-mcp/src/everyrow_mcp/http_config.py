@@ -221,4 +221,4 @@ def _add_middleware(
         asgi_app = SecurityHeadersMiddleware(asgi_app)
         return asgi_app
 
-    mcp.streamable_http_app = _wrapped
+    mcp.streamable_http_app = _wrapped  # pyright: ignore[reportAttributeAccessIssue]

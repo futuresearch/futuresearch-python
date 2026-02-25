@@ -14,6 +14,7 @@ import logging
 import shlex
 import time
 from io import BytesIO
+from typing import Any
 from uuid import uuid4
 
 import pandas as pd
@@ -178,7 +179,7 @@ def register_upload_tool(mcp: FastMCP) -> None:
 
 async def _validate_upload(  # noqa: PLR0911
     request: Request,
-) -> tuple[bytes, dict, None] | tuple[None, None, JSONResponse]:
+) -> tuple[bytes, dict[str, Any], None] | tuple[None, None, JSONResponse]:
     """Validate upload signature, metadata, and body.
 
     Returns (body, metadata_dict, None) or (None, None, error).

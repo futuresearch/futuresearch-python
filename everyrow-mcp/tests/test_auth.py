@@ -862,7 +862,7 @@ class TestHostCookiePrefix:
             params=AuthorizationParams(
                 state="s1",
                 scopes=["read"],
-                redirect_uri="https://example.com/callback",
+                redirect_uri=AnyUrl("https://example.com/callback"),
                 code_challenge="challenge",
                 redirect_uri_provided_explicitly=True,
             ),

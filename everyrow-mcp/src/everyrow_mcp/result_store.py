@@ -234,7 +234,7 @@ async def try_cached_result(
         offset=min(offset, meta["total"]),
         page_size=effective_page_size,
         session_url=meta.get("session_url", ""),
-        poll_token=poll_token,
+        poll_token=poll_token or "",
         mcp_server_url=mcp_server_url,
         requested_page_size=page_size,
     )
@@ -298,7 +298,7 @@ async def try_store_result(
             offset=clamped_offset,
             page_size=effective_page_size,
             session_url=session_url,
-            poll_token=poll_token,
+            poll_token=poll_token or "",
             mcp_server_url=mcp_server_url,
             requested_page_size=page_size,
         )

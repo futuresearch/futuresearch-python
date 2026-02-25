@@ -32,9 +32,9 @@ class FakeRequest:
         self,
         *,
         method: str = "GET",
-        path_params: dict | None = None,
-        query_params: dict | None = None,
-        headers: dict | None = None,
+        path_params: dict[str, str] | None = None,
+        query_params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
     ):
         self.method = method
         self.path_params = path_params or {}
@@ -206,10 +206,10 @@ class TestApiProgress:
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
-            resp = await api_progress(req)
+            resp = await api_progress(req)  # pyright: ignore[reportArgumentType]
 
         assert resp.status_code == 200
-        body = json.loads(resp.body.decode())
+        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
         assert body["status"] == "running"
         assert body["completed"] == 3
         assert body["total"] == 10
@@ -423,7 +423,7 @@ class TestApiDownloadToken:
         )
         dl_resp = await api_download(dl_req)  # pyright: ignore[reportArgumentType]
         assert dl_resp.status_code == 200
-        assert dl_resp.body.decode() == csv_text
+        assert dl_resp.body.decode() == csv_text  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestCorsHeaders:

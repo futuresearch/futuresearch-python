@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import secrets
 from datetime import UTC, datetime
+from io import StringIO
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -515,7 +516,7 @@ class TestDownloadTokenLifecycle:
         assert dl_resp.headers["content-type"] == "text/csv; charset=utf-8"
 
         # Verify the downloaded CSV matches the original data
-        downloaded_df = pd.read_csv(pd.io.common.StringIO(dl_resp.text))
+        downloaded_df = pd.read_csv(StringIO(dl_resp.text))
         assert list(downloaded_df.columns) == ["name", "score"]
         assert len(downloaded_df) == 2
 

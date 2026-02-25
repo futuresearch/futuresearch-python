@@ -120,12 +120,13 @@ async def _resolve_and_validate(hostname: str) -> str:
         raise ValueError(f"Could not resolve hostname: {hostname}")
 
     for _, _, _, _, sockaddr in addrinfos:
-        if _is_blocked_ip(sockaddr[0]):
-            logger.warning("SSRF blocked: %s resolved to %s", hostname, sockaddr[0])
+        addr = str(sockaddr[0])
+        if _is_blocked_ip(addr):
+            logger.warning("SSRF blocked: %s resolved to %s", hostname, addr)
             raise ValueError(f"URL target is not permitted: {hostname}")
 
     # All addresses safe — return the first resolved IP for connection pinning
-    return addrinfos[0][4][0]
+    return str(addrinfos[0][4][0])
 
 
 async def _validate_url_target(url: str) -> None:

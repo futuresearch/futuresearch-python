@@ -22,6 +22,7 @@ import io
 import json
 import os
 import re
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -138,7 +139,7 @@ async def poll_via_rest(
     task_id: str,
     poll_token: str,
     max_polls: int = 30,
-) -> dict:
+) -> dict[str, Any]:
     """Poll /api/progress via REST endpoint until complete."""
     for _ in range(max_polls):
         resp = await client.get(
@@ -172,7 +173,7 @@ class TestHttpScreenPipeline:
         self,
         client: httpx.AsyncClient,
         everyrow_client,
-        jobs_csv: str,
+        jobs_data: list[dict[str, Any]],
     ):
         """Submit a screen task, poll via REST, fetch results via MCP tool."""
         # 1. Submit via MCP tool (in HTTP mode)
@@ -180,7 +181,7 @@ class TestHttpScreenPipeline:
         result = await everyrow_screen(
             ScreenInput(
                 task="Filter for remote positions with salary > $100k",
-                input_csv=jobs_csv,
+                data=jobs_data,
             ),
             ctx,
         )
@@ -241,20 +242,14 @@ class TestHttpAgentPipeline:
         self,
         client: httpx.AsyncClient,
         everyrow_client,
-        tmp_path,
     ):
         """Submit an agent task, poll via REST, verify results via MCP tool."""
-        # Create small input (2 rows to minimize cost)
-        df = pd.DataFrame([{"name": "Anthropic"}, {"name": "OpenAI"}])
-        input_csv = tmp_path / "companies.csv"
-        df.to_csv(input_csv, index=False)
-
         # 1. Submit via MCP tool
         ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
         result = await everyrow_agent(
             AgentInput(
                 task="Find the company's headquarters city.",
-                input_csv=str(input_csv),
+                data=[{"name": "Anthropic"}, {"name": "OpenAI"}],
                 response_schema={
                     "properties": {
                         "headquarters": {
@@ -323,14 +318,14 @@ class TestProgressPollingModes:
         self,
         client: httpx.AsyncClient,
         everyrow_client,
-        jobs_csv: str,
+        jobs_data: list[dict[str, Any]],
     ):
         """Submit a task and poll using both REST endpoint and MCP tool."""
         ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
         result = await everyrow_screen(
             ScreenInput(
                 task="Filter for engineering roles",
-                input_csv=jobs_csv,
+                data=jobs_data,
             ),
             ctx,
         )

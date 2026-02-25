@@ -17,6 +17,7 @@ import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -152,6 +153,43 @@ def jobs_csv(tmp_path: Path) -> str:
     path = tmp_path / "jobs.csv"
     df.to_csv(path, index=False)
     return str(path)
+
+
+@pytest.fixture
+def jobs_data() -> list[dict[str, Any]]:
+    """Return jobs data as inline rows for tools using the unified input API."""
+    return [
+        {
+            "company": "Airtable",
+            "title": "Senior Engineer",
+            "salary": "$185000",
+            "location": "Remote",
+        },
+        {
+            "company": "Vercel",
+            "title": "Lead Engineer",
+            "salary": "Competitive",
+            "location": "NYC",
+        },
+        {
+            "company": "Notion",
+            "title": "Staff Engineer",
+            "salary": "$200000",
+            "location": "San Francisco",
+        },
+        {
+            "company": "Linear",
+            "title": "Junior Developer",
+            "salary": "$85000",
+            "location": "Remote",
+        },
+        {
+            "company": "Descript",
+            "title": "Principal Architect",
+            "salary": "$250000",
+            "location": "Remote",
+        },
+    ]
 
 
 @pytest.fixture

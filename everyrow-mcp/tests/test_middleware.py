@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from starlette.applications import Starlette
@@ -61,7 +62,7 @@ def _make_redis_mock() -> AsyncMock:
     # Pipeline: collects commands, executes them in order
     @asynccontextmanager
     async def _pipeline():
-        commands: list[tuple] = []
+        commands: list[tuple[Any, ...]] = []
 
         pipe = MagicMock()
 
@@ -200,7 +201,7 @@ def _make_upload_app(*, max_bytes: int = 100) -> Starlette:
             Route("/other", _other),
         ],
     )
-    return BodySizeLimitMiddleware(inner, max_bytes=max_bytes)
+    return BodySizeLimitMiddleware(inner, max_bytes=max_bytes)  # pyright: ignore[reportReturnType]
 
 
 class TestBodySizeLimitMiddleware:

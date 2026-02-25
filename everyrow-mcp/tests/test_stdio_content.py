@@ -18,6 +18,7 @@ import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -185,7 +186,7 @@ def _make_status_response(
     )
 
 
-def _make_result_response(data: list[dict]) -> TaskResultResponse:
+def _make_result_response(data: list[dict[str, Any]]) -> TaskResultResponse:
     items = [TaskResultResponseDataType0Item.from_dict(d) for d in data]
     return TaskResultResponse(
         task_id=uuid4(),

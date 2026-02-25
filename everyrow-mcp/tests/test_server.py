@@ -8,6 +8,7 @@ import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -308,7 +309,7 @@ def _make_task_status_response(
 
 
 def _make_task_result_response(
-    data: list[dict],
+    data: list[dict[str, Any]],
     *,
     task_id: UUID | None = None,
 ) -> TaskResultResponse:
@@ -1033,7 +1034,7 @@ class TestCancel:
 
         # Extra fields forbidden
         with pytest.raises(ValidationError):
-            CancelInput(task_id=valid_uuid, extra_field="x")  # type: ignore[call-arg]
+            CancelInput(task_id=valid_uuid, extra_field="x")  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
 
 class TestAgentInlineInput:
