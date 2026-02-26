@@ -111,9 +111,9 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 <div id="toolbar">
   <span id="sum">Loading...</span>
   <button id="selAllBtn">Select all</button>
-  <button id="copyBtn" disabled>Copy TSV (0)</button>
+  <button id="copyBtn" disabled>Copy CSV (0)</button>
   <span class="export-btns"><button id="exportLink" title="Copy CSV download link to clipboard">Copy link</button></span>
-  <span class="settings-wrap"><button id="settingsBtn" title="Settings">Settings</button><div id="settingsDrop" class="settings-drop"><div class="drop-hdr">Copy format</div><label><input type="radio" name="cfmt" value="tsv" checked> TSV (tabs)</label><label><input type="radio" name="cfmt" value="csv"> CSV</label><label><input type="radio" name="cfmt" value="json"> JSON</label><div class="drop-sep"></div><div class="drop-hdr">Table height</div><label><input type="radio" name="tsize" value="250"> Small</label><label><input type="radio" name="tsize" value="420" checked> Medium</label><label><input type="radio" name="tsize" value="700"> Large</label></div></span>
+  <span class="settings-wrap"><button id="settingsBtn" title="Settings">Settings</button><div id="settingsDrop" class="settings-drop"><div class="drop-hdr">Copy format</div><label><input type="radio" name="cfmt" value="csv" checked> CSV</label><label><input type="radio" name="cfmt" value="tsv"> TSV (tabs)</label><label><input type="radio" name="cfmt" value="json"> JSON</label><div class="drop-sep"></div><div class="drop-hdr">Table height</div><label><input type="radio" name="tsize" value="250"> Small</label><label><input type="radio" name="tsize" value="420" checked> Medium</label><label><input type="radio" name="tsize" value="700"> Large</label></div></span>
   <button id="expandBtn" title="Toggle fullscreen">&#x2922;</button>
 </div>
 <div class="wrap" id="wrap"><table id="tbl"></table></div>
@@ -146,7 +146,7 @@ const sessionLinkEl=document.getElementById("sessionLink");
 let sessionUrl="",csvUrl="",pollToken="",downloadTokenUrl="";
 const TRUNC=200;
 let didDrag=false;
-let copyFmt="tsv";
+let copyFmt="csv";
 const settingsBtn=document.getElementById("settingsBtn");
 const settingsDrop=document.getElementById("settingsDrop");
 const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},selected:new Set(),lastClick:null,isFullscreen:false,focusedCell:null};
