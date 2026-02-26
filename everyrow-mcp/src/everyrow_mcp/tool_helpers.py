@@ -70,7 +70,16 @@ def log_client_info(ctx: EveryRowContext, tool_name: str) -> None:
     try:
         cp = ctx.session.client_params
         if not cp:
-            logger.info("[%s] client_params=None", tool_name)
+            # Stateless HTTP mode — no MCP initialize handshake.
+            # Fall back to User-Agent from the HTTP request.
+            from everyrow_mcp.http_config import get_user_agent  # noqa: PLC0415
+
+            ua = get_user_agent()
+            logger.info(
+                "[%s] client_params=None (stateless) ua=%s",
+                tool_name,
+                ua or "-",
+            )
             return
         name = cp.clientInfo.name if cp.clientInfo else "unknown"
         version = cp.clientInfo.version if cp.clientInfo else "unknown"
@@ -93,7 +102,7 @@ def log_client_info(ctx: EveryRowContext, tool_name: str) -> None:
 def client_supports_widgets(ctx: EveryRowContext) -> bool:
     """Return True if the connected MCP client can render widgets.
 
-    Uses a two-tier whitelist approach:
+    Uses a three-tier approach:
 
     1. **MCP Apps UI capability** (spec-recommended, future-proof):
        Clients that advertise ``experimental["io.modelcontextprotocol/ui"]``
@@ -105,15 +114,23 @@ def client_supports_widgets(ctx: EveryRowContext) -> bool:
        widget-capable client names so they get widgets today.
        This fallback should be removed once clients adopt the capability.
 
-    Unknown clients default to **no widget** — this is intentional.
-    Widget JSON is ~500-2000 tokens; sending it to a client that can't
-    render it (e.g. Claude Code, third-party MCP clients) wastes context
-    for no benefit.
+    3. **User-Agent fallback** (stateless HTTP mode):
+       When ``client_params`` is ``None`` (stateless HTTP — no MCP initialize
+       handshake), we check the HTTP User-Agent header.  Clients known to
+       NOT support widgets (e.g. Claude Code) are excluded.  If the
+       User-Agent is unknown, we default to **showing widgets** because
+       HTTP mode traffic is overwhelmingly from Claude.ai/Desktop.
+
+    Unknown clients default to **no widget** in stateful mode (tier 2),
+    but to **widget** in stateless HTTP mode (tier 3) where the population
+    is predominantly Claude.ai/Desktop.
     """
     try:
         cp = ctx.session.client_params
         if not cp:
-            return False
+            # Stateless HTTP mode — no MCP initialize handshake.
+            # Fall back to User-Agent detection.
+            return _widgets_from_user_agent()
 
         # Tier 1: explicit UI capability (preferred, spec-recommended)
         caps = cp.capabilities
@@ -137,6 +154,36 @@ def client_supports_widgets(ctx: EveryRowContext) -> bool:
     except Exception:
         logger.debug("Could not determine widget support", exc_info=True)
         return False  # unknown client — skip widget to save context tokens
+
+
+def _widgets_from_user_agent() -> bool:
+    """Tier 3: determine widget support from HTTP User-Agent.
+
+    Called when client_params is None (stateless HTTP mode).
+
+    Strategy: block known non-widget clients, allow everything else.
+    HTTP mode traffic is predominantly Claude.ai/Desktop which supports
+    widgets, so defaulting to True minimises false negatives.
+
+    The blocklist below will be populated once we observe actual
+    User-Agent strings from Claude Code's HTTP client in production logs.
+    """
+    from everyrow_mcp.http_config import get_user_agent  # noqa: PLC0415
+
+    ua = get_user_agent().lower()
+
+    # Known non-widget User-Agent substrings.
+    # Observed values (Feb 2026):
+    #   Claude Code: "claude-code/2.1.59 (cli)"
+    #   MCP SDK:     "python-httpx/0.28.1"  (test client)
+    #   OAuth flow:  "Bun/1.3.10"  (Claude Code's OAuth helper)
+    _NO_WIDGET_UA_SUBSTRINGS = {"claude-code"}
+
+    if any(pattern in ua for pattern in _NO_WIDGET_UA_SUBSTRINGS):
+        return False
+
+    # Unknown UA in HTTP mode → assume widget-capable (Claude.ai/Desktop).
+    return True
 
 
 def _submission_text(

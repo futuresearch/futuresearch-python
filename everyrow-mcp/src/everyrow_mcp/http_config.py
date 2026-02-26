@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import time as _time
 from urllib.parse import urlparse
@@ -31,6 +32,20 @@ from everyrow_mcp.templates import RESULTS_HTML, SESSION_HTML
 from everyrow_mcp.uploads import handle_upload
 
 logger = logging.getLogger(__name__)
+
+# ── User-Agent propagation ────────────────────────────────────────────
+# In stateless HTTP mode there is no MCP initialize handshake, so
+# ctx.session.client_params is always None.  We propagate the HTTP
+# User-Agent header via a ContextVar so tool functions can still
+# distinguish clients (e.g. Claude Code vs Claude.ai).
+_user_agent_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "user_agent", default=""
+)
+
+
+def get_user_agent() -> str:
+    """Return the User-Agent of the current HTTP request (empty in stdio mode)."""
+    return _user_agent_var.get()
 
 
 def configure_http_mode(
@@ -71,6 +86,7 @@ def configure_http_mode(
     mcp._mcp_server.lifespan = lifespan_wrapper(mcp, lifespan)
     mcp.settings.host = host
     mcp.settings.port = port
+    mcp.settings.stateless_http = True
 
     if not settings.upload_secret or len(settings.upload_secret) < 32:
         raise RuntimeError(
@@ -180,26 +196,33 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health":
             return await call_next(request)
 
-        start = _time.monotonic()
-        response = await call_next(request)
-        elapsed_ms = (_time.monotonic() - start) * 1000
-
-        # Extract user_id from the access token if available.
+        # Propagate User-Agent so downstream tool code can detect the client
+        # even in stateless HTTP mode (no MCP initialize → no client_params).
+        ua_token = _user_agent_var.set(request.headers.get("user-agent", ""))
         try:
-            access_token = get_access_token()
-            user_id = access_token.client_id if access_token else None
-        except Exception:
-            user_id = None
+            start = _time.monotonic()
+            response = await call_next(request)
+            elapsed_ms = (_time.monotonic() - start) * 1000
 
-        logger.info(
-            "HTTP %s %s -> %d (%.0fms) user=%s",
-            request.method,
-            request.url.path,
-            response.status_code,
-            elapsed_ms,
-            user_id or "anon",
-        )
-        return response
+            # Extract user_id from the access token if available.
+            try:
+                access_token = get_access_token()
+                user_id = access_token.client_id if access_token else None
+            except Exception:
+                user_id = None
+
+            logger.info(
+                "HTTP %s %s -> %d (%.0fms) user=%s ua=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                elapsed_ms,
+                user_id or "anon",
+                request.headers.get("user-agent", "-"),
+            )
+            return response
+        finally:
+            _user_agent_var.reset(ua_token)
 
 
 def _add_middleware(

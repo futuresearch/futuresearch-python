@@ -34,6 +34,19 @@ env:
 httproute:
   host: mcp.everyrow.io
 
+# Session affinity — defense-in-depth for multi-replica deployments.
+# The server runs in stateless HTTP mode so affinity is NOT required,
+# but it reduces unnecessary cross-pod hops.
+sessionAffinity:
+  # GCPBackendPolicy: cookie-based affinity at the GKE load-balancer layer.
+  gcpBackendPolicy:
+    enabled: true
+    cookieTtlSec: 3600
+  # Service-level ClientIP affinity: kube-proxy layer fallback.
+  clientIP:
+    enabled: true
+    timeoutSeconds: 3600
+
 deployment:
   maxSurge: "50%"
   maxUnavailable: "25%"

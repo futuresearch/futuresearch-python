@@ -9,3 +9,9 @@ spec:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
   type: ClusterIP
+  {{- if .Values.sessionAffinity.clientIP.enabled }}
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.sessionAffinity.clientIP.timeoutSeconds }}
+  {{- end }}
