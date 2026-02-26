@@ -101,7 +101,7 @@ Do NOT add commentary between progress calls — just call again immediately.
 4. **Results** — call `everyrow_results(task_id)` to retrieve the output.
 
 ## Key rules
-- Always share the session_url with the user after submitting a task.
+- If a session_url appears in the submission response, share it with the user. If none is present, do not mention it.
 - Never guess or fabricate results — always wait for the task to complete.
 - For small datasets (< 50 rows), prefer passing `data` directly.
 - For larger datasets, use `everyrow_upload_data` to get an artifact_id first.
@@ -120,31 +120,35 @@ _INSTRUCTIONS_STDIO = (
 """
 )
 
-_INSTRUCTIONS_HTTP = (
-    _INSTRUCTIONS_COMMON
-    + """\
+
+def _build_instructions_http() -> str:
+    threshold = settings.auto_page_size_threshold
+    return (
+        _INSTRUCTIONS_COMMON
+        + f"""\
 ## Data ingestion (remote mode)
 - `everyrow_upload_data(source="https://...")` — upload from a URL (Google Sheets supported).
 - For local/sandbox files, use `everyrow_request_upload_url(filename="data.csv")`, \
 then execute the returned curl command, then use the artifact_id from the response.
-- Or pass `data=[{"col": "val"}, ...]` directly to any processing tool.
+- Or pass `data=[{{"col": "val"}}, ...]` directly to any processing tool.
 - Do NOT pass local file paths to `everyrow_upload_data` — it will fail in remote mode.
 
 ## Results
-- IMPORTANT: When a task completes, you MUST ask the user how many rows they want loaded into \
-your context BEFORE calling everyrow_results. Do NOT call everyrow_results without asking first.
+- IMPORTANT: When a task completes with more than {threshold} rows, you MUST ask the user how many rows \
+they want loaded into your context BEFORE calling everyrow_results. Do NOT call everyrow_results \
+without asking first. If the task produced {threshold} or fewer rows, skip asking and load all rows directly.
 - `everyrow_results(task_id, page_size=N)` loads N rows into your context so you can read them. \
 The user always has access to all rows via the widget and download link.
 - After retrieving results, tell the user how many rows you can see vs the total, and that \
 they have access to the full dataset via the widget above and the download link.
 - Use offset to paginate through larger datasets.
 """
-)
+    )
 
 
 def get_instructions(is_http: bool) -> str:
     """Return server instructions appropriate for the transport mode."""
-    return _INSTRUCTIONS_HTTP if is_http else _INSTRUCTIONS_STDIO
+    return _build_instructions_http() if is_http else _INSTRUCTIONS_STDIO
 
 
 mcp = FastMCP(

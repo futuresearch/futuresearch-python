@@ -703,7 +703,9 @@ class TestHttpModeIncludesWidgets:
         human_text = result[-1].text
         assert "output_path" not in human_text
         assert "everyrow_results" in human_text
-        assert "ask the user" in human_text.lower()
+        # total=5 is below auto_page_size_threshold (50), so the model
+        # should be told to load all rows directly instead of asking.
+        assert "load all rows" in human_text.lower()
 
 
 # ── MCP protocol integration tests (real API) ────────────────────────

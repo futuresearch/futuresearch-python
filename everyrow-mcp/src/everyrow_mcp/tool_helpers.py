@@ -186,6 +186,13 @@ def _widgets_from_user_agent() -> bool:
     return True
 
 
+def is_internal_client() -> bool:
+    """Return True if the request comes from EveryRow's own app (CC)."""
+    from everyrow_mcp.http_config import get_user_agent  # noqa: PLC0415
+
+    return "everyrow-cc" in get_user_agent().lower()
+
+
 def _submission_text(
     label: str, session_url: str, task_id: str, session_id: str = ""
 ) -> str:
@@ -198,6 +205,12 @@ def _submission_text(
         Task ID: {task_id}
 
         Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}').""")
+    if is_internal_client():
+        return dedent(f"""\
+        {label}
+        Task ID: {task_id}
+
+        Immediately call everyrow_progress(task_id='{task_id}').""")
     session_line = f"\nSession ID: {session_id}" if session_id else ""
     return dedent(f"""\
         {label}{session_line}
@@ -206,15 +219,14 @@ def _submission_text(
         Immediately call everyrow_progress(task_id='{task_id}').""")
 
 
-async def _submission_ui_json(
-    session_url: str,
-    task_id: str,
-    total: int,
-    token: str,
-    mcp_server_url: str = "",
-    session_id: str = "",
-) -> str:
-    """Build JSON for the session MCP App widget, and store the token for polling."""
+async def _record_task_ownership(task_id: str, token: str) -> str:
+    """Record task ownership and create a poll token.
+
+    Must run for every HTTP submission (including internal clients) so that
+    downstream ownership checks in progress/results don't fail.
+
+    Returns the poll_token.
+    """
     poll_token = secrets.token_urlsafe(32)
     await redis_store.store_task_token(task_id, token)
 
@@ -235,6 +247,18 @@ async def _submission_ui_json(
     # Bind the poll token to the same user identity so the REST layer
     # can cross-check poll_owner == task_owner.
     await redis_store.store_poll_token(task_id, poll_token, user_id=user_id)
+    return poll_token
+
+
+async def _submission_ui_json(
+    session_url: str,
+    task_id: str,
+    total: int,
+    poll_token: str,
+    mcp_server_url: str = "",
+    session_id: str = "",
+) -> str:
+    """Build JSON for the session MCP App widget."""
     data: dict[str, Any] = {
         "session_url": session_url,
         "task_id": task_id,
@@ -267,15 +291,17 @@ async def create_tool_response(
     text = _submission_text(label, session_url, task_id, session_id=session_id)
     main_content = TextContent(type="text", text=text)
     if settings.is_http:
-        ui_json = await _submission_ui_json(
-            session_url=session_url,
-            task_id=task_id,
-            total=total,
-            token=token,
-            mcp_server_url=mcp_server_url,
-            session_id=session_id,
-        )
-        return [TextContent(type="text", text=ui_json), main_content]
+        poll_token = await _record_task_ownership(task_id, token)
+        if not is_internal_client():
+            ui_json = await _submission_ui_json(
+                session_url=session_url,
+                task_id=task_id,
+                total=total,
+                poll_token=poll_token,
+                mcp_server_url=mcp_server_url,
+                session_id=session_id,
+            )
+            return [TextContent(type="text", text=ui_json), main_content]
     return [main_content]
 
 
@@ -407,11 +433,15 @@ class TaskState(BaseModel):
                 else:
                     completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
                 if settings.is_http:
-                    next_call = dedent(f"""\
-                        IMPORTANT: Do NOT call everyrow_results yet.\
-                         First, ask the user: "The task produced {self.total} rows. How many would you like me to load into my context so I can read them? (default: 50). You will have access to all of them via the widget.".\
-                         The answer the user provides will correspond to the `page_size`.\
-                         After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
+                    if self.total <= settings.auto_page_size_threshold:
+                        next_call = dedent(f"""\
+                            Call everyrow_results(task_id='{task_id}', page_size={self.total}) to load all rows.""")
+                    else:
+                        next_call = dedent(f"""\
+                            IMPORTANT: Do NOT call everyrow_results yet.\
+                             First, ask the user: "The task produced {self.total} rows. How many would you like me to load into my context so I can read them? (default: 50). You will have access to all of them via the widget.".\
+                             The answer the user provides will correspond to the `page_size`.\
+                             After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
                 else:
                     next_call = f"Call everyrow_results(task_id='{task_id}', output_path='<choose_a_path>.csv') to save the output."
                 return f"{completed_msg}\n{next_call}"

@@ -61,6 +61,7 @@ from everyrow_mcp.tool_helpers import (
     _get_client,
     client_supports_widgets,
     create_tool_response,
+    is_internal_client,
     log_client_info,
     write_initial_task_state,
 )
@@ -875,11 +876,8 @@ async def everyrow_results_http(
     """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    IMPORTANT: You MUST ask the user how many rows they want loaded into your
-    context BEFORE calling this tool. Do NOT call with the default — always
-    ask first and use their answer as page_size.
     The user always has access to all rows via the widget — page_size only
-    controls how many rows you can read.
+    controls how many rows _you_ can read.
     After results load, tell the user how many rows you can see vs the total.
     """
     client = _get_client(ctx)
@@ -887,6 +885,10 @@ async def everyrow_results_http(
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     log_client_info(ctx, "everyrow_results")
     skip_widget = not client_supports_widgets(ctx)
+    skip_session = False
+    if is_internal_client():
+        skip_widget = True
+        skip_session = True
 
     # ── Cross-user access check ──────────────────────────────────
     try:
@@ -908,6 +910,7 @@ async def everyrow_results_http(
         params.page_size,
         mcp_server_url=mcp_server_url,
         skip_widget=skip_widget,
+        skip_session=skip_session,
     )
     if cached is not None:
         return cached
@@ -946,6 +949,7 @@ async def everyrow_results_http(
         session_url,
         mcp_server_url=mcp_server_url,
         skip_widget=skip_widget,
+        skip_session=skip_session,
     )
 
 

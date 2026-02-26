@@ -98,6 +98,7 @@ def _build_result_response(
     *,
     requested_page_size: int | None = None,
     skip_widget: bool = False,
+    skip_session: bool = False,
 ) -> list[TextContent]:
     """Build MCP TextContent response for Redis-backed results.
 
@@ -110,6 +111,8 @@ def _build_result_response(
     token via the ``download-token`` endpoint — no pre-minted URL is baked
     into the response, avoiding stale-token issues on re-render.
     """
+    if skip_session:
+        session_url = ""
     col_names = _format_columns(columns)
     hint_page_size = (
         requested_page_size if requested_page_size is not None else page_size
@@ -209,6 +212,7 @@ async def try_cached_result(
     mcp_server_url: str = "",
     *,
     skip_widget: bool = False,
+    skip_session: bool = False,
 ) -> list[TextContent] | None:
     cached_meta_raw = await redis_store.get_result_meta(task_id)
     if not cached_meta_raw:
@@ -263,6 +267,7 @@ async def try_cached_result(
         mcp_server_url=mcp_server_url,
         requested_page_size=page_size,
         skip_widget=skip_widget,
+        skip_session=skip_session,
     )
 
 
@@ -275,6 +280,7 @@ async def try_store_result(
     mcp_server_url: str = "",
     *,
     skip_widget: bool = False,
+    skip_session: bool = False,
 ) -> list[TextContent]:
     """Store a DataFrame in Redis and return a paginated response."""
     try:
@@ -324,6 +330,7 @@ async def try_store_result(
             mcp_server_url=mcp_server_url,
             requested_page_size=page_size,
             skip_widget=skip_widget,
+            skip_session=skip_session,
         )
     except Exception:
         logger.exception("Failed to store results in Redis for task %s", task_id)
