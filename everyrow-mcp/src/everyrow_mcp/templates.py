@@ -767,7 +767,7 @@ app.ontoolresult=({content})=>{
   const isWidget=meta.fetch_full_results||meta.preview||Array.isArray(meta);
   if(!isWidget){return;}
   widgetActive=true;
-  document.body.style.display="";
+  document.body.style.display="block";
   if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
   if(meta.poll_token){pollToken=meta.poll_token;}
   if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
