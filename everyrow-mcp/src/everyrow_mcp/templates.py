@@ -32,7 +32,7 @@ RESULTS_HTML = """<!DOCTYPE html>
   --input-bg:#2d2d2d;--input-border:#555;--input-focus:#64b5f6;
 }}
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px;color:var(--text);background:var(--bg);font-size:13px;display:none}
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:0;color:var(--text);background:var(--bg);font-size:13px;height:0;overflow:hidden}
 #toolbar{display:flex;align-items:center;gap:8px;padding:8px 4px;margin-bottom:8px;flex-wrap:wrap}
 #toolbar #sum{font-weight:600;font-size:13px;flex:1;min-width:150px;color:var(--text-sec)}
 #toolbar button{padding:5px 12px;border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;background:var(--btn-bg);color:var(--btn-text);transition:background .15s}
@@ -767,7 +767,7 @@ app.ontoolresult=({content})=>{
   const isWidget=meta.fetch_full_results||meta.preview||Array.isArray(meta);
   if(!isWidget){return;}
   widgetActive=true;
-  document.body.style.display="block";
+  document.body.style.height="auto";document.body.style.overflow="visible";document.body.style.padding="12px";
   if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
   if(meta.poll_token){pollToken=meta.poll_token;}
   if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
