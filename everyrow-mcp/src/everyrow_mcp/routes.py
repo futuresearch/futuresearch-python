@@ -293,15 +293,24 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             {"error": "Results not found or expired"}, status_code=404, headers=cors
         )
 
-    # Return JSON array if requested (used by the widget for full data fetch).
+    # Validate format parameter
     fmt = request.query_params.get("format", "csv")
+    if fmt not in ("csv", "json"):
+        return JSONResponse(
+            {"error": "Unsupported format"}, status_code=400, headers=cors
+        )
+
+    # Return JSON array if requested (used by the widget for full data fetch).
     if fmt == "json":
-        # Guard against memory exhaustion — CSV is bounded by upload limits
-        # (50 MB / 50k rows) but add a belt-and-suspenders check.
-        if len(csv_text) > settings.max_upload_size_bytes:
+        # Guard against memory exhaustion — JSON conversion holds ~4x the data
+        # in memory (csv string, DataFrame, records list, JSON response body).
+        # Use a conservative 10 MB threshold to keep peak memory manageable.
+        max_json_size = settings.max_upload_size_bytes // 5
+        if len(csv_text) > max_json_size:
             logger.warning(
-                "CSV too large for JSON conversion (%d bytes) for task %s",
+                "CSV too large for JSON conversion (%d chars, limit %d) for task %s",
                 len(csv_text),
+                max_json_size,
                 task_id,
             )
             return JSONResponse(
@@ -309,7 +318,7 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
                 status_code=413,
                 headers=cors,
             )
-        df = pd.read_csv(io.StringIO(csv_text))
+        df = pd.read_csv(io.StringIO(csv_text), dtype=str)
         records = _sanitize_records(df.to_dict(orient="records"))
         return JSONResponse(
             records,

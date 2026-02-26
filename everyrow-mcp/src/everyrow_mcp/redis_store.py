@@ -332,21 +332,28 @@ async def store_download_token(download_token: str, task_id: str) -> None:
     )
 
 
+_LUA_POP_WITH_TTL = """
+local ttl = redis.call('TTL', KEYS[1])
+local val = redis.call('GETDEL', KEYS[1])
+if val == false then return {0, ''} end
+return {ttl, val}
+"""
+
+
 async def pop_download_token(download_token: str) -> tuple[str, int] | tuple[None, int]:
     """Atomically consume a download token, returning ``(task_id, remaining_ttl)``
     or ``(None, 0)`` if the token does not exist.
 
-    The remaining TTL is captured *before* the GETDEL so that callers can
-    re-store the token with its original expiry on a task_id mismatch
-    (instead of granting a fresh 5-min window).
+    Uses a Lua script to combine TTL + GETDEL into a single atomic operation,
+    preventing TOCTOU races in multi-replica deployments.
     """
     key = build_key("dl_token", download_token)
     r = get_redis_client()
-    remaining = await r.ttl(key)  # -2 = missing, -1 = no expiry
-    encrypted = await r.getdel(key)
-    if encrypted is None:
+    result = await r.eval(_LUA_POP_WITH_TTL, 1, key)  # type: ignore[arg-type]
+    ttl_raw, encrypted = result[0], result[1]
+    if not encrypted:
         return None, 0
-    ttl = max(remaining, 1)  # clamp to at least 1s
+    ttl = max(int(ttl_raw), 1)  # clamp to at least 1s
     return decrypt_value(encrypted), ttl
 
 

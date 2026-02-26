@@ -96,7 +96,6 @@ def _build_result_response(
     session_url: str = "",
     poll_token: str = "",
     mcp_server_url: str = "",
-    widget_results_url: str = "",
     *,
     requested_page_size: int | None = None,
 ) -> list[TextContent]:
@@ -106,8 +105,10 @@ def _build_result_response(
     *requested_page_size*, when provided, is the user's original page_size
     and is used in the "next page" hint so the server can re-clamp
     independently on each call.
-    *widget_results_url*, when provided, lets the widget fetch the full
-    dataset as JSON independently from the LLM context.
+
+    The widget fetches full results on demand by minting a fresh download
+    token via the ``download-token`` endpoint — no pre-minted URL is baked
+    into the response, avoiding stale-token issues on re-render.
     """
     col_names = _format_columns(columns)
     hint_page_size = (
@@ -118,9 +119,8 @@ def _build_result_response(
         "csv_url": csv_url,
         "preview": preview_records,
         "total": total,
+        "fetch_full_results": True,
     }
-    if widget_results_url:
-        widget_data["results_url"] = widget_results_url
     if session_url:
         widget_data["session_url"] = session_url
     if poll_token:
@@ -185,16 +185,6 @@ async def _get_csv_url(
     return csv_url, poll_token
 
 
-async def _get_json_url(task_id: str, mcp_server_url: str) -> str:
-    """Mint a separate download token for JSON format (used by the widget)."""
-    download_token = secrets.token_urlsafe(32)
-    await redis_store.store_download_token(download_token, task_id)
-    return (
-        f"{mcp_server_url}/api/results/{task_id}/download"
-        f"?token={download_token}&format=json"
-    )
-
-
 async def try_cached_result(
     task_id: str,
     offset: int,
@@ -241,7 +231,6 @@ async def try_cached_result(
         preview_records=preview_records,
         page_size=page_size,
     )
-    widget_results_url = await _get_json_url(task_id, mcp_server_url)
 
     return _build_result_response(
         task_id=task_id,
@@ -254,7 +243,6 @@ async def try_cached_result(
         session_url=meta.get("session_url", ""),
         poll_token=poll_token or "",
         mcp_server_url=mcp_server_url,
-        widget_results_url=widget_results_url,
         requested_page_size=page_size,
     )
 
@@ -302,7 +290,6 @@ async def try_store_result(
             preview_records=preview_records,
             page_size=page_size,
         )
-        widget_results_url = await _get_json_url(task_id, mcp_server_url)
 
         return _build_result_response(
             task_id=task_id,
@@ -315,7 +302,6 @@ async def try_store_result(
             session_url=session_url,
             poll_token=poll_token or "",
             mcp_server_url=mcp_server_url,
-            widget_results_url=widget_results_url,
             requested_page_size=page_size,
         )
     except Exception:

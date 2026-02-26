@@ -287,9 +287,10 @@ class TaskState(BaseModel):
                     completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
                 if settings.is_http:
                     next_call = dedent(f"""\
-                        IMPORTANT: Do NOT call everyrow_results yet. \
-                        First, ask the user: "The task produced {self.total} rows. How many would you like me to load into our conversation? (default: 50)". \
-                        After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
+                        IMPORTANT: Do NOT call everyrow_results yet.\
+                         First, ask the user: "The task produced {self.total} rows. How many would you like me to load into our conversation? (default: 50)".\
+                         The answer the user provides will correspond to the `page_size`.\
+                         After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
                 else:
                     next_call = f"Call everyrow_results(task_id='{task_id}', output_path='<choose_a_path>.csv') to save the output."
                 return f"{completed_msg}\n{next_call}"

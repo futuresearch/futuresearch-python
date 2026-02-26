@@ -751,10 +751,9 @@ app.ontoolresult=({content})=>{
   if(meta.poll_token){pollToken=meta.poll_token;}
   if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
   if(meta.csv_url){csvUrl=meta.csv_url;updateDownloadLink();}
-  if(meta.results_url){
+  if(meta.fetch_full_results){
     if(meta.preview)processData(meta.preview);
-    const opts=meta.download_token?{headers:{"Authorization":"Bearer "+meta.download_token}}:{};
-    fetchFullResults(meta.results_url,opts,!!meta.preview,meta.total);
+    fetchFullResultsWithFreshToken(!!meta.preview,meta.total);
   }else if(meta.preview){processData(meta.preview);}
   else if(Array.isArray(meta)){processData(meta);}
   else{sum.textContent=JSON.stringify(meta);}

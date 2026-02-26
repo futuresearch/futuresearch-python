@@ -49,7 +49,7 @@ secrets:
 # List every Sentinel + master IP here. Use "kubectl get endpoints" or
 # check REDIS_SENTINEL_ENDPOINTS to find the IPs, then narrow the CIDRs.
 networkPolicy:
-  enabled: false
+  enabled: true
   gatewayNamespace: gke-managed-system
   redisPort: 6379
   redisSentinelPort: 26379
