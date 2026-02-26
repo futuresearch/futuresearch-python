@@ -1,18 +1,17 @@
 """Redis-backed result retrieval for the everyrow MCP server.
 
-Handles checking Redis for cached metadata, storing CSV results,
+Handles checking Redis for cached metadata, storing JSON results,
 and building the MCP TextContent responses.
 
 Caching strategy:
   - Base metadata (total, columns) cached at  result:{task_id}
   - Per-page previews cached at               result:{task_id}:page:{offset}:{page_size}
-  - Full CSV stored at                        result:{task_id}:csv  (1h TTL)
-  - On a page cache miss, the CSV is read from Redis and the page is sliced.
+  - Full JSON stored at                       result:{task_id}:json  (1h TTL)
+  - On a page cache miss, the JSON is read from Redis and the page is sliced.
 """
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import math
@@ -220,16 +219,15 @@ async def try_cached_result(
     if cached_page is not None:
         preview_records = json.loads(cached_page)
     else:
-        # Page cache miss — read full CSV from Redis and slice
+        # Page cache miss — read full JSON from Redis and slice
         try:
-            csv_text = await redis_store.get_result_csv(task_id)
-            if csv_text is None:
+            json_text = await redis_store.get_result_json(task_id)
+            if json_text is None:
                 logger.warning(
-                    "CSV expired in Redis for task %s, falling back to API", task_id
+                    "JSON expired in Redis for task %s, falling back to API", task_id
                 )
                 return None
-            df = pd.read_csv(io.StringIO(csv_text))
-            all_records = _sanitize_records(df.to_dict(orient="records"))
+            all_records: list[dict[str, Any]] = json.loads(json_text)
             clamped = min(offset, len(all_records))
             preview_records = all_records[clamped : clamped + page_size]
             await redis_store.store_result_page(
@@ -237,7 +235,7 @@ async def try_cached_result(
             )
         except Exception:
             logger.warning(
-                "Failed to read CSV from Redis for task %s, falling back to API",
+                "Failed to read JSON from Redis for task %s, falling back to API",
                 task_id,
             )
             return None
@@ -280,8 +278,8 @@ async def try_store_result(
 ) -> list[TextContent]:
     """Store a DataFrame in Redis and return a paginated response."""
     try:
-        # Store full CSV in Redis
-        await redis_store.store_result_csv(task_id, df.to_csv(index=False))
+        all_records = _sanitize_records(df.to_dict(orient="records"))
+        await redis_store.store_result_json(task_id, json.dumps(all_records))
 
         total = len(df)
         columns = list(df.columns)
@@ -294,8 +292,7 @@ async def try_store_result(
 
         # Build and cache page preview
         clamped_offset = min(offset, total)
-        page_df = df.iloc[clamped_offset : clamped_offset + page_size]
-        preview_records = _sanitize_records(page_df.to_dict(orient="records"))
+        preview_records = all_records[clamped_offset : clamped_offset + page_size]
         await redis_store.store_result_page(
             task_id=task_id,
             offset=offset,

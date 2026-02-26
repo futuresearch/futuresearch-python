@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import io
+import json
 import logging
 import secrets
 from uuid import UUID
@@ -16,7 +16,6 @@ from starlette.responses import JSONResponse, Response
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
-from everyrow_mcp.result_store import _sanitize_records
 from everyrow_mcp.tool_helpers import _UI_EXCLUDE, TaskState
 
 logger = logging.getLogger(__name__)
@@ -230,8 +229,8 @@ async def api_download_token(request: Request) -> Response:
     if err := await _validate_task_owner(task_id):
         return err
 
-    # No point minting a token if the CSV has already expired
-    if not await redis_store.result_csv_exists(task_id):
+    # No point minting a token if the result data has already expired
+    if not await redis_store.result_json_exists(task_id):
         return JSONResponse(
             {"error": "Results not found or expired"}, status_code=404, headers=cors
         )
@@ -287,8 +286,8 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
         )
         return JSONResponse({"error": "Unauthorized"}, status_code=403, headers=cors)
 
-    csv_text = await redis_store.get_result_csv(task_id)
-    if csv_text is None:
+    json_text = await redis_store.get_result_json(task_id)
+    if json_text is None:
         return JSONResponse(
             {"error": "Results not found or expired"}, status_code=404, headers=cors
         )
@@ -300,30 +299,17 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             {"error": "Unsupported format"}, status_code=400, headers=cors
         )
 
-    # Return JSON array if requested (used by the widget for full data fetch).
+    # Return JSON array directly — no parsing needed since Redis stores JSON natively.
     if fmt == "json":
-        # Guard against memory exhaustion — JSON conversion holds ~4x the data
-        # in memory (csv string, DataFrame, records list, JSON response body).
-        # Use a conservative 10 MB threshold to keep peak memory manageable.
-        max_json_size = settings.max_upload_size_bytes // 5
-        if len(csv_text) > max_json_size:
-            logger.warning(
-                "CSV too large for JSON conversion (%d chars, limit %d) for task %s",
-                len(csv_text),
-                max_json_size,
-                task_id,
-            )
-            return JSONResponse(
-                {"error": "Result too large for JSON format"},
-                status_code=413,
-                headers=cors,
-            )
-        df = pd.read_csv(io.StringIO(csv_text))
-        records = _sanitize_records(df.to_dict(orient="records"))
-        return JSONResponse(
-            records,
+        return Response(
+            content=json_text,
+            media_type="application/json",
             headers={**cors, "X-Content-Type-Options": "nosniff"},
         )
+
+    # CSV generated on-the-fly from the stored JSON.
+    records: list[dict] = json.loads(json_text)
+    csv_text = pd.DataFrame(records).to_csv(index=False)
 
     safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
     return Response(

@@ -186,12 +186,14 @@ function flat(obj,pre){
 
 function flatWithResearch(obj){
   const research={};
-  if(obj.research&&typeof obj.research==="object"&&!Array.isArray(obj.research)){
+  if(obj.research!=null&&typeof obj.research==="object"&&!Array.isArray(obj.research)){
     for(const[k,v]of Object.entries(obj.research)){
       if(v!=null)research[k]=typeof v==="string"?v:String(v);
     }
   }
-  return{display:flat(obj),research};
+  const display=flat(obj);
+  delete display.research;
+  return{display,research};
 }
 
 function processData(data){
@@ -201,7 +203,7 @@ function processData(data){
   const colSet=new Set();
   S.rows.forEach(r=>{for(const k of Object.keys(r.display))colSet.add(k)});
   const all=[...colSet];
-  const visible=all.filter(k=>!k.startsWith("research."));
+  const visible=all.filter(k=>k!=="research"&&!k.startsWith("research."));
   S.allCols=[...visible.filter(k=>!k.includes(".")),...visible.filter(k=>k.includes("."))];
   S.sortCol=null;S.sortDir=0;S.filters={};S.globalQuery="";globalSearchEl.value="";S.selected.clear();S.lastClick=null;
   S.filteredIdx=S.rows.map((_,i)=>i);

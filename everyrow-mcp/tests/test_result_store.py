@@ -7,7 +7,6 @@ plus the download endpoint (api_download).
 
 from __future__ import annotations
 
-import io
 import json
 import secrets
 from unittest.mock import AsyncMock, patch
@@ -25,6 +24,7 @@ from everyrow_mcp.result_store import (
     _build_result_response,
     _estimate_tokens,
     _format_columns,
+    _sanitize_records,
     clamp_page_to_budget,
     try_cached_result,
     try_store_result,
@@ -282,13 +282,19 @@ class TestTryCachedResult:
         assert widget["total"] == 3
 
     @pytest.mark.asyncio
-    async def test_reads_csv_on_page_miss(self, _http_state):
+    async def test_reads_json_on_page_miss(self, _http_state):
         meta = json.dumps({"total": 3, "columns": ["name", "score"]})
-        csv_text = "name,score\nAlice,95\nBob,87\nCarol,72\n"
+        json_text = json.dumps(
+            [
+                {"name": "Alice", "score": 95},
+                {"name": "Bob", "score": 87},
+                {"name": "Carol", "score": 72},
+            ]
+        )
         task_id = "task-4"
 
         await redis_store.store_result_meta(task_id, meta)
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
         await redis_store.store_poll_token(task_id, "test-token")
 
         result = await try_cached_result(task_id, 0, 2, mcp_server_url=FAKE_SERVER_URL)
@@ -320,25 +326,25 @@ class TestTryCachedResult:
         assert widget["session_url"] == "https://everyrow.io/sessions/xyz"
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_csv_expired(self, _http_state):
-        """When metadata exists but CSV is gone, fall back to API (return None)."""
-        task_id = "task-csv-expired"
+    async def test_returns_none_when_json_expired(self, _http_state):
+        """When metadata exists but JSON is gone, fall back to API (return None)."""
+        task_id = "task-json-expired"
         meta = json.dumps({"total": 5, "columns": ["a", "b"]})
         await redis_store.store_result_meta(task_id, meta)
-        # No CSV stored, no page cached
+        # No JSON stored, no page cached
 
         result = await try_cached_result(task_id, 0, 5, mcp_server_url=FAKE_SERVER_URL)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_csv_read_fails(self, _http_state):
-        """When CSV read raises, fall back to API (return None)."""
-        task_id = "task-csv-error"
+    async def test_returns_none_when_json_read_fails(self, _http_state):
+        """When JSON read raises, fall back to API (return None)."""
+        task_id = "task-json-error"
         meta = json.dumps({"total": 5, "columns": ["a"]})
         await redis_store.store_result_meta(task_id, meta)
 
         with patch(
-            "everyrow_mcp.result_store.redis_store.get_result_csv",
+            "everyrow_mcp.result_store.redis_store.get_result_json",
             new_callable=AsyncMock,
             side_effect=RuntimeError("Redis connection lost"),
         ):
@@ -364,11 +370,11 @@ class TestTryStoreResult:
         assert widget["total"] == 3
         assert len(widget["preview"]) == 2
 
-        # Verify CSV was stored in Redis
-        stored_csv = await redis_store.get_result_csv(task_id)
-        assert stored_csv is not None
-        df = pd.read_csv(io.StringIO(stored_csv))
-        assert len(df) == 3
+        # Verify JSON was stored in Redis
+        stored_json = await redis_store.get_result_json(task_id)
+        assert stored_json is not None
+        records = json.loads(stored_json)
+        assert len(records) == 3
 
         # Verify metadata was cached
         meta_raw = await redis_store.get_result_meta(task_id)
@@ -400,7 +406,7 @@ class TestTryStoreResult:
     async def test_raises_on_redis_failure(self, sample_df, _http_state):
         with (
             patch(
-                "everyrow_mcp.result_store.redis_store.store_result_csv",
+                "everyrow_mcp.result_store.redis_store.store_result_json",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("Redis down"),
             ),
@@ -498,10 +504,12 @@ class TestApiDownload:
     async def test_valid_download(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
         download_token = secrets.token_urlsafe(32)
-        csv_text = "name,score\nAlice,95\nBob,87\n"
+        json_text = json.dumps(
+            [{"name": "Alice", "score": 95}, {"name": "Bob", "score": 87}]
+        )
 
         await redis_store.store_download_token(download_token, task_id)
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": download_token}
@@ -509,13 +517,15 @@ class TestApiDownload:
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in resp.headers["content-disposition"]
-        assert resp.text == csv_text
+        # CSV is generated on-the-fly from JSON
+        assert "Alice" in resp.text
+        assert "Bob" in resp.text
 
     @pytest.mark.asyncio
     async def test_bad_token_returns_403(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
 
-        await redis_store.store_result_csv(task_id, "data")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1}]))
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": "wrong-token"}
@@ -524,12 +534,12 @@ class TestApiDownload:
 
     @pytest.mark.asyncio
     async def test_denied_without_owner(self, client: httpx.AsyncClient):
-        """Valid poll token but no task owner → fail-closed 403."""
+        """Valid poll token but no JSON stored → 404."""
         task_id = str(uuid4())
         download_token = secrets.token_urlsafe(32)
 
         await redis_store.store_download_token(download_token, task_id)
-        # No CSV stored
+        # No JSON stored
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": download_token}
@@ -541,10 +551,10 @@ class TestApiDownload:
         """A download token can only be used once — second request returns 403."""
         task_id = str(uuid4())
         download_token = secrets.token_urlsafe(32)
-        csv_text = "a,b\n1,2\n"
+        json_text = json.dumps([{"a": 1, "b": 2}])
 
         await redis_store.store_download_token(download_token, task_id)
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
 
         resp1 = await client.get(
             f"/api/results/{task_id}/download", params={"token": download_token}
@@ -562,11 +572,11 @@ class TestApiDownload:
         task_a = str(uuid4())
         task_b = str(uuid4())
         download_token = secrets.token_urlsafe(32)
-        csv_text = "x\n1\n"
+        json_text = json.dumps([{"x": 1}])
 
         await redis_store.store_download_token(download_token, task_a)
-        await redis_store.store_result_csv(task_a, csv_text)
-        await redis_store.store_result_csv(task_b, csv_text)
+        await redis_store.store_result_json(task_a, json_text)
+        await redis_store.store_result_json(task_b, json_text)
 
         # Use task_a's token on task_b's URL
         resp = await client.get(
@@ -587,7 +597,7 @@ class TestApiDownload:
         poll_token = secrets.token_urlsafe(16)
 
         await redis_store.store_poll_token(task_id, poll_token)
-        await redis_store.store_result_csv(task_id, "col\nval\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"col": "val"}]))
 
         resp = await client.get(
             f"/api/results/{task_id}/download", params={"token": poll_token}
@@ -596,13 +606,15 @@ class TestApiDownload:
 
     @pytest.mark.asyncio
     async def test_json_format_returns_json(self, client: httpx.AsyncClient):
-        """?format=json returns a JSON array with correct types."""
+        """?format=json returns a JSON array directly from Redis."""
         task_id = str(uuid4())
         download_token = secrets.token_urlsafe(32)
-        csv_text = "name,score\nAlice,95\nBob,87\n"
+        json_text = json.dumps(
+            [{"name": "Alice", "score": 95}, {"name": "Bob", "score": 87}]
+        )
 
         await redis_store.store_download_token(download_token, task_id)
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
 
         resp = await client.get(
             f"/api/results/{task_id}/download",
@@ -622,7 +634,7 @@ class TestApiDownload:
         download_token = secrets.token_urlsafe(32)
 
         await redis_store.store_download_token(download_token, task_id)
-        await redis_store.store_result_csv(task_id, "a\n1\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1}]))
 
         resp = await client.get(
             f"/api/results/{task_id}/download",
@@ -630,6 +642,38 @@ class TestApiDownload:
         )
         assert resp.status_code == 400
         assert "Unsupported format" in resp.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_research_dict_survives_json_roundtrip(
+        self, client: httpx.AsyncClient
+    ):
+        """Dict research column survives store→retrieve round-trip as real dicts."""
+        task_id = str(uuid4())
+        download_token = secrets.token_urlsafe(32)
+        records = [
+            {
+                "name": "Alice",
+                "research": {"answer": "yes", "confidence": "high"},
+            },
+            {
+                "name": "Bob",
+                "research": {"answer": "no", "confidence": "low"},
+            },
+        ]
+        json_text = json.dumps(records)
+
+        await redis_store.store_download_token(download_token, task_id)
+        await redis_store.store_result_json(task_id, json_text)
+
+        resp = await client.get(
+            f"/api/results/{task_id}/download",
+            params={"token": download_token, "format": "json"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data[0]["research"], dict)
+        assert data[0]["research"]["answer"] == "yes"
+        assert data[1]["research"]["confidence"] == "low"
 
 
 # ── Token budget clamping ─────────────────────────────────────
@@ -740,9 +784,9 @@ class TestTokenBudgetIntegration:
         task_id = "task-budget-cached"
         await redis_store.store_poll_token(task_id, "tok")
 
-        # Store CSV and metadata first (with normal budget)
-        csv_text = wide_df.to_csv(index=False)
-        await redis_store.store_result_csv(task_id, csv_text)
+        # Store JSON and metadata first (with normal budget)
+        json_text = json.dumps(_sanitize_records(wide_df.to_dict(orient="records")))
+        await redis_store.store_result_json(task_id, json_text)
         meta = json.dumps({"total": len(wide_df), "columns": list(wide_df.columns)})
         await redis_store.store_result_meta(task_id, meta)
 

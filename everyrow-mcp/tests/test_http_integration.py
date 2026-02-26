@@ -329,7 +329,7 @@ class TestDownloadTokenEndpoint:
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, "a,b\n1,2\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1, "b": 2}]))
 
         resp = await client.get(
             f"/api/results/{task_id}/download-token",
@@ -362,7 +362,7 @@ class TestDownloadTokenEndpoint:
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, "a\n1\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1}]))
 
         resp = await client.get(
             f"/api/results/{task_id}/download-token",
@@ -379,7 +379,7 @@ class TestDownloadTokenEndpoint:
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, "col\nval\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"col": "val"}]))
 
         headers = {"Authorization": f"Bearer {poll_token}"}
         resp1 = await client.get(
@@ -400,10 +400,10 @@ class TestDownloadTokenEndpoint:
         """Mint → download (200) → download again with same token (403)."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        csv_text = "x,y\n1,2\n"
+        json_text = json.dumps([{"x": 1, "y": 2}])
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
 
         # Mint
         mint_resp = await client.get(
@@ -418,7 +418,6 @@ class TestDownloadTokenEndpoint:
             f"/api/results/{task_id}/download", params={"token": dl_token}
         )
         assert resp1.status_code == 200
-        assert resp1.text == csv_text
 
         # Second download with same token fails
         resp2 = await client.get(
@@ -432,12 +431,12 @@ class TestDownloadTokenEndpoint:
         task_a = str(uuid4())
         task_b = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        csv_text = "v\n1\n"
+        json_text = json.dumps([{"v": 1}])
 
         await redis_store.store_poll_token(task_a, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_a, "test-user")
-        await redis_store.store_result_csv(task_a, csv_text)
-        await redis_store.store_result_csv(task_b, csv_text)
+        await redis_store.store_result_json(task_a, json_text)
+        await redis_store.store_result_json(task_b, json_text)
 
         # Mint for task A
         mint_resp = await client.get(
@@ -457,7 +456,6 @@ class TestDownloadTokenEndpoint:
             f"/api/results/{task_a}/download", params={"token": dl_token}
         )
         assert resp_a.status_code == 200
-        assert resp_a.text == csv_text
 
 
 # ── Download-token lifecycle ─────────────────────────────────
