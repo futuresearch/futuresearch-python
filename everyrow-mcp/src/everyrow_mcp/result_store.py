@@ -115,23 +115,28 @@ def _build_result_response(
         requested_page_size if requested_page_size is not None else page_size
     )
 
-    widget_data: dict[str, Any] = {
-        "csv_url": csv_url,
-        "preview": preview_records,
-        "total": total,
-        "fetch_full_results": True,
-    }
-    if session_url:
-        widget_data["session_url"] = session_url
-    if poll_token:
-        widget_data["poll_token"] = poll_token
-        widget_data["download_token_url"] = (
-            f"{mcp_server_url}/api/results/{task_id}/download-token"
-        )
-    widget_json = json.dumps(widget_data)
-
     has_more = offset + page_size < total
     next_offset = offset + page_size if has_more else None
+
+    # Only emit widget JSON on the first page — the widget already fetches
+    # the full dataset independently, so subsequent pages only need the
+    # text summary for the LLM.
+    contents: list[TextContent] = []
+    if offset == 0:
+        widget_data: dict[str, Any] = {
+            "csv_url": csv_url,
+            "preview": preview_records,
+            "total": total,
+            "fetch_full_results": True,
+        }
+        if session_url:
+            widget_data["session_url"] = session_url
+        if poll_token:
+            widget_data["poll_token"] = poll_token
+            widget_data["download_token_url"] = (
+                f"{mcp_server_url}/api/results/{task_id}/download-token"
+            )
+        contents.append(TextContent(type="text", text=json.dumps(widget_data)))
 
     if has_more:
         page_size_arg = f", page_size={hint_page_size}"
@@ -160,10 +165,8 @@ def _build_result_response(
             f"of {total} (final page)."
         )
 
-    return [
-        TextContent(type="text", text=widget_json),
-        TextContent(type="text", text=summary),
-    ]
+    contents.append(TextContent(type="text", text=summary))
+    return contents
 
 
 async def _get_csv_url(

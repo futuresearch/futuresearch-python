@@ -124,8 +124,26 @@ class TestBuildResultResponse:
             offset=18,
             page_size=5,
         )
-        summary = result[1].text
-        assert "final page" in summary
+        # No widget JSON for non-first pages
+        assert len(result) == 1
+        assert "final page" in result[0].text
+
+    def test_no_widget_json_on_subsequent_pages(self):
+        """Widget JSON is only emitted on the first page (offset=0)."""
+        preview = [{"id": i} for i in range(5)]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-pg2/download?token=abc"
+        result = _build_result_response(
+            task_id="task-pg2",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=20,
+            columns=["id"],
+            offset=5,
+            page_size=5,
+        )
+        assert len(result) == 1
+        # Should be the text summary, not JSON
+        assert "Showing rows" in result[0].text
 
     def test_session_url_included_in_widget(self):
         preview = [{"a": 1}]
