@@ -25,7 +25,7 @@ HEALTH_CHECK_INTERVAL = 30
 PROGRESS_POLL_DELAY = 12
 TASK_STATE_FILE = Path.home() / ".everyrow" / "task.json"
 RESULT_CACHE_TTL = 600
-CSV_CACHE_TTL = 3600  # 1 hour — full CSV stored in Redis for download
+RESULT_DATA_TTL = 3600  # 1 hour — full result data stored in Redis for download
 TOKEN_TTL = 86400  # 24 hours — must outlive the longest possible task
 DOWNLOAD_TOKEN_TTL = 300  # 5 minutes — short-lived, single-use download tokens
 
@@ -205,35 +205,35 @@ async def store_result_page(
     )
 
 
-# ── CSV result storage ────────────────────────────────────────
+# ── JSON result storage ────────────────────────────────────────
 
 
-MAX_CSV_CACHE_CHARS = (
-    50 * 1024 * 1024
-)  # 50M characters — skip Redis cache for oversized results
+MAX_JSON_CACHE_CHARS = (
+    80 * 1024 * 1024
+)  # 80M characters — skip Redis cache for oversized results (JSON is ~1.5x larger than CSV)
 
 
-async def store_result_csv(task_id: str, csv_text: str) -> None:
-    if len(csv_text) > MAX_CSV_CACHE_CHARS:
+async def store_result_json(task_id: str, json_text: str) -> None:
+    if len(json_text) > MAX_JSON_CACHE_CHARS:
         logger.warning(
-            "Skipping Redis cache for task %s: CSV is %d chars (limit %d)",
+            "Skipping Redis cache for task %s: JSON is %d chars (limit %d)",
             task_id,
-            len(csv_text),
-            MAX_CSV_CACHE_CHARS,
+            len(json_text),
+            MAX_JSON_CACHE_CHARS,
         )
         return
     await get_redis_client().setex(
-        name=build_key("result", task_id, "csv"), time=CSV_CACHE_TTL, value=csv_text
+        name=build_key("result", task_id, "json"), time=RESULT_DATA_TTL, value=json_text
     )
 
 
-async def get_result_csv(task_id: str) -> str | None:
-    return await get_redis_client().get(name=build_key("result", task_id, "csv"))
+async def get_result_json(task_id: str) -> str | None:
+    return await get_redis_client().get(name=build_key("result", task_id, "json"))
 
 
-async def result_csv_exists(task_id: str) -> bool:
-    """O(1) existence check — avoids reading the full CSV into memory."""
-    return await get_redis_client().exists(build_key("result", task_id, "csv")) > 0
+async def result_json_exists(task_id: str) -> bool:
+    """O(1) existence check — avoids reading the full JSON into memory."""
+    return await get_redis_client().exists(build_key("result", task_id, "json")) > 0
 
 
 async def store_task_token(task_id: str, token: str) -> None:

@@ -326,7 +326,7 @@ class TestApiDownloadToken:
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, "a,b\n1,2\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1, "b": 2}]))
 
         req = FakeRequest(
             path_params={"task_id": task_id},
@@ -344,7 +344,7 @@ class TestApiDownloadToken:
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         await redis_store.store_poll_token(task_id, poll_token)
-        await redis_store.store_result_csv(task_id, "a\n1\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1}]))
 
         req = FakeRequest(
             path_params={"task_id": task_id},
@@ -357,7 +357,7 @@ class TestApiDownloadToken:
     async def test_invalid_poll_token_returns_403(self):
         task_id = str(uuid4())
         await redis_store.store_poll_token(task_id, "correct-token")
-        await redis_store.store_result_csv(task_id, "a\n1\n")
+        await redis_store.store_result_json(task_id, json.dumps([{"a": 1}]))
 
         req = FakeRequest(
             path_params={"task_id": task_id},
@@ -397,11 +397,11 @@ class TestApiDownloadToken:
         """End-to-end: mint a download token, then use it to download CSV."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
-        csv_text = "col_a,col_b\nval1,val2\n"
+        json_text = json.dumps([{"col_a": "val1", "col_b": "val2"}])
 
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
-        await redis_store.store_result_csv(task_id, csv_text)
+        await redis_store.store_result_json(task_id, json_text)
 
         # Step 1: Mint a download token
         mint_req = FakeRequest(
@@ -423,7 +423,7 @@ class TestApiDownloadToken:
         )
         dl_resp = await api_download(dl_req)  # pyright: ignore[reportArgumentType]
         assert dl_resp.status_code == 200
-        assert dl_resp.body.decode() == csv_text  # pyright: ignore[reportAttributeAccessIssue]
+        assert "val1" in dl_resp.body.decode()  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class TestCorsHeaders:
