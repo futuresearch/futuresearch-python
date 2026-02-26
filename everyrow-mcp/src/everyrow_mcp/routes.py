@@ -318,7 +318,7 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
                 status_code=413,
                 headers=cors,
             )
-        df = pd.read_csv(io.StringIO(csv_text), dtype=str)
+        df = pd.read_csv(io.StringIO(csv_text))
         records = _sanitize_records(df.to_dict(orient="records"))
         return JSONResponse(
             records,
