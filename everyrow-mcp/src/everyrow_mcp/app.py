@@ -132,10 +132,11 @@ then execute the returned curl command, then use the artifact_id from the respon
 
 ## Results
 - IMPORTANT: When a task completes, you MUST ask the user how many rows they want loaded into \
-the conversation BEFORE calling everyrow_results. Do NOT call everyrow_results without asking first.
-- `everyrow_results(task_id, page_size=N)` returns N rows in context plus a download link for the full CSV.
-- After retrieving results, tell the user how many rows you can see vs the total, and that the \
-full dataset is visible to them in the widget and via the download link.
+your context BEFORE calling everyrow_results. Do NOT call everyrow_results without asking first.
+- `everyrow_results(task_id, page_size=N)` loads N rows into your context so you can read them. \
+The user always has access to all rows via the widget and download link.
+- After retrieving results, tell the user how many rows you can see vs the total, and that \
+they have access to the full dataset via the widget above and the download link.
 - Use offset to paginate through larger datasets.
 """
 )

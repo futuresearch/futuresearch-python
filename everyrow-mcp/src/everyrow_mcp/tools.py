@@ -864,9 +864,11 @@ async def everyrow_results_http(
     """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    IMPORTANT: You MUST ask the user how many rows they want loaded into the
-    conversation BEFORE calling this tool. Do NOT call with the default — always
+    IMPORTANT: You MUST ask the user how many rows they want loaded into your
+    context BEFORE calling this tool. Do NOT call with the default — always
     ask first and use their answer as page_size.
+    The user always has access to all rows via the widget — page_size only
+    controls how many rows you can read.
     After results load, tell the user how many rows you can see vs the total.
     """
     client = _get_client(ctx)
