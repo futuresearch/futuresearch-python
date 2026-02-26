@@ -32,7 +32,7 @@ RESULTS_HTML = """<!DOCTYPE html>
   --input-bg:#2d2d2d;--input-border:#555;--input-focus:#64b5f6;
 }}
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px;color:var(--text);background:var(--bg);font-size:13px}
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px;color:var(--text);background:var(--bg);font-size:13px;display:none}
 #toolbar{display:flex;align-items:center;gap:8px;padding:8px 4px;margin-bottom:8px;flex-wrap:wrap}
 #toolbar #sum{font-weight:600;font-size:13px;flex:1;min-width:150px;color:var(--text-sec)}
 #toolbar button{padding:5px 12px;border:1px solid var(--border);border-radius:5px;font-size:12px;cursor:pointer;background:var(--btn-bg);color:var(--btn-text);transition:background .15s}
@@ -762,6 +762,10 @@ app.ontoolresult=({content})=>{
     /* Non-JSON response (e.g. subsequent page text summary) — hide the widget. */
     document.body.style.display="none";return;
   }
+  /* Only show the widget for recognized data shapes */
+  const isWidget=meta.fetch_full_results||meta.preview||Array.isArray(meta);
+  if(!isWidget){return;}
+  document.body.style.display="";
   if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
   if(meta.poll_token){pollToken=meta.poll_token;}
   if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
@@ -771,7 +775,6 @@ app.ontoolresult=({content})=>{
     fetchFullResultsWithFreshToken(!!meta.preview,meta.total);
   }else if(meta.preview){processData(meta.preview);}
   else if(Array.isArray(meta)){processData(meta);}
-  else{document.body.style.display="none";}
 };
 
 await app.connect();
