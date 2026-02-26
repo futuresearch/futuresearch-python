@@ -725,6 +725,12 @@ function updateSessionLink(){
 }
 
 /* --- data loading --- */
+async function fetchFullResultsWithFreshToken(hasPreview,total){
+  const base=await getFreshDownloadUrl();
+  if(!base){if(!hasPreview)sum.textContent="Download link expired";return;}
+  const url=base+(base.includes("?")?"&":"?")+"format=json";
+  fetchFullResults(url,{},hasPreview,total);
+}
 function fetchFullResults(url,opts,hasPreview,total){
   if(!hasPreview)sum.textContent="Loading"+(total?" "+total+" rows":"")+"...";
   fetch(url,opts).then(r=>{
@@ -734,7 +740,7 @@ function fetchFullResults(url,opts,hasPreview,total){
     if(hasPreview){showToast("Full load failed, showing preview");}
     else{
       sum.innerHTML=esc("Failed to load: "+err.message)+' <button id="retryBtn" style="margin-left:8px;padding:2px 10px;border:1px solid var(--border);border-radius:4px;background:var(--btn-bg);color:var(--btn-text);cursor:pointer;font-size:12px">Retry</button>';
-      document.getElementById("retryBtn")?.addEventListener("click",()=>fetchFullResults(url,opts,hasPreview,total));
+      document.getElementById("retryBtn")?.addEventListener("click",()=>fetchFullResultsWithFreshToken(hasPreview,total));
     }
   });
 }

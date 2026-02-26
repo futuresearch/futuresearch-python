@@ -296,9 +296,25 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
     # Return JSON array if requested (used by the widget for full data fetch).
     fmt = request.query_params.get("format", "csv")
     if fmt == "json":
+        # Guard against memory exhaustion — CSV is bounded by upload limits
+        # (50 MB / 50k rows) but add a belt-and-suspenders check.
+        if len(csv_text) > settings.max_upload_size_bytes:
+            logger.warning(
+                "CSV too large for JSON conversion (%d bytes) for task %s",
+                len(csv_text),
+                task_id,
+            )
+            return JSONResponse(
+                {"error": "Result too large for JSON format"},
+                status_code=413,
+                headers=cors,
+            )
         df = pd.read_csv(io.StringIO(csv_text))
         records = _sanitize_records(df.to_dict(orient="records"))
-        return JSONResponse(records, headers=cors)
+        return JSONResponse(
+            records,
+            headers={**cors, "X-Content-Type-Options": "nosniff"},
+        )
 
     safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
     return Response(

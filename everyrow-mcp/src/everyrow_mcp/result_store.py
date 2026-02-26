@@ -138,12 +138,14 @@ def _build_result_response(
         summary = (
             f"Results: {total} rows, {len(columns)} columns ({col_names}). "
             f"Showing rows {offset + 1}-{min(offset + page_size, total)} of {total}.\n"
+            f"IMPORTANT: Tell the user that you can only see {min(page_size, total)} of the {total} rows, "
+            f"but the full dataset is visible to them in the widget above.\n"
             f"Call everyrow_results(task_id='{task_id}', offset={next_offset}{page_size_arg}) for the next page."
         )
         if offset == 0:
             summary += (
                 f"\nFull CSV download: {csv_url}\n"
-                "IMPORTANT: Display this download link to the user as a clickable URL in your response."
+                "Display this download link to the user as a clickable URL in your response."
             )
     elif offset == 0:
         summary = (
