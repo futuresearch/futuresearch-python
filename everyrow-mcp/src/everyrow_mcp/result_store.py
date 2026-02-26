@@ -98,6 +98,7 @@ def _build_result_response(
     mcp_server_url: str = "",
     *,
     requested_page_size: int | None = None,
+    skip_widget: bool = False,
 ) -> list[TextContent]:
     """Build MCP TextContent response for Redis-backed results.
 
@@ -124,8 +125,18 @@ def _build_result_response(
     # Alternative: track a per-task call counter in Redis and only emit on
     # the first call. Rejected because it adds state, and re-fetching
     # offset=0 (e.g. "show me the results again") should show the widget.
+    # Widget JSON is only useful for clients that can render iframes
+    # (Claude.ai, Claude Desktop). Clients like Claude Code don't render
+    # widgets, so the JSON just wastes context tokens.
+    #
+    # Detection uses two approaches (see tool_helpers.client_supports_widgets):
+    #  1. MCP Apps UI capability — clients that advertise
+    #     experimental["io.modelcontextprotocol/ui"] explicitly support widgets.
+    #  2. Name-based fallback — Claude.ai/Desktop don't advertise the
+    #     capability yet, so we use a denylist (currently just "claude-code").
+    #     This fallback should be removed once clients adopt the capability.
     contents: list[TextContent] = []
-    if offset == 0:
+    if offset == 0 and not skip_widget:
         widget_data: dict[str, Any] = {
             "csv_url": csv_url,
             "preview": preview_records,
@@ -196,6 +207,8 @@ async def try_cached_result(
     offset: int,
     page_size: int,
     mcp_server_url: str = "",
+    *,
+    skip_widget: bool = False,
 ) -> list[TextContent] | None:
     cached_meta_raw = await redis_store.get_result_meta(task_id)
     if not cached_meta_raw:
@@ -250,6 +263,7 @@ async def try_cached_result(
         poll_token=poll_token or "",
         mcp_server_url=mcp_server_url,
         requested_page_size=page_size,
+        skip_widget=skip_widget,
     )
 
 
@@ -260,6 +274,8 @@ async def try_store_result(
     page_size: int,
     session_url: str = "",
     mcp_server_url: str = "",
+    *,
+    skip_widget: bool = False,
 ) -> list[TextContent]:
     """Store a DataFrame in Redis and return a paginated response."""
     try:
@@ -309,6 +325,7 @@ async def try_store_result(
             poll_token=poll_token or "",
             mcp_server_url=mcp_server_url,
             requested_page_size=page_size,
+            skip_widget=skip_widget,
         )
     except Exception:
         logger.exception("Failed to store results in Redis for task %s", task_id)

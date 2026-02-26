@@ -65,6 +65,58 @@ def _get_client(ctx: EveryRowContext) -> AuthenticatedClient:
     return ctx.request_context.lifespan_context.client_factory()
 
 
+def log_client_info(ctx: EveryRowContext, tool_name: str) -> None:
+    """Log MCP client identity and capabilities for the current request."""
+    try:
+        cp = ctx.session.client_params
+        if not cp:
+            logger.info("[%s] client_params=None", tool_name)
+            return
+        name = cp.clientInfo.name if cp.clientInfo else "unknown"
+        version = cp.clientInfo.version if cp.clientInfo else "unknown"
+        caps = cp.capabilities
+        experimental = (caps.experimental or {}) if caps else {}
+        logger.info(
+            "[%s] client=%s/%s sampling=%s elicitation=%s roots=%s ui=%s",
+            tool_name,
+            name,
+            version,
+            caps.sampling is not None if caps else False,
+            caps.elicitation is not None if caps else False,
+            caps.roots is not None if caps else False,
+            experimental.get("io.modelcontextprotocol/ui") is not None,
+        )
+    except Exception:
+        logger.debug("Could not log client info for %s", tool_name, exc_info=True)
+
+
+def client_supports_widgets(ctx: EveryRowContext) -> bool:
+    """Return True if the connected MCP client can render widgets.
+
+    Checks for the MCP Apps UI capability in experimental extensions.
+    Falls back to a name-based allowlist for clients that don't advertise
+    the capability yet (Claude.ai, Claude Desktop).
+    """
+    try:
+        cp = ctx.session.client_params
+        if not cp:
+            return False
+
+        # Check explicit UI capability first (spec-recommended)
+        caps = cp.capabilities
+        if caps:
+            experimental = caps.experimental or {}
+            if experimental.get("io.modelcontextprotocol/ui") is not None:
+                return True
+
+        # Fall back to name-based detection for known widget-capable clients
+        name = (cp.clientInfo.name or "").lower() if cp.clientInfo else ""
+        return name not in ("claude-code",)
+    except Exception:
+        logger.debug("Could not determine widget support", exc_info=True)
+        return True  # default to including widgets
+
+
 def _submission_text(
     label: str, session_url: str, task_id: str, session_id: str = ""
 ) -> str:

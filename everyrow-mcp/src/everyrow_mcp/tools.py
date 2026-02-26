@@ -58,7 +58,9 @@ from everyrow_mcp.tool_helpers import (
     TaskState,
     _fetch_task_result,
     _get_client,
+    client_supports_widgets,
     create_tool_response,
+    log_client_info,
     write_initial_task_state,
 )
 from everyrow_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
@@ -719,6 +721,7 @@ async def everyrow_upload_data(
     across multiple tool calls.
     """
     logger.info("everyrow_upload_data: source=%.80s", params.source)
+    log_client_info(ctx, "everyrow_upload_data")
     client = _get_client(ctx)
 
     if is_url(params.source):
@@ -874,6 +877,8 @@ async def everyrow_results_http(
     client = _get_client(ctx)
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
+    log_client_info(ctx, "everyrow_results")
+    skip_widget = not client_supports_widgets(ctx)
 
     # ── Cross-user access check ──────────────────────────────────
     try:
@@ -894,6 +899,7 @@ async def everyrow_results_http(
         params.offset,
         params.page_size,
         mcp_server_url=mcp_server_url,
+        skip_widget=skip_widget,
     )
     if cached is not None:
         return cached
@@ -931,6 +937,7 @@ async def everyrow_results_http(
         params.page_size,
         session_url,
         mcp_server_url=mcp_server_url,
+        skip_widget=skip_widget,
     )
 
 
