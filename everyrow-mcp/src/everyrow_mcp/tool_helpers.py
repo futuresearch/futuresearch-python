@@ -161,36 +161,36 @@ def _widgets_from_user_agent() -> bool:
 
     Called when client_params is None (stateless HTTP mode).
 
-    Strategy: block known non-widget clients, allow everything else.
-    HTTP mode traffic is predominantly Claude.ai/Desktop which supports
-    widgets, so defaulting to True minimises false negatives.
-
-    The blocklist below will be populated once we observe actual
-    User-Agent strings from Claude Code's HTTP client in production logs.
+    Strategy: whitelist known widget-capable clients, deny everything else.
+    Only clients we have confirmed can render widgets get them; unknown UAs
+    default to text-only to avoid wasting context tokens on unsupported UIs.
     """
     from everyrow_mcp.http_config import get_user_agent  # noqa: PLC0415
 
     ua = get_user_agent().lower()
 
-    # Known non-widget User-Agent substrings.
-    # Observed values (Feb 2026):
-    #   Claude Code: "claude-code/2.1.59 (cli)"
-    #   MCP SDK:     "python-httpx/0.28.1"  (test client)
-    #   OAuth flow:  "Bun/1.3.10"  (Claude Code's OAuth helper)
-    _NO_WIDGET_UA_SUBSTRINGS = {"claude-code", "everyrow-cc"}
+    # Whitelist of UA substrings for clients that support widgets.
+    #
+    # Observed User-Agent values (Feb 2026):
+    #   Claude.ai:       "Claude-User"          — supports widgets
+    #   Claude Desktop:  "Claude-User"          — supports widgets
+    #   Claude Code CLI: "claude-code/2.1.62 (cli)" — text-only
+    #   everyrow:        "everyrow-cc/1.0"      — text-only (internal)
+    #   MCP SDK (test):  "python-httpx/0.28.1"  — text-only
+    #   OAuth helper:    "Bun/1.3.10"           — not a tool caller
+    #
+    # Claude.ai and Claude Desktop both send "Claude-User". If Anthropic
+    # changes this, we'll need to update the whitelist.
+    _WIDGET_UA_SUBSTRINGS = {"claude-user"}
 
-    if any(pattern in ua for pattern in _NO_WIDGET_UA_SUBSTRINGS):
-        return False
-
-    # Unknown UA in HTTP mode → assume widget-capable (Claude.ai/Desktop).
-    return True
+    return any(pattern in ua for pattern in _WIDGET_UA_SUBSTRINGS)
 
 
 def is_internal_client() -> bool:
-    """Return True if the request comes from EveryRow's own app (CC)."""
+    """Return True if the request comes from everyrow's own app."""
     from everyrow_mcp.http_config import get_user_agent  # noqa: PLC0415
 
-    return "everyrow-cc" in get_user_agent().lower()
+    return "everyrow" in get_user_agent().lower()
 
 
 def _submission_text(
