@@ -5,7 +5,7 @@ description: Reference for all everyrow MCP server tools — async operations wi
 
 # MCP Server Reference
 
-The everyrow MCP server exposes 15 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
+The everyrow MCP server exposes 17 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
 
 All operations use an async pattern: submit the task, poll for progress, then retrieve results. This allows long-running operations (1–10+ minutes) to work reliably with MCP clients.
 
@@ -73,6 +73,27 @@ Then start Claude Code and authenticate:
 **Claude Code plugin (stdio):** Uses an API key. Generate yours at [everyrow.io/api-key](https://everyrow.io/api-key) and paste it when prompted during plugin setup.
 
 ## Operation Tools
+
+### everyrow_browse_lists
+
+Browse available reference lists of well-known entities — companies (S&P 500, FTSE 100, Russell 3000, sector breakdowns), geographic lists (countries, US states, cities), people (billionaires, heads of state), institutions (universities, regulators), and more.
+
+Call with no parameters to see all available lists, or narrow results with `search`/`category`. Returns names, fields, and `artifact_id`s to pass to `everyrow_use_list`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `search` | string | No | Search term to match against list names (case-insensitive). |
+| `category` | string | No | Filter by category (e.g. `"Finance"`, `"Geography"`). |
+
+### everyrow_use_list
+
+Import a reference list into your session and save it as a CSV file. The copy is a fast database operation (&lt;1s) — no polling needed.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `artifact_id` | string | Yes | `artifact_id` from `everyrow_browse_lists` results. |
+
+Returns the saved CSV path, row count, and column names.
 
 ### everyrow_screen
 
@@ -143,7 +164,9 @@ Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
 
 ### everyrow_forecast
 
-Forecast the probability of binary questions.
+Forecast the probability of binary questions. The input CSV should contain a `question` column. Recommended additional columns: `resolution_criteria`, `resolution_date`, `background`.
+
+Output columns added: `probability` (int, 0–100) and `rationale` (string).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
