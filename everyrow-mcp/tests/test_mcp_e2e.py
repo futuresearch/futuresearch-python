@@ -174,6 +174,7 @@ class TestMcpProtocol:
                 [
                     "everyrow_agent",
                     "everyrow_balance",
+                    "everyrow_browse_lists",
                     "everyrow_cancel",
                     "everyrow_dedupe",
                     "everyrow_forecast",
@@ -185,6 +186,7 @@ class TestMcpProtocol:
                     "everyrow_screen",
                     "everyrow_single_agent",
                     "everyrow_upload_data",
+                    "everyrow_use_list",
                 ]
             )
             assert tool_names == expected
