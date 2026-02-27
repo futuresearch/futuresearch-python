@@ -5,9 +5,50 @@ description: Reference for all everyrow MCP server tools — async operations wi
 
 # MCP Server Reference
 
-The everyrow MCP server exposes tools for AI-powered data processing. These tools are called directly by Claude Code, Codex CLI, and other MCP clients — no Python code is needed.
+The everyrow MCP server exposes 15 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
 
 All operations use an async pattern: submit the task, poll for progress, then retrieve results. This allows long-running operations (1–10+ minutes) to work reliably with MCP clients.
+
+## Setup
+
+### Claude.ai and Claude Desktop
+
+1. Go to **Settings → Connectors → Add custom connector** and enter the remote MCP URL:
+
+```
+https://mcp.everyrow.io/mcp
+```
+
+2. *(Optional but recommended)* Whitelist the everyrow upload URL so Claude can upload datasets straight from its sandbox — the data doesn't need to pass through the conversation context, saving tokens and improving reliability:
+
+   **Settings → Capabilities → Code execution and file creation → Additional allowed domains** → add `mcp.everyrow.io`
+
+### Claude Code
+
+**Option A: Plugin install (recommended)**
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+**Option B: Remote HTTP MCP**
+
+```bash
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
+```
+
+Then start Claude Code and authenticate:
+
+1. Run `claude`
+2. Type `\mcp`, select **everyrow**, and complete the OAuth flow
+3. Test with: *"check my everyrow balance"*
+
+## Authentication
+
+**Remote MCP (Claude.ai, Claude Desktop, Claude Code HTTP):** OAuth 2.0 via Google. Authentication is handled automatically by the MCP client — no API keys or manual setup required. You'll be prompted to sign in with your Google account on first use.
+
+**Claude Code plugin (stdio):** Uses an API key. Generate yours at [everyrow.io/api-key](https://everyrow.io/api-key) and paste it when prompted during plugin setup.
 
 ## Operation Tools
 
@@ -151,6 +192,39 @@ List all sessions owned by the authenticated user. Returns session names, IDs, t
 
 Returns a formatted list of sessions with links to the web dashboard.
 
+### everyrow_upload_data
+
+Upload data from a URL or local file. Returns an `artifact_id` for use in processing tools.
+
+Use this to ingest data before calling any operation tool. Supported sources:
+
+- HTTP(S) URLs (including Google Sheets — auto-converted to CSV export)
+- Local CSV file paths (stdio/local mode only — not available over HTTP)
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source` | string | Yes | Data source: HTTP(S) URL or absolute local file path. Google Sheets and Drive URLs are supported. |
+| `session_id` | string | No | Session ID (UUID) to resume. Mutually exclusive with `session_name`. |
+| `session_name` | string | No | Human-readable name for a new session. Mutually exclusive with `session_id`. |
+
+Returns `artifact_id` (UUID), `session_id`, row count, and column names.
+
+### everyrow_request_upload_url
+
+Request a presigned URL to upload a local CSV file. This is the recommended way to ingest local files when using the remote HTTP MCP server.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filename` | string | Yes | Name of the file to upload (must end in `.csv`). |
+
+Returns a presigned upload URL, upload ID, expiration time, max file size, and a ready-to-execute `curl` command. After uploading, use the returned `artifact_id` in any processing tool.
+
+### everyrow_balance
+
+Check the current billing balance for the authenticated user. No parameters required.
+
+Returns the account balance in dollars.
+
 ## Workflow
 
 ```
@@ -172,6 +246,32 @@ Returns a formatted list of sessions with links to the web dashboard.
 ```
 
 The agent handles this loop automatically. You don't need to intervene.
+
+## Usage Examples
+
+### Lead screening
+
+> "Screen this list and keep only companies with >50 employees that raised Series A+"
+
+Uses `everyrow_screen` to filter a CSV of companies. Each row is evaluated by a web research agent that checks employee count and funding stage. Rows that don't meet the criteria are filtered out.
+
+### Web research
+
+> "For each competitor, find their pricing model, employee count, and latest funding"
+
+Uses `everyrow_agent` with a custom `response_schema` to extract structured fields for each row. The agent searches the web for each company and returns the requested data.
+
+### Deduplication
+
+> "Dedupe this CRM export — merge rows referring to the same person"
+
+Uses `everyrow_dedupe` to identify and remove semantic duplicates. Rows are compared beyond exact string matching — the agent recognizes that "J. Smith at Acme" and "John Smith, Acme Corp" are the same person.
+
+### Ranking
+
+> "Rank these nonprofits by climate impact in Sub-Saharan Africa"
+
+Uses `everyrow_rank` to score and sort rows by a qualitative criterion. Each row is researched and scored, then the results are sorted.
 
 ## Custom Response Schemas
 
@@ -212,3 +312,43 @@ claude plugin install everyrow@futuresearch
 ```
 
 See [Progress Monitoring](/docs/progress-monitoring) for status line setup and hook details.
+
+## Troubleshooting
+
+### Auth flow not completing
+
+If the OAuth sign-in window opens but authentication doesn't complete:
+
+- Ensure pop-ups are not blocked in your browser
+- Try closing and reopening the MCP connection
+- For Claude Code HTTP mode, run `\mcp` and re-authenticate from the MCP panel
+
+### Task stuck in progress
+
+If `everyrow_progress` keeps returning a running state for an extended period:
+
+- Large datasets (1000+ rows) can take 10+ minutes — this is normal
+- Use `everyrow_cancel` to stop the task and retry with a smaller dataset
+- Check the session dashboard at the `session_url` for real-time status
+
+### Results appear empty
+
+If `everyrow_results` returns fewer rows than expected:
+
+- Some rows may have failed processing — check the session dashboard for error details
+- Ensure the input CSV was well-formed (proper headers, no encoding issues)
+- Retry failed rows by running the same operation on the filtered subset
+
+### Token budget exceeded
+
+If you get a token budget error:
+
+- Results are automatically paginated — call `everyrow_results` again to get the next page
+- Use a custom `response_schema` with fewer fields to reduce output size
+- Split large datasets into smaller batches
+
+## Privacy & Support
+
+- **Privacy Policy:** [futuresearch.ai/privacy](https://futuresearch.ai/privacy/)
+- **Terms of Service:** [futuresearch.ai/terms](https://futuresearch.ai/terms/)
+- **Support:** [support@futuresearch.ai](mailto:support@futuresearch.ai)
