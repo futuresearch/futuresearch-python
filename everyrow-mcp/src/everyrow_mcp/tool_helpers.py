@@ -175,7 +175,7 @@ def _widgets_from_user_agent() -> bool:
     #   Claude.ai:       "Claude-User"          — supports widgets
     #   Claude Desktop:  "Claude-User"          — supports widgets
     #   Claude Code CLI: "claude-code/2.1.62 (cli)" — text-only
-    #   everyrow:        "everyrow-cc/1.0"      — text-only (internal)
+    #   everyrow:        "everyrow/1.0"         — text-only (internal)
     #   MCP SDK (test):  "python-httpx/0.28.1"  — text-only
     #   OAuth helper:    "Bun/1.3.10"           — not a tool caller
     #
