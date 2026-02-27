@@ -75,6 +75,9 @@ from everyrow_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
 
 logger = logging.getLogger(__name__)
 
+# Track which task_ids have been polled so we only log the first and last call.
+_progress_seen: set[str] = set()
+
 
 async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
     """Verify the current user owns *task_id*. Returns an error response if
@@ -1005,9 +1008,12 @@ async def everyrow_progress(
     unless the task is completed or failed. The tool handles pacing internally.
     Do not add commentary between progress calls, just call again immediately.
     """
-    logger.debug("everyrow_progress: task_id=%s", params.task_id)
     client = _get_client(ctx)
     task_id = params.task_id
+    first_poll = task_id not in _progress_seen
+    if first_poll:
+        logger.info("everyrow_progress: task_id=%s polling started", task_id)
+        _progress_seen.add(task_id)
 
     # ── Cross-user access check ──────────────────────────────────
     try:
@@ -1046,8 +1052,8 @@ async def everyrow_progress(
     ts = TaskState(status_response)
     ts.write_file(task_id)
 
-    # Only log at INFO for terminal states to avoid noise from polling loops
     if ts.is_terminal:
+        _progress_seen.discard(task_id)
         logger.info("everyrow_progress: task_id=%s status=%s", task_id, ts.status.value)
 
     return [TextContent(type="text", text=ts.progress_message(task_id))]
