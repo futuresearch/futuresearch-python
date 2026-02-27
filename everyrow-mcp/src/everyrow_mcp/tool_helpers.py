@@ -114,16 +114,15 @@ def client_supports_widgets(ctx: EveryRowContext) -> bool:
        widget-capable client names so they get widgets today.
        This fallback should be removed once clients adopt the capability.
 
-    3. **User-Agent fallback** (stateless HTTP mode):
+    3. **User-Agent whitelist** (stateless HTTP mode):
        When ``client_params`` is ``None`` (stateless HTTP — no MCP initialize
-       handshake), we check the HTTP User-Agent header.  Clients known to
-       NOT support widgets (e.g. Claude Code) are excluded.  If the
-       User-Agent is unknown, we default to **showing widgets** because
-       HTTP mode traffic is overwhelmingly from Claude.ai/Desktop.
+       handshake), we check the HTTP User-Agent header against a whitelist
+       of known widget-capable UAs (currently ``"Claude-User"``).  If the
+       User-Agent is unknown, we default to **no widget** to avoid wasting
+       context tokens on clients that can't render them.
 
-    Unknown clients default to **no widget** in stateful mode (tier 2),
-    but to **widget** in stateless HTTP mode (tier 3) where the population
-    is predominantly Claude.ai/Desktop.
+    Unknown clients default to **no widget** in both stateful (tier 2) and
+    stateless (tier 3) modes.
     """
     try:
         cp = ctx.session.client_params
