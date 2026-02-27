@@ -297,25 +297,6 @@ async def get_task_owner(task_id: str) -> str | None:
     return await get_redis_client().get(build_key("task_owner", task_id))
 
 
-# ── Upload metadata ───────────────────────────────────────────
-
-
-async def store_upload_meta(upload_id: str, meta_json: str, ttl: int) -> None:
-    """Store upload metadata with TTL (consume-on-use)."""
-    await get_redis_client().setex(build_key("upload", upload_id), ttl, meta_json)
-
-
-async def get_upload_meta(upload_id: str) -> str | None:
-    """Read upload metadata without consuming it."""
-    return await get_redis_client().get(build_key("upload", upload_id))
-
-
-async def pop_upload_meta(upload_id: str) -> str | None:
-    """Atomically get and delete upload metadata (prevents replay)."""
-    key = build_key("upload", upload_id)
-    return await get_redis_client().getdel(key)
-
-
 # ── Download tokens (short-lived, single-use) ────────────────
 
 

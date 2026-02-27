@@ -96,33 +96,16 @@ class Settings(BaseSettings):
     # Upload settings (HTTP mode only)
     upload_secret: str = Field(
         default="",
-        description="HMAC-SHA256 secret for signing upload URLs. Required in HTTP mode.",
+        description="Secret for encrypting sensitive values (tokens) at rest in Redis. Required in HTTP mode.",
         repr=False,
-    )
-    upload_url_ttl: int = Field(
-        default=300,
-        description="Presigned upload URL validity in seconds (5 min).",
     )
     max_upload_size_bytes: int = Field(
         default=50 * 1024 * 1024,
         description="Maximum upload file size in bytes (50 MB).",
     )
-    max_upload_rows: int = Field(
-        default=50_000,
-        description="Maximum rows allowed in an uploaded CSV file.",
-    )
     max_fetch_size_bytes: int = Field(
         default=50 * 1024 * 1024,
         description="Maximum response size when fetching CSV from a URL (50 MB).",
-    )
-
-    upload_rate_limit: PositiveInt = Field(
-        default=20,
-        description="Max uploads per user per rate window",
-    )
-    upload_rate_window: PositiveInt = Field(
-        default=3600,
-        description="Upload rate limit sliding window in seconds (1 hour)",
     )
 
     everyrow_api_key: str | None = Field(default=None, repr=False)

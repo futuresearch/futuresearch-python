@@ -30,7 +30,7 @@ from everyrow_mcp.middleware import (
 from everyrow_mcp.redis_store import get_redis_client
 from everyrow_mcp.routes import api_download, api_download_token, api_progress
 from everyrow_mcp.templates import RESULTS_HTML, SESSION_HTML
-from everyrow_mcp.uploads import handle_upload
+from everyrow_mcp.uploads import proxy_upload
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +89,10 @@ def configure_http_mode(
     mcp.settings.port = port
     mcp.settings.stateless_http = True
 
-    if not settings.upload_secret or len(settings.upload_secret) < 32:
+    if not no_auth and (not settings.upload_secret or len(settings.upload_secret) < 32):
         raise RuntimeError(
-            "UPLOAD_SECRET must be at least 32 characters in HTTP mode for HMAC signing. "
+            "UPLOAD_SECRET must be at least 32 characters in HTTP auth mode "
+            "for encrypting sensitive values in Redis. "
             'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
         )
     if not no_auth and not settings.redis_password:
@@ -143,7 +144,6 @@ def _register_routes(
     mcp.custom_route("/api/results/{task_id}/download-token", ["GET", "OPTIONS"])(
         api_download_token
     )
-    mcp.custom_route("/api/uploads/{upload_id}", ["PUT"])(handle_upload)
 
     async def _health(_request: Request) -> Response:
         try:
@@ -155,6 +155,7 @@ def _register_routes(
         return JSONResponse({"status": "ok"})
 
     mcp.custom_route("/health", ["GET"])(_health)
+    mcp.custom_route("/api/uploads/{upload_id}", ["PUT"])(proxy_upload)
 
     if auth_provider is not None:
         mcp.custom_route("/auth/start/{state}", ["GET"])(auth_provider.handle_start)

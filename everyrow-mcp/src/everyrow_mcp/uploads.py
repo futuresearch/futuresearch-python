@@ -1,45 +1,24 @@
-"""Presigned URL upload system for large files (HTTP mode only).
-
-Provides:
-- ``request_upload_url`` MCP tool — returns a signed upload URL + curl instructions
-- ``handle_upload`` REST endpoint — receives the file and creates an artifact
-"""
-
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 import shlex
-import time
-from io import BytesIO
-from typing import Any
-from uuid import uuid4
+from urllib.parse import urlparse, urlunparse
 
-import pandas as pd
-from everyrow.generated.client import AuthenticatedClient
-from everyrow.ops import create_table_artifact
-from everyrow.session import create_session
+import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
-from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
-from everyrow_mcp.redis_store import build_key, decrypt_value, encrypt_value
 from everyrow_mcp.tool_helpers import EveryRowContext
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_CONTENT_TYPES = {
-    "text/csv",
-    "application/csv",
-    "text/plain",
-    "application/octet-stream",
-}
+# Timeout for proxying the upload body to the Engine (large files may be slow)
+_PROXY_TIMEOUT = httpx.Timeout(connect=10, read=90, write=90, pool=10)
 
 
 # ── Input model ───────────────────────────────────────────────
@@ -57,49 +36,18 @@ class RequestUploadUrlInput(BaseModel):
     )
 
 
-# ── HMAC signing ──────────────────────────────────────────────
-
-
-def _get_secret() -> str:
-    """Return the HMAC secret from settings.
-
-    Raises at call time if UPLOAD_SECRET is not configured — required
-    in multi-pod deployments so all instances share the same signing key.
-    """
-    if not settings.upload_secret:
-        raise RuntimeError(
-            "UPLOAD_SECRET must be set in HTTP mode for HMAC signing. "
-            'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
-        )
-    return settings.upload_secret
-
-
-def sign_upload_url(upload_id: str, expires_at: int) -> str:
-    """Create an HMAC-SHA256 signature for an upload URL."""
-    msg = f"{upload_id}:{expires_at}"
-    return hmac.new(_get_secret().encode(), msg.encode(), hashlib.sha256).hexdigest()
-
-
-def verify_upload_signature(upload_id: str, expires_at: int, signature: str) -> bool:
-    """Verify an upload URL signature and check expiry."""
-    if time.time() > expires_at:
-        return False
-    expected = sign_upload_url(upload_id, expires_at)
-    return hmac.compare_digest(expected, signature)
-
-
 # ── MCP tool ──────────────────────────────────────────────────
 
 
-def register_upload_tool(mcp: FastMCP) -> None:
-    """Register the request_upload_url tool (HTTP mode only)."""
+def register_upload_tool(mcp: FastMCP, mcp_server_url: str) -> None:
+    """Register the request_upload_url tool and proxy route (HTTP mode only)."""
 
     @mcp.tool(
         name="everyrow_request_upload_url",
         structured_output=False,
         annotations=ToolAnnotations(
             title="Request Upload URL",
-            readOnlyHint=True,
+            readOnlyHint=False,
             destructiveHint=False,
             idempotentHint=False,
             openWorldHint=False,
@@ -127,15 +75,6 @@ def register_upload_tool(mcp: FastMCP) -> None:
                 )
             ]
 
-        upload_id = str(uuid4())
-        expires_at = int(time.time()) + settings.upload_url_ttl
-        sig = sign_upload_url(upload_id, expires_at)
-
-        mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
-        upload_url = (
-            f"{mcp_server_url}/api/uploads/{upload_id}?expires={expires_at}&sig={sig}"
-        )
-
         # Get user's API token from the MCP context
         client = ctx.request_context.lifespan_context.client_factory()
         api_token = getattr(client, "token", None) or ""
@@ -147,190 +86,142 @@ def register_upload_tool(mcp: FastMCP) -> None:
                 )
             ]
 
-        # Store metadata in Redis (token encrypted at rest)
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": params.filename,
-                "expires_at": expires_at,
-                "api_token": encrypt_value(api_token),
-            }
-        )
-        await redis_store.store_upload_meta(upload_id, meta, settings.upload_url_ttl)
-
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "upload_url": upload_url,
-                        "upload_id": upload_id,
-                        "expires_in": settings.upload_url_ttl,
-                        "max_size_bytes": settings.max_upload_size_bytes,
-                        "curl_command": f"curl -X PUT -T {shlex.quote(params.filename)} {shlex.quote(upload_url)}",
-                    }
-                ),
+        # Delegate to the Cohort Engine API
+        engine_url = f"{settings.everyrow_api_url}/uploads/request"
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                resp = await http.post(
+                    engine_url,
+                    headers={"Authorization": f"Bearer {api_token}"},
+                    json={"filename": params.filename},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:200] if exc.response else str(exc)
+            logger.error(
+                "Engine upload request failed: %s %s", exc.response.status_code, detail
             )
-        ]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error requesting upload URL: {detail}",
+                )
+            ]
+        except httpx.HTTPError as exc:
+            logger.error("Engine upload request failed: %s", exc)
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error connecting to upload service: {exc}",
+                )
+            ]
+
+        try:
+            engine_upload_url = data["upload_url"]
+            # Rewrite the URL to point at the MCP server instead of the Engine.
+            # The Claude.ai sandbox can reach the MCP server but not api.everyrow.ai.
+            upload_url = _rewrite_upload_url(engine_upload_url, mcp_server_url)
+            result = {
+                "upload_url": upload_url,
+                "upload_id": data["upload_id"],
+                "expires_in": data["expires_in"],
+                "max_size_bytes": data["max_size_bytes"],
+                "curl_command": f'curl -X PUT -H "Content-Type: text/csv" -T {shlex.quote(params.filename)} {shlex.quote(upload_url)}',
+            }
+        except KeyError as exc:
+            logger.error("Unexpected Engine response shape: missing key %s", exc)
+            return [
+                TextContent(
+                    type="text",
+                    text="Error: unexpected response from upload service. Please try again.",
+                )
+            ]
+
+        return [TextContent(type="text", text=json.dumps(result))]
 
 
-# ── REST endpoint ─────────────────────────────────────────────
+def _rewrite_upload_url(engine_url: str, mcp_server_url: str) -> str:
+    """Rewrite an Engine presigned URL to route through the MCP server.
+
+    Engine URL: https://api.everyrow.ai/api/v0/uploads/{id}?expires=X&sig=Y
+    MCP URL:    https://<mcp-host>/api/uploads/{id}?expires=X&sig=Y
+
+    The path is shortened from /api/v0/uploads/... to /api/uploads/... since
+    the MCP proxy route handles the v0 prefix when forwarding to the Engine.
+    """
+    parsed = urlparse(engine_url)
+    mcp_parsed = urlparse(mcp_server_url)
+
+    # Replace /api/v0/uploads/... with /api/uploads/...
+    path = parsed.path.replace("/api/v0/uploads/", "/api/uploads/", 1)
+
+    return urlunparse(
+        (
+            mcp_parsed.scheme,
+            mcp_parsed.netloc,
+            path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
 
-async def _validate_upload(  # noqa: PLR0911
-    request: Request,
-) -> tuple[bytes, dict[str, Any], None] | tuple[None, None, JSONResponse]:
-    """Validate upload signature, metadata, and body.
+# ── Upload proxy route ───────────────────────────────────────
+#
+# Why proxy through the MCP server instead of uploading directly to the Engine?
+#
+# The Claude.ai sandbox has a restrictive egress policy that blocks DNS
+# resolution for most external domains.  Even after adding *.everyrow.ai
+# to the Claude.ai domain allowlist, the sandbox's curl still gets a
+# 403 Forbidden with `x-deny-reason: dns_nxdomain` when trying to reach
+# api.everyrow.ai.  The allowlist controls which MCP servers can be
+# connected to, but does NOT control which domains the sandbox's curl
+# can reach.
+#
+# The sandbox CAN reach the MCP server, so the MCP server acts as a
+# two-way proxy for uploads:
+#
+#   1. Request phase:  User → MCP → Engine → MCP (rewrites URL) → User
+#   2. Upload phase:   User → MCP → Engine → MCP (passthrough) → User
+#
+# The only smart thing the MCP does is rewrite the URL in step 1.
+# Everything else is transparent forwarding.  This adds one hop but
+# is the only viable path given the sandbox's network constraints.
 
-    Returns (body, metadata_dict, None) or (None, None, error).
+
+async def proxy_upload(request: Request) -> Response:
+    """Proxy a CSV upload from the sandbox to the Engine.
+
+    The Claude.ai sandbox cannot reach api.everyrow.ai directly (DNS blocked),
+    so the presigned URL points at the MCP server.  This handler forwards the
+    PUT body and query params to the Engine's PUT /api/v0/uploads/{upload_id}
+    and streams the response back.
     """
     upload_id = request.path_params["upload_id"]
-    expires_str = request.query_params.get("expires", "")
-    sig = request.query_params.get("sig", "")
-    try:
-        expires_at = int(expires_str)
-    except (ValueError, TypeError):
-        return (
-            None,
-            None,
-            JSONResponse({"error": "Invalid expires parameter"}, status_code=400),
-        )
-
-    if not verify_upload_signature(upload_id, expires_at, sig):
-        return (
-            None,
-            None,
-            JSONResponse({"error": "Invalid or expired signature"}, status_code=403),
-        )
-
-    meta_json = await redis_store.get_upload_meta(upload_id)
-    if meta_json is None:
-        return (
-            None,
-            None,
-            JSONResponse(
-                {"error": "Upload URL already used or expired"}, status_code=410
-            ),
-        )
-    meta = json.loads(meta_json)
-
-    # Check Content-Length header before buffering the full body
-    content_length_str = request.headers.get("content-length", "")
-    if content_length_str:
-        try:
-            content_length = int(content_length_str)
-            if content_length > settings.max_upload_size_bytes:
-                return (
-                    None,
-                    None,
-                    JSONResponse({"error": "File too large"}, status_code=413),
-                )
-        except (ValueError, TypeError):
-            pass
+    engine_url = f"{settings.everyrow_api_url}/uploads/{upload_id}"
+    if request.url.query:
+        engine_url = f"{engine_url}?{request.url.query}"
 
     body = await request.body()
-    if not body:
-        return None, None, JSONResponse({"error": "Empty body"}, status_code=400)
-    if len(body) > settings.max_upload_size_bytes:
-        return None, None, JSONResponse({"error": "File too large"}, status_code=413)
-    return body, meta, None
-
-
-async def handle_upload(request: Request) -> JSONResponse:  # noqa: PLR0911
-    """PUT /api/uploads/{upload_id} — receive an uploaded file and create an artifact."""
-    body, meta, error = await _validate_upload(request)
-    if error is not None:
-        return error
-    assert body is not None and meta is not None  # type narrowing
-
-    # Retrieve and decrypt the user's API token
-    content_type = (
-        (request.headers.get("content-type") or "").split(";")[0].strip().lower()
-    )
-    if content_type and content_type not in _ALLOWED_CONTENT_TYPES:
-        return JSONResponse(
-            {
-                "error": f"Unsupported Content-Type: {content_type}. Use text/csv or application/octet-stream."
-            },
-            status_code=415,
-        )
-
-    # Retrieve and decrypt the user's API token
-    try:
-        api_token = decrypt_value(meta.get("api_token", ""))
-    except Exception:
-        logger.warning(
-            "Failed to decrypt api_token for upload %s",
-            request.path_params.get("upload_id"),
-        )
-        api_token = ""
-    if not api_token:
-        return JSONResponse({"error": "Upload authorization missing"}, status_code=403)
-
-    token_hash = hashlib.sha256(api_token.encode()).hexdigest()[:16]
-    rl_key = build_key("upload_rate", token_hash)
-    redis_client = redis_store.get_redis_client()
-    async with redis_client.pipeline() as pipe:
-        pipe.incr(rl_key)
-        pipe.expire(rl_key, settings.upload_rate_window)
-        count, _ = await pipe.execute()
-    if count > settings.upload_rate_limit:
-        return JSONResponse(
-            {"error": "Upload rate limit exceeded. Try again later."},
-            status_code=429,
-        )
-
-    # All checks passed — atomically consume the upload URL.
-    # If two requests race past the peek, only one wins the pop.
-    upload_id = request.path_params["upload_id"]
-    if await redis_store.pop_upload_meta(upload_id) is None:
-        return JSONResponse(
-            {"error": "Upload URL already used or expired"}, status_code=410
-        )
+    headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower() in ("content-type", "content-length")
+    }
 
     try:
-        df = pd.read_csv(BytesIO(body))  # type: ignore[arg-type]
-    except Exception as exc:
-        logger.warning("CSV parse failed for upload: %s", exc)
-        return JSONResponse(
-            {"error": "Could not parse CSV file. Ensure it is valid UTF-8 CSV."},
-            status_code=400,
-        )
+        async with httpx.AsyncClient(timeout=_PROXY_TIMEOUT) as http:
+            resp = await http.put(engine_url, content=body, headers=headers)
+    except httpx.HTTPError as exc:
+        logger.error("Upload proxy failed: %s", exc)
+        return JSONResponse({"detail": "Upload proxy error"}, status_code=502)
 
-    if df.empty:
-        return JSONResponse({"error": "CSV is empty"}, status_code=400)
-
-    if len(df) > settings.max_upload_rows:
-        return JSONResponse(
-            {
-                "error": f"CSV has {len(df)} rows (max {settings.max_upload_rows}). "
-                "Reduce the file size and try again."
-            },
-            status_code=413,
-        )
-
-    try:
-        client = AuthenticatedClient(
-            base_url=settings.everyrow_api_url,
-            token=api_token,
-            raise_on_unexpected_status=True,
-            follow_redirects=True,
-        )
-        async with create_session(client=client) as session:
-            artifact_id = await create_table_artifact(df, session)
-    except Exception as exc:
-        logger.error("Failed to create artifact from upload: %s", type(exc).__name__)
-        return JSONResponse(
-            {"error": "Failed to create artifact. Please try again."},
-            status_code=500,
-        )
-
-    return JSONResponse(
-        {
-            "artifact_id": str(artifact_id),
-            "rows": len(df),
-            "columns": list(df.columns),
-            "size_bytes": len(body),
+    return Response(
+        content=resp.content,
+        status_code=resp.status_code,
+        headers={
+            k: v for k, v in resp.headers.items() if k.lower() in ("content-type",)
         },
-        status_code=201,
     )

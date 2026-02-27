@@ -1,67 +1,24 @@
-"""Tests for the presigned URL upload system."""
+"""Tests for the presigned URL upload system (Engine delegation + proxy)."""
 
 from __future__ import annotations
 
 import json
-import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
-from everyrow_mcp.redis_store import decrypt_value, encrypt_value
 from everyrow_mcp.uploads import (
     RequestUploadUrlInput,
-    _validate_upload,
-    handle_upload,
+    _rewrite_upload_url,
+    proxy_upload,
     register_upload_tool,
-    sign_upload_url,
-    verify_upload_signature,
 )
 from tests.conftest import make_test_context, override_settings
 
-
-class TestHmacSigning:
-    """Tests for HMAC signing and verification."""
-
-    @pytest.fixture(autouse=True)
-    def _with_upload_secret(self):
-        with override_settings(upload_secret="test-secret-for-hmac"):
-            yield
-
-    def test_roundtrip(self):
-        """A signature can be verified immediately."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        sig = sign_upload_url(upload_id, expires_at)
-        assert verify_upload_signature(upload_id, expires_at, sig) is True
-
-    def test_expired_signature_rejected(self):
-        """An expired signature is rejected."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) - 1  # already expired
-        sig = sign_upload_url(upload_id, expires_at)
-        assert verify_upload_signature(upload_id, expires_at, sig) is False
-
-    def test_tampered_signature_rejected(self):
-        """A tampered signature is rejected."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        sig = sign_upload_url(upload_id, expires_at)
-        assert verify_upload_signature(upload_id, expires_at, sig + "x") is False
-
-    def test_different_upload_id_rejected(self):
-        """A signature for a different upload_id is rejected."""
-        expires_at = int(time.time()) + 300
-        sig = sign_upload_url("upload-1", expires_at)
-        assert verify_upload_signature("upload-2", expires_at, sig) is False
-
-    def test_missing_secret_raises(self):
-        """RuntimeError when UPLOAD_SECRET is not set."""
-        with override_settings(upload_secret=""):
-            with pytest.raises(RuntimeError, match="UPLOAD_SECRET must be set"):
-                sign_upload_url("test", int(time.time()) + 300)
+TEST_MCP_SERVER_URL = "https://mcp.example.com"
 
 
 class TestRequestUploadUrlInput:
@@ -92,397 +49,315 @@ def _capture_tool_fn(mock_mcp: MagicMock):
         return decorator
 
     mock_mcp.tool = capture_tool
-    register_upload_tool(mock_mcp)
+    register_upload_tool(mock_mcp, TEST_MCP_SERVER_URL)
     assert captured, "register_upload_tool did not register a tool"
     return captured[0]
 
 
+ENGINE_RESPONSE = {
+    "upload_url": "https://api.everyrow.ai/api/v0/uploads/abc-123?expires=9999&sig=xyz",
+    "upload_id": "abc-123",
+    "expires_in": 300,
+    "max_size_bytes": 52428800,
+    "curl_command": 'curl -X PUT -H "Content-Type: text/csv" -T "data.csv" "..."',
+}
+
+
 class TestRequestUploadUrlTool:
-    """Tests for the request_upload_url tool function."""
+    """Tests for the request_upload_url tool function (Engine delegation)."""
 
     @pytest.mark.asyncio
-    async def test_returns_upload_url(self, fake_redis):  # noqa: ARG002
-        """Tool returns a signed upload URL and curl instructions."""
+    async def test_returns_upload_url(self):
+        """Tool delegates to Engine and returns the presigned URL."""
         mock_mcp = MagicMock()
         tool_fn = _capture_tool_fn(mock_mcp)
 
         mock_client = MagicMock(token="fake-token")
         ctx = make_test_context(mock_client)
 
-        with (
-            override_settings(transport="streamable-http", upload_secret="test-secret"),
-            patch(
-                "everyrow_mcp.uploads.redis_store.store_upload_meta",
-                new_callable=AsyncMock,
-            ),
-        ):
+        mock_response = MagicMock()
+        mock_response.json.return_value = ENGINE_RESPONSE
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.post.return_value = mock_response
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
             params = RequestUploadUrlInput(filename="data.csv")
             result = await tool_fn(params, ctx)
 
         assert len(result) == 1
         data = json.loads(result[0].text)
-        assert "upload_url" in data
-        assert "upload_id" in data
-        assert "expires_in" in data
-        assert "curl_command" in data
+        # URL should be rewritten to MCP server domain
+        assert data["upload_url"].startswith(TEST_MCP_SERVER_URL)
+        assert "/api/uploads/abc-123" in data["upload_url"]
+        assert "expires=9999" in data["upload_url"]
+        assert "sig=xyz" in data["upload_url"]
+        assert data["upload_id"] == ENGINE_RESPONSE["upload_id"]
         assert data["expires_in"] == 300
+        assert "curl" in data["curl_command"]
+        # curl command should also use MCP server URL
+        assert TEST_MCP_SERVER_URL in data["curl_command"]
+
+        # Verify the Engine API was called with correct auth
+        mock_http.post.assert_called_once()
+        call_kwargs = mock_http.post.call_args
+        assert call_kwargs[1]["headers"]["Authorization"] == "Bearer fake-token"
+        assert call_kwargs[1]["json"] == {"filename": "data.csv"}
 
     @pytest.mark.asyncio
-    async def test_rejects_non_csv(self, fake_redis):  # noqa: ARG002
-        """Tool rejects non-CSV filenames."""
+    async def test_rejects_non_csv(self):
+        """Tool rejects non-CSV filenames without calling Engine."""
         mock_mcp = MagicMock()
         tool_fn = _capture_tool_fn(mock_mcp)
 
         mock_client = MagicMock(token="fake-token")
         ctx = make_test_context(mock_client)
 
-        with override_settings(
-            transport="streamable-http", upload_secret="test-secret"
-        ):
-            params = RequestUploadUrlInput(filename="data.json")
-            result = await tool_fn(params, ctx)
+        params = RequestUploadUrlInput(filename="data.json")
+        result = await tool_fn(params, ctx)
 
         assert "Error" in result[0].text
         assert ".csv" in result[0].text
 
     @pytest.mark.asyncio
-    async def test_stores_user_token_in_metadata(self, fake_redis):  # noqa: ARG002
-        """Tool stores the user's API token in upload metadata."""
+    async def test_no_token_returns_error(self):
+        """Tool returns error when no API token is available."""
         mock_mcp = MagicMock()
         tool_fn = _capture_tool_fn(mock_mcp)
 
-        mock_client = MagicMock(token="user-api-token-123")
+        mock_client = MagicMock(token="")
         ctx = make_test_context(mock_client)
 
-        stored_meta: list[str] = []
+        params = RequestUploadUrlInput(filename="data.csv")
+        result = await tool_fn(params, ctx)
 
-        async def capture_store(upload_id, meta_json, ttl):  # noqa: ARG001
-            stored_meta.append(meta_json)
+        assert "Error" in result[0].text
+        assert "authenticate" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_engine_http_error(self):
+        """Tool handles HTTP errors from Engine gracefully."""
+        mock_mcp = MagicMock()
+        tool_fn = _capture_tool_fn(mock_mcp)
+
+        mock_client = MagicMock(token="fake-token")
+        ctx = make_test_context(mock_client)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.text = "Service unavailable"
+        exc = httpx.HTTPStatusError("503", request=MagicMock(), response=mock_response)
+        mock_response.raise_for_status.side_effect = exc
+
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.post.return_value = mock_response
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
+            params = RequestUploadUrlInput(filename="data.csv")
+            result = await tool_fn(params, ctx)
+
+        assert "Error" in result[0].text
+        assert "Service unavailable" in result[0].text
+
+    @pytest.mark.asyncio
+    async def test_engine_connection_error(self):
+        """Tool handles connection errors gracefully."""
+        mock_mcp = MagicMock()
+        tool_fn = _capture_tool_fn(mock_mcp)
+
+        mock_client = MagicMock(token="fake-token")
+        ctx = make_test_context(mock_client)
+
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.post.side_effect = httpx.ConnectError("Connection refused")
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
+            params = RequestUploadUrlInput(filename="data.csv")
+            result = await tool_fn(params, ctx)
+
+        assert "Error" in result[0].text
+        assert "connecting" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_engine_unexpected_response_shape(self):
+        """Tool handles missing keys in Engine response gracefully."""
+        mock_mcp = MagicMock()
+        tool_fn = _capture_tool_fn(mock_mcp)
+
+        mock_client = MagicMock(token="fake-token")
+        ctx = make_test_context(mock_client)
+
+        # Engine returns response missing expected keys
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"unexpected": "shape"}
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.post.return_value = mock_response
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
+            params = RequestUploadUrlInput(filename="data.csv")
+            result = await tool_fn(params, ctx)
+
+        assert "Error" in result[0].text
+        assert "unexpected response" in result[0].text.lower()
+
+    @pytest.mark.asyncio
+    async def test_api_url_construction(self):
+        """Tool constructs the correct Engine API URL."""
+        mock_mcp = MagicMock()
+        tool_fn = _capture_tool_fn(mock_mcp)
+
+        mock_client = MagicMock(token="fake-token")
+        ctx = make_test_context(mock_client)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = ENGINE_RESPONSE
+        mock_response.raise_for_status = MagicMock()
 
         with (
-            override_settings(transport="streamable-http", upload_secret="test-secret"),
-            patch(
-                "everyrow_mcp.uploads.redis_store.store_upload_meta",
-                new_callable=AsyncMock,
-                side_effect=capture_store,
+            override_settings(
+                everyrow_api_url="https://custom-engine.example.com/api/v0"
             ),
+            patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx,
         ):
-            params = RequestUploadUrlInput(filename="data.csv")
+            mock_http = AsyncMock()
+            mock_http.post.return_value = mock_response
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
+            params = RequestUploadUrlInput(filename="test.csv")
             await tool_fn(params, ctx)
 
-            # Decrypt inside the override context where the Fernet key is available
-            assert stored_meta
-            meta = json.loads(stored_meta[0])
-            assert decrypt_value(meta["api_token"]) == "user-api-token-123"
+        call_args = mock_http.post.call_args
+        assert (
+            call_args[0][0]
+            == "https://custom-engine.example.com/api/v0/uploads/request"
+        )
 
 
-class TestHandleUpload:
-    """Tests for the handle_upload endpoint."""
+class TestRewriteUploadUrl:
+    """Tests for URL rewriting from Engine domain to MCP server domain."""
 
-    @pytest.fixture(autouse=True)
-    def _with_upload_secret(self):
-        with override_settings(upload_secret="test-secret-for-hmac"):
-            yield
+    def test_rewrites_host_and_path(self):
+        engine_url = (
+            "https://api.everyrow.ai/api/v0/uploads/abc-123?expires=9999&sig=xyz"
+        )
+        result = _rewrite_upload_url(engine_url, "https://mcp.example.com")
+        assert (
+            result == "https://mcp.example.com/api/uploads/abc-123?expires=9999&sig=xyz"
+        )
 
-    @pytest.fixture(autouse=True)
-    def _mock_redis_client(self):
-        mock_pipe = MagicMock()
-        mock_pipe.incr = MagicMock()
-        mock_pipe.expire = MagicMock()
-        mock_pipe.execute = AsyncMock(return_value=[1, True])
-        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
-        mock_pipe.__aexit__ = AsyncMock(return_value=False)
-        mock_client = AsyncMock()
-        mock_client.pipeline = MagicMock(return_value=mock_pipe)
-        with patch(
-            "everyrow_mcp.uploads.redis_store.get_redis_client",
-            return_value=mock_client,
-        ):
-            yield
+    def test_preserves_query_params(self):
+        engine_url = (
+            "https://api.everyrow.ai/api/v0/uploads/id-1?expires=100&sig=abc&extra=val"
+        )
+        result = _rewrite_upload_url(engine_url, "https://tunnel.trycloudflare.com")
+        assert "expires=100" in result
+        assert "sig=abc" in result
+        assert "extra=val" in result
 
-    def _make_upload_request(
-        self,
-        upload_id: str,
-        body: bytes,
-        *,
-        expires_at: int | None = None,
-        sig: str | None = None,
-        content_length: str | None = None,
-    ) -> MagicMock:
-        if expires_at is None:
-            expires_at = int(time.time()) + 300
-        if sig is None:
-            sig = sign_upload_url(upload_id, expires_at)
+    def test_handles_tunnel_url_with_port(self):
+        engine_url = "https://api.everyrow.ai/api/v0/uploads/id-1?expires=1&sig=s"
+        result = _rewrite_upload_url(engine_url, "http://localhost:8000")
+        assert result.startswith("http://localhost:8000/api/uploads/id-1")
 
+
+class TestProxyUpload:
+    """Tests for the upload proxy route handler."""
+
+    @pytest.mark.asyncio
+    async def test_proxies_to_engine(self):
+        """Proxy forwards PUT body and query params to Engine."""
         request = MagicMock()
-        request.path_params = {"upload_id": upload_id}
-        request.query_params = {"expires": str(expires_at), "sig": sig}
-        headers = {}
-        if content_length is not None:
-            headers["content-length"] = content_length
-        request.headers = headers
-        request.body = AsyncMock(return_value=body)
-        return request
+        request.path_params = {"upload_id": "abc-123"}
+        request.url.query = "expires=9999&sig=xyz"
+        request.body = AsyncMock(return_value=b"col1,col2\na,b\n")
+        request.headers = MagicMock()
+        request.headers.items.return_value = [
+            ("content-type", "text/csv"),
+            ("host", "mcp.example.com"),
+        ]
+
+        engine_resp = MagicMock()
+        engine_resp.status_code = 200
+        engine_resp.content = b'{"artifact_id":"art-1","session_id":"s-1","rows":1,"columns":["col1","col2"],"size_bytes":14}'
+        engine_resp.headers = MagicMock()
+        engine_resp.headers.items.return_value = [("content-type", "application/json")]
+
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.put.return_value = engine_resp
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
+
+            result = await proxy_upload(request)
+
+        assert result.status_code == 200
+        # Verify Engine was called with query params
+        call_args = mock_http.put.call_args
+        assert "expires=9999&sig=xyz" in call_args[0][0]
+        assert call_args[1]["content"] == b"col1,col2\na,b\n"
 
     @pytest.mark.asyncio
-    async def test_missing_token_returns_403(self, fake_redis):  # noqa: ARG002
-        """Upload with no api_token in metadata returns 403."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        meta_no_token = json.dumps(
-            {"upload_id": upload_id, "filename": "data.csv", "expires_at": expires_at}
-        )
-
-        with patch(
-            "everyrow_mcp.uploads.redis_store.get_upload_meta",
-            new_callable=AsyncMock,
-            return_value=meta_no_token,
-        ):
-            request = self._make_upload_request(
-                upload_id, b"a,b\n1,2\n", expires_at=expires_at
-            )
-            resp = await handle_upload(request)
-
-        assert resp.status_code == 403
-        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
-        assert body["error"] == "Upload authorization missing"
-
-    @pytest.mark.asyncio
-    async def test_content_length_too_large_returns_413(self, fake_redis):  # noqa: ARG002
-        """Content-Length exceeding max returns 413 before reading body."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": "data.csv",
-                "expires_at": expires_at,
-                "api_token": "tok",
-            }
-        )
-
-        with (
-            override_settings(max_upload_size_bytes=1000),
-            patch(
-                "everyrow_mcp.uploads.redis_store.get_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-        ):
-            request = self._make_upload_request(
-                upload_id,
-                b"",  # body shouldn't even be read
-                expires_at=expires_at,
-                content_length="999999",
-            )
-            _, _, error = await _validate_upload(request)
-
-        assert error is not None
-        assert error.status_code == 413
-
-    @pytest.mark.asyncio
-    async def test_error_messages_are_generic(self, fake_redis):  # noqa: ARG002
-        """Error messages do not leak internal details."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": "data.csv",
-                "expires_at": expires_at,
-                "api_token": encrypt_value("user-tok"),
-            }
-        )
-
-        with (
-            patch(
-                "everyrow_mcp.uploads.redis_store.get_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-            patch(
-                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-        ):
-            request = self._make_upload_request(
-                upload_id, b"not,valid\x00csv\xfe\xff", expires_at=expires_at
-            )
-            resp = await handle_upload(request)
-
-        assert resp.status_code == 400
-        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
-        # Error message should be generic, not contain internal exception details
-        assert "Could not parse CSV file" in body["error"]
-        assert "Ensure it is valid UTF-8 CSV" in body["error"]
-
-    @pytest.mark.asyncio
-    async def test_artifact_creation_error_is_generic(self, fake_redis):  # noqa: ARG002
-        """Artifact creation failure returns generic error message."""
-        upload_id = "test-upload-id"
-        expires_at = int(time.time()) + 300
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": "data.csv",
-                "expires_at": expires_at,
-                "api_token": encrypt_value("user-tok"),
-            }
-        )
-
-        with (
-            patch(
-                "everyrow_mcp.uploads.redis_store.get_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-            patch(
-                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-            patch(
-                "everyrow_mcp.uploads.create_session",
-                side_effect=RuntimeError("DB connection failed"),
-            ),
-        ):
-            request = self._make_upload_request(
-                upload_id, b"a,b\n1,2\n", expires_at=expires_at
-            )
-            resp = await handle_upload(request)
-
-        assert resp.status_code == 500
-        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
-        assert body["error"] == "Failed to create artifact. Please try again."
-        assert "DB connection" not in body["error"]
-
-
-class TestContentTypeValidation:
-    """Tests for Content-Type validation on upload endpoint (M8)."""
-
-    @pytest.fixture(autouse=True)
-    def _with_upload_secret(self):
-        with override_settings(upload_secret="test-secret-for-hmac"):
-            yield
-
-    @pytest.fixture(autouse=True)
-    def _mock_redis_client(self):
-        mock_pipe = MagicMock()
-        mock_pipe.incr = MagicMock()
-        mock_pipe.expire = MagicMock()
-        mock_pipe.execute = AsyncMock(return_value=[1, True])
-        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
-        mock_pipe.__aexit__ = AsyncMock(return_value=False)
-        mock_client = AsyncMock()
-        mock_client.pipeline = MagicMock(return_value=mock_pipe)
-        with patch(
-            "everyrow_mcp.uploads.redis_store.get_redis_client",
-            return_value=mock_client,
-        ):
-            yield
-
-    @pytest.mark.asyncio
-    async def test_wrong_content_type_returns_415(self):
-        """Reject uploads with unsupported Content-Type."""
-        upload_id = "test-upload-ct"
-        expires_at = int(time.time()) + 300
-        sig = sign_upload_url(upload_id, expires_at)
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": "data.csv",
-                "expires_at": expires_at,
-                "api_token": encrypt_value("user-tok"),
-            }
-        )
-
+    async def test_proxy_returns_engine_error(self):
+        """Proxy returns Engine error status codes transparently."""
         request = MagicMock()
-        request.path_params = {"upload_id": upload_id}
-        request.query_params = {"expires": str(expires_at), "sig": sig}
-        request.headers = {"content-type": "application/json"}
-        request.body = AsyncMock(return_value=b"a,b\n1,2\n")
+        request.path_params = {"upload_id": "abc-123"}
+        request.url.query = "expires=9999&sig=xyz"
+        request.body = AsyncMock(return_value=b"data")
+        request.headers = MagicMock()
+        request.headers.items.return_value = [("content-type", "text/csv")]
 
-        with patch(
-            "everyrow_mcp.uploads.redis_store.get_upload_meta",
-            new_callable=AsyncMock,
-            return_value=meta,
-        ):
-            resp = await handle_upload(request)
+        engine_resp = MagicMock()
+        engine_resp.status_code = 401
+        engine_resp.content = b'{"detail":"Invalid signature"}'
+        engine_resp.headers = MagicMock()
+        engine_resp.headers.items.return_value = [("content-type", "application/json")]
 
-        assert resp.status_code == 415
-        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
-        assert "Unsupported Content-Type" in body["error"]
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.put.return_value = engine_resp
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
 
-    @pytest.mark.asyncio
-    async def test_missing_content_type_is_accepted(self):
-        """Uploads without Content-Type header are accepted (existing tests verify this)."""
-        # Existing TestHandleUpload tests don't set Content-Type and pass,
-        # which implicitly tests that missing Content-Type is accepted.
-        pass
+            result = await proxy_upload(request)
 
-
-class TestUploadRateLimitPreservesUrl:
-    """Verify that a 429 does NOT consume the upload URL."""
-
-    @pytest.fixture(autouse=True)
-    def _with_upload_secret(self):
-        with override_settings(upload_secret="test-secret-for-hmac"):
-            yield
+        assert result.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_rate_limited_upload_does_not_consume_url(self):
-        """When rate-limited (429), the upload metadata is NOT consumed."""
-        upload_id = "rate-limit-test"
-        expires_at = int(time.time()) + 300
-        sig = sign_upload_url(upload_id, expires_at)
-        meta = json.dumps(
-            {
-                "upload_id": upload_id,
-                "filename": "data.csv",
-                "expires_at": expires_at,
-                "api_token": encrypt_value("user-tok"),
-            }
-        )
-
-        # Pipeline mock returns count > limit to trigger 429
-        mock_pipe = MagicMock()
-        mock_pipe.incr = MagicMock()
-        mock_pipe.expire = MagicMock()
-        mock_pipe.execute = AsyncMock(return_value=[999, True])
-        mock_pipe.__aenter__ = AsyncMock(return_value=mock_pipe)
-        mock_pipe.__aexit__ = AsyncMock(return_value=False)
-        mock_client = AsyncMock()
-        mock_client.pipeline = MagicMock(return_value=mock_pipe)
-
-        pop_mock = AsyncMock(return_value=meta)
-
+    async def test_proxy_connection_error_returns_502(self):
+        """Proxy returns 502 when it can't reach the Engine."""
         request = MagicMock()
-        request.path_params = {"upload_id": upload_id}
-        request.query_params = {"expires": str(expires_at), "sig": sig}
-        request.headers = {}
-        request.body = AsyncMock(return_value=b"a,b\n1,2\n")
+        request.path_params = {"upload_id": "abc-123"}
+        request.url.query = "expires=1&sig=s"
+        request.body = AsyncMock(return_value=b"data")
+        request.headers = MagicMock()
+        request.headers.items.return_value = [("content-type", "text/csv")]
 
-        with (
-            override_settings(upload_rate_limit=5),
-            patch(
-                "everyrow_mcp.uploads.redis_store.get_upload_meta",
-                new_callable=AsyncMock,
-                return_value=meta,
-            ),
-            patch(
-                "everyrow_mcp.uploads.redis_store.pop_upload_meta",
-                pop_mock,
-            ),
-            patch(
-                "everyrow_mcp.uploads.redis_store.get_redis_client",
-                return_value=mock_client,
-            ),
-        ):
-            resp = await handle_upload(request)
+        with patch("everyrow_mcp.uploads.httpx.AsyncClient") as mock_httpx:
+            mock_http = AsyncMock()
+            mock_http.put.side_effect = httpx.ConnectError("Connection refused")
+            mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_http.__aexit__ = AsyncMock(return_value=False)
+            mock_httpx.return_value = mock_http
 
-        assert resp.status_code == 429
-        body = json.loads(resp.body.decode())  # pyright: ignore[reportAttributeAccessIssue]
-        assert "rate limit" in body["error"].lower()
-        # pop_upload_meta must NOT have been called
-        pop_mock.assert_not_called()
+            result = await proxy_upload(request)
+
+        assert result.status_code == 502

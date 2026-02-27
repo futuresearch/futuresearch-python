@@ -106,12 +106,12 @@ def main():
         # _RequestLoggingMiddleware provides richer per-request logs.
         logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
-        register_upload_tool(mcp)
-
         if input_args.no_auth:
             mcp_server_url = f"http://localhost:{input_args.port}"
         else:
             mcp_server_url = settings.mcp_server_url
+
+        register_upload_tool(mcp, mcp_server_url)
 
         configure_http_mode(
             mcp=mcp,
