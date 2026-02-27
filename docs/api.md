@@ -1,11 +1,11 @@
 ---
 title: API Reference
-description: Complete API reference for everyrow — screen, rank, dedupe, merge, forecast, and research operations powered by LLM web research agents.
+description: Complete API reference for everyrow — screen, rank, dedupe, merge, classify, forecast, and research operations powered by LLM web research agents.
 ---
 
 # API Reference
 
-Six operations for processing data with LLM-powered web research agents. Each takes a DataFrame and a natural-language instruction.
+Seven operations for processing data with LLM-powered web research agents. Each takes a DataFrame and a natural-language instruction.
 
 ## screen
 
@@ -54,6 +54,20 @@ result = await merge(task=..., left_table=df1, right_table=df2)
 [Full reference →](/docs/reference/MERGE)
 Guides: [Fuzzy Join Without Matching Keys](/docs/fuzzy-join-without-keys)
 Case Studies: [LLM Merging at Scale](/docs/case-studies/llm-powered-merging-at-scale), [Match Software Vendors to Requirements](/docs/case-studies/match-software-vendors-to-requirements)
+
+## classify
+
+```python
+result = await classify(
+    task="Classify each company by its primary industry sector",
+    categories=["Technology", "Finance", "Healthcare", "Energy"],
+    input=companies_df,
+)
+```
+
+`classify` assigns each row in a DataFrame to one of the provided categories using a two-phase approach: Phase 1 attempts fast batch classification with web research, and Phase 2 follows up with deeper research on ambiguous rows. Supports binary (yes/no) and multi-category classification with optional reasoning output.
+
+[Full reference →](/docs/reference/CLASSIFY)
 
 ## forecast
 

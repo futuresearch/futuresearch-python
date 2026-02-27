@@ -10,6 +10,7 @@ from everyrow.constants import EveryrowError
 from everyrow.generated.api.artifacts import create_artifact_artifacts_post
 from everyrow.generated.api.operations import (
     agent_map_operations_agent_map_post,
+    classify_operations_classify_post,
     dedupe_operations_dedupe_post,
     forecast_operations_forecast_post,
     merge_operations_merge_post,
@@ -21,6 +22,8 @@ from everyrow.generated.models import (
     AgentMapOperation,
     AgentMapOperationInputType1Item,
     AgentMapOperationResponseSchemaType0,
+    ClassifyOperation,
+    ClassifyOperationInputType1Item,
     CreateArtifactRequest,
     CreateArtifactRequestDataType0Item,
     CreateArtifactRequestDataType1,
@@ -844,6 +847,103 @@ async def forecast_async(
     )
 
     response = await forecast_operations_forecast_post.asyncio(
+        client=session.client, body=body
+    )
+    response = handle_response(response)
+
+    cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
+        response_model=BaseModel, is_map=True, is_expand=False
+    )
+    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    return cohort_task
+
+
+# --- Classify ---
+
+
+async def classify(
+    task: str,
+    categories: list[str],
+    input: DataFrame | UUID | TableResult,
+    classification_field: str = "classification",
+    include_reasoning: bool = False,
+    session: Session | None = None,
+) -> TableResult:
+    """Classify each row of a table into one of the provided categories.
+
+    Uses a two-phase approach: Phase 1 attempts fast batch classification using
+    web research, and Phase 2 follows up with deeper research on ambiguous rows.
+    Each row is assigned exactly one of the provided categories.
+
+    Args:
+        task: Natural-language instructions describing how to classify each row.
+        categories: Allowed category values (minimum 2). Each row will be
+            assigned exactly one of these.
+        input: The input table. Each row is classified independently.
+        classification_field: Name of the output column that will contain the
+            assigned category. Default: ``"classification"``.
+        include_reasoning: If True, adds a ``reasoning`` column with the
+            agent's justification for the classification.
+        session: Optional session. If not provided, one will be created
+            automatically.
+
+    Returns:
+        TableResult with a ``classification_field`` column (and optionally
+        ``reasoning``) added to each input row.
+    """
+    if session is None:
+        async with create_session() as internal_session:
+            cohort_task = await classify_async(
+                task=task,
+                categories=categories,
+                session=internal_session,
+                input=input,
+                classification_field=classification_field,
+                include_reasoning=include_reasoning,
+            )
+            result = await cohort_task.await_result(on_progress=print_progress)
+            if isinstance(result, TableResult):
+                return result
+            raise EveryrowError("Classify task did not return a table result")
+    cohort_task = await classify_async(
+        task=task,
+        categories=categories,
+        session=session,
+        input=input,
+        classification_field=classification_field,
+        include_reasoning=include_reasoning,
+    )
+    result = await cohort_task.await_result(on_progress=print_progress)
+    if isinstance(result, TableResult):
+        return result
+    raise EveryrowError("Classify task did not return a table result")
+
+
+async def classify_async(
+    task: str,
+    categories: list[str],
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    classification_field: str = "classification",
+    include_reasoning: bool = False,
+) -> EveryrowTask[BaseModel]:
+    """Submit a classify task asynchronously.
+
+    Returns:
+        EveryrowTask that resolves to a TableResult with a classification column.
+    """
+    input_data = _prepare_table_input(input, ClassifyOperationInputType1Item)
+
+    body = ClassifyOperation(
+        input_=input_data,  # type: ignore
+        task=task,
+        categories=categories,
+        session_id=session.session_id,
+        classification_field=classification_field,
+        include_reasoning=include_reasoning,
+    )
+
+    response = await classify_operations_classify_post.asyncio(
         client=session.client, body=body
     )
     response = handle_response(response)

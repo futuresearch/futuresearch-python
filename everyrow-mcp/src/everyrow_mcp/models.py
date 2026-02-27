@@ -465,6 +465,31 @@ class ForecastInput(_SingleSourceInput):
     )
 
 
+class ClassifyInput(_SingleSourceInput):
+    """Input for the classify operation."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task: str = Field(
+        ...,
+        description="Natural language instructions describing how to classify each row.",
+        min_length=1,
+    )
+    categories: list[str] = Field(
+        ...,
+        description="Allowed category values (minimum 2). Each row will be assigned one of these.",
+        min_length=2,
+    )
+    classification_field: str = Field(
+        default="classification",
+        description="Name of the output column that will contain the assigned category.",
+    )
+    include_reasoning: bool = Field(
+        default=False,
+        description="If true, adds a 'reasoning' column with the agent's justification.",
+    )
+
+
 class UploadDataInput(BaseModel):
     """Input for the upload_data tool."""
 

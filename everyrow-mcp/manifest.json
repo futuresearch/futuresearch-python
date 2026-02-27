@@ -54,6 +54,10 @@
       "description": "Forecast the probability of binary questions from a CSV file."
     },
     {
+      "name": "everyrow_classify",
+      "description": "Classify each row of a dataset into one of the provided categories."
+    },
+    {
       "name": "everyrow_single_agent",
       "description": "Run a single web research agent on a task, optionally with context data."
     },

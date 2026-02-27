@@ -16,6 +16,7 @@ from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_ge
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.ops import (
     agent_map_async,
+    classify_async,
     create_table_artifact,
     dedupe_async,
     forecast_async,
@@ -36,6 +37,7 @@ from everyrow_mcp.config import settings
 from everyrow_mcp.models import (
     AgentInput,
     CancelInput,
+    ClassifyInput,
     DedupeInput,
     ForecastInput,
     HttpResultsInput,
@@ -698,6 +700,87 @@ async def everyrow_forecast(
 
 
 @mcp.tool(
+    name="everyrow_classify",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Classify Rows",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def everyrow_classify(
+    params: ClassifyInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """Classify each row of a dataset into one of the provided categories.
+
+    Uses a two-phase approach: Phase 1 attempts fast batch classification with
+    web research, and Phase 2 follows up with deeper research on ambiguous rows.
+    Each row is assigned exactly one of the provided categories.
+
+    Examples:
+    - "Classify each company by its primary industry sector" with categories ["Technology", "Finance", "Healthcare", "Energy"]
+    - "Is this company founder-led?" with categories ["yes", "no"]
+    - "Classify by Koppen climate zone" with categories ["tropical", "arid", "temperate", "continental", "polar"]
+
+    Output columns added: the ``classification_field`` column (default: ``classification``)
+    containing the assigned category. Optionally a ``reasoning`` column if ``include_reasoning`` is true.
+
+    This function submits the task and returns immediately with a task_id and session_url.
+    After receiving a result from this tool, share the session_url with the user.
+    Then immediately call everyrow_progress(task_id) to monitor.
+    Once the task is completed, call everyrow_results to save the output.
+    """
+    logger.info(
+        "everyrow_classify: task=%.80s categories=%s rows=%s",
+        params.task,
+        params.categories,
+        len(params.data) if params.data else "artifact",
+    )
+    log_client_info(ctx, "everyrow_classify")
+    client = _get_client(ctx)
+
+    _clear_task_state()
+    input_data = params._aid_or_dataframe
+
+    async with create_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
+        session_url = session.get_url()
+        session_id_str = str(session.session_id)
+        cohort_task = await classify_async(
+            task=params.task,
+            categories=params.categories,
+            session=session,
+            input=input_data,
+            classification_field=params.classification_field,
+            include_reasoning=params.include_reasoning,
+        )
+        task_id = str(cohort_task.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+        write_initial_task_state(
+            task_id,
+            task_type=PublicTaskType.CLASSIFY,
+            session_url=session_url,
+            total=total,
+            input_source=params._input_data_mode.value,
+        )
+
+    return await create_tool_response(
+        task_id=task_id,
+        session_url=session_url,
+        label=f"Submitted: {total} rows for classification into {len(params.categories)} categories."
+        if total
+        else f"Submitted: artifact for classification into {len(params.categories)} categories.",
+        token=client.token,
+        total=total,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
+    )
+
+
+@mcp.tool(
     name="everyrow_upload_data",
     structured_output=False,
     annotations=ToolAnnotations(
@@ -714,7 +797,7 @@ async def everyrow_upload_data(
     """Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
 
     Use this tool to ingest data before calling everyrow_agent, everyrow_screen,
-    everyrow_rank, everyrow_dedupe, everyrow_merge, or everyrow_forecast.
+    everyrow_rank, everyrow_dedupe, everyrow_merge, everyrow_classify, or everyrow_forecast.
 
     Supported sources:
     - HTTP(S) URLs (including Google Sheets — auto-converted to CSV export)
