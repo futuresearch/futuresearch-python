@@ -1315,7 +1315,7 @@ async def everyrow_list_session_tasks(
 
     lines = [f"Found {len(tasks)} task(s) in session {params.session_id}:\n"]
     for t in tasks:
-        artifact = f" | artifact: {t['artifact_id']}" if t.get("artifact_id") else ""
+        artifact = f" | output_artifact: {t['artifact_id']}" if t.get("artifact_id") else ""
         lines.append(
             f"- **{t['task_type']}** (task_id: {t['task_id']})\n"
             f"  Status: {t['status']} | Created: {t['created_at']}{artifact}"
