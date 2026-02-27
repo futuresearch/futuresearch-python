@@ -128,12 +128,15 @@ class EveryRowAuthorizationCode(AuthorizationCode):
 
     supabase_access_token: str
     supabase_refresh_token: str
+    google_access_token: str = ""
+    google_refresh_token: str = ""
 
 
 class EveryRowRefreshToken(RefreshToken):
     """Extends RefreshToken with the Supabase refresh token."""
 
     supabase_refresh_token: str
+    google_refresh_token: str = ""
 
 
 class SupabaseTokenResponse(BaseModel):
@@ -141,6 +144,8 @@ class SupabaseTokenResponse(BaseModel):
 
     access_token: str
     refresh_token: str
+    provider_token: str = ""
+    provider_refresh_token: str = ""
 
 
 class PendingAuth(BaseModel):
@@ -239,6 +244,10 @@ class EveryRowAuthProvider(
                     'flow_type': 'pkce',
                     'code_challenge': supabase_challenge,
                     'code_challenge_method': 's256',
+                    'scopes': (
+                        'https://www.googleapis.com/auth/spreadsheets '
+                        'https://www.googleapis.com/auth/drive.metadata.readonly'
+                    ),
                 }
             )
         }"
@@ -391,6 +400,8 @@ class EveryRowAuthProvider(
             resource=pending.params.resource,
             supabase_access_token=supa_tokens.access_token,
             supabase_refresh_token=supa_tokens.refresh_token,
+            google_access_token=supa_tokens.provider_token,
+            google_refresh_token=supa_tokens.provider_refresh_token,
         )
         await self._redis.setex(
             name=build_key("authcode", code),
@@ -449,6 +460,8 @@ class EveryRowAuthProvider(
         client_id: str,
         scopes: list[str],
         supabase_refresh_token: str,
+        google_access_token: str = "",
+        google_refresh_token: str = "",
     ) -> OAuthToken:
         # SECURITY: Extract exp from the Supabase JWT without signature
         # verification.  This is safe ONLY because the token was just received
@@ -462,12 +475,31 @@ class EveryRowAuthProvider(
         )
         expires_in = max(0, jwt_claims.get("exp", 0) - int(time.time()))
 
+        # Store Google tokens in Redis for Sheets tools
+        if google_access_token:
+            from everyrow_mcp.sheets_client import store_google_token  # noqa: PLC0415
+
+            try:
+                await store_google_token(
+                    jwt_claims.get("sub", "unknown"),
+                    google_access_token,
+                    google_refresh_token or None,
+                    expires_in=expires_in,
+                )
+            except Exception:
+                logger.error(
+                    "Google token storage failed for user=%s — Sheets tools will be unavailable",
+                    jwt_claims.get("sub", "unknown"),
+                    exc_info=True,
+                )
+
         rt_str = secrets.token_urlsafe(32)
         rt = EveryRowRefreshToken(
             token=rt_str,
             client_id=client_id,
             scopes=scopes,
             supabase_refresh_token=supabase_refresh_token,
+            google_refresh_token=google_refresh_token,
         )
         await self._redis.setex(
             name=build_key("refresh", rt_str),
@@ -494,6 +526,8 @@ class EveryRowAuthProvider(
             client_id=client.client_id,
             scopes=authorization_code.scopes,
             supabase_refresh_token=authorization_code.supabase_refresh_token,
+            google_access_token=authorization_code.google_access_token,
+            google_refresh_token=authorization_code.google_refresh_token,
         )
 
     async def load_access_token(self, token: str) -> AccessToken | None:
@@ -556,6 +590,9 @@ class EveryRowAuthProvider(
                 value=encrypt_value(refresh_token.model_dump_json()),
             )
             raise
+        google_refresh = (
+            supa_tokens.provider_refresh_token or refresh_token.google_refresh_token
+        )
         assert client.client_id is not None
         logger.info("Token refresh successful user=%s", client.client_id)
         return await self._issue_token_response(
@@ -563,6 +600,8 @@ class EveryRowAuthProvider(
             client_id=client.client_id,
             scopes=final_scopes,
             supabase_refresh_token=supa_tokens.refresh_token,
+            google_access_token=supa_tokens.provider_token,
+            google_refresh_token=google_refresh,
         )
 
     async def revoke_token(self, token: AccessToken | EveryRowRefreshToken) -> None:

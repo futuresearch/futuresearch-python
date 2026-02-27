@@ -80,6 +80,10 @@ def main():
     settings.transport = transport.value
     mcp._mcp_server.instructions = get_instructions(is_http=input_args.http)
 
+    # Register sheets tools after transport is set (they require HTTP mode)
+    if settings.enable_sheets_tools and settings.is_http:
+        import everyrow_mcp.sheets_tools  # noqa: F401, PLC0415
+
     # tools.py registers everyrow_results_stdio by default.
     # Override with the HTTP variant when running in HTTP mode.
     # ToolManager.add_tool() is a no-op for existing names, so remove first.
@@ -91,6 +95,13 @@ def main():
             annotations=_RESULTS_ANNOTATIONS,
             meta=_RESULTS_META,
         )(everyrow_results_http)
+
+        # Strip output_spreadsheet_title from results schema when sheets disabled
+        if not settings.enable_sheets_tools:
+            tool = mcp._tool_manager.get_tool("everyrow_results")
+            if tool:
+                http_def = tool.parameters.get("$defs", {}).get("HttpResultsInput", {})
+                http_def.get("properties", {}).pop("output_spreadsheet_title", None)
 
     if input_args.http:
         # ── HTTP mode logging ──────────────────────────────────────
