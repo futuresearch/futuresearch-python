@@ -568,7 +568,7 @@ def _validate_task_id(v: str) -> str:
 
 
 class BrowseListsInput(BaseModel):
-    """Input for browsing built-in datasets."""
+    """Input for browsing reference lists."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -583,7 +583,7 @@ class BrowseListsInput(BaseModel):
 
 
 class UseListInput(BaseModel):
-    """Input for importing a built-in list into a session."""
+    """Input for importing a reference list into a session."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 

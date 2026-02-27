@@ -10,11 +10,11 @@ from uuid import UUID
 
 import pandas as pd
 from everyrow.api_utils import handle_response
+from everyrow.built_in_lists import list_built_in_datasets, use_built_in_list
 from everyrow.constants import EveryrowError
 from everyrow.generated.api.billing import get_billing_balance_billing_get
 from everyrow.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from everyrow.generated.models.public_task_type import PublicTaskType
-from everyrow.built_in_lists import list_built_in_datasets, use_built_in_list
 from everyrow.ops import (
     agent_map_async,
     create_table_artifact,
@@ -109,7 +109,7 @@ async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
     name="everyrow_browse_lists",
     structured_output=False,
     annotations=ToolAnnotations(
-        title="Browse Built-in Datasets",
+        title="Browse Reference Lists",
         readOnlyHint=True,
         destructiveHint=False,
         idempotentHint=True,
@@ -119,12 +119,17 @@ async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
 async def everyrow_browse_lists(
     params: BrowseListsInput, ctx: EveryRowContext
 ) -> list[TextContent]:
-    """Browse available built-in datasets (S&P 500, country lists, etc.).
+    """Browse available reference lists of well-known entities.
 
-    Returns names, categories, column fields, and artifact_ids for each
-    matching dataset. Use the artifact_id with everyrow_use_list to import
-    a dataset into your session before applying operations like screen,
-    rank, or agent.
+    Includes company lists (S&P 500, FTSE 100, Russell 3000, sector breakdowns
+    like Global Banks or Semiconductor companies), geographic lists (all countries,
+    EU members, US states, major cities), people (billionaires, heads of state,
+    AI leaders), institutions (top universities, regulators), and infrastructure
+    (airports, ports, power stations).
+
+    Use this when the user's analysis involves a well-known group that we might
+    already have a list for. Returns names, fields, and artifact_ids to pass to
+    everyrow_use_list.
 
     Call with no parameters to see all available lists, or use search/category
     to narrow results.
@@ -167,7 +172,7 @@ async def everyrow_browse_lists(
     name="everyrow_use_list",
     structured_output=False,
     annotations=ToolAnnotations(
-        title="Import Built-in Dataset",
+        title="Import Reference List",
         readOnlyHint=False,
         destructiveHint=False,
         idempotentHint=False,
@@ -177,11 +182,11 @@ async def everyrow_browse_lists(
 async def everyrow_use_list(
     params: UseListInput, ctx: EveryRowContext
 ) -> list[TextContent]:
-    """Import a built-in list into your session and save it as a CSV file.
+    """Import a reference list into your session and save it as a CSV file.
 
     This copies the dataset into a new session, fetches the data, and saves
-    it as a CSV file ready to pass to everyrow_screen, everyrow_rank,
-    everyrow_agent, or everyrow_dedupe.
+    it as a CSV file ready to pass to other everyrow utilities for analysis
+    or research.
 
     The copy is a fast database operation (<1s) — no polling needed.
     """
@@ -212,7 +217,7 @@ async def everyrow_use_list(
                 f"Rows: {len(df)}\n"
                 f"Columns: {', '.join(df.columns)}\n"
                 f"Session: {session_url}\n\n"
-                f"Pass {csv_path} as input_csv to everyrow_screen, everyrow_rank, everyrow_agent, or everyrow_dedupe."
+                f"Pass {csv_path} as input_csv to other everyrow utilities for analysis or research."
             ),
         )
     ]
