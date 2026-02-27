@@ -95,6 +95,7 @@ def _build_result_response(
     session_url: str = "",
     poll_token: str = "",
     mcp_server_url: str = "",
+    artifact_id: str = "",
     *,
     requested_page_size: int | None = None,
     skip_widget: bool = False,
@@ -148,6 +149,8 @@ def _build_result_response(
         }
         if session_url:
             widget_data["session_url"] = session_url
+        if artifact_id:
+            widget_data["artifact_id"] = artifact_id
         if poll_token:
             widget_data["poll_token"] = poll_token
             widget_data["download_token_url"] = (
@@ -181,6 +184,9 @@ def _build_result_response(
             f"Results: showing rows {offset + 1}-{min(offset + page_size, total)} "
             f"of {total} (final page)."
         )
+
+    if artifact_id:
+        summary += f"\nOutput artifact_id (use to chain into next tool): {artifact_id}"
 
     contents.append(TextContent(type="text", text=summary))
     return contents
@@ -265,6 +271,7 @@ async def try_cached_result(
         session_url=meta.get("session_url", ""),
         poll_token=poll_token or "",
         mcp_server_url=mcp_server_url,
+        artifact_id=meta.get("artifact_id", ""),
         requested_page_size=page_size,
         skip_widget=skip_widget,
         skip_session=skip_session,
@@ -278,6 +285,7 @@ async def try_store_result(
     page_size: int,
     session_url: str = "",
     mcp_server_url: str = "",
+    artifact_id: str = "",
     *,
     skip_widget: bool = False,
     skip_session: bool = False,
@@ -294,6 +302,8 @@ async def try_store_result(
         meta: dict[str, Any] = {"total": total, "columns": columns}
         if session_url:
             meta["session_url"] = session_url
+        if artifact_id:
+            meta["artifact_id"] = artifact_id
         await redis_store.store_result_meta(task_id, json.dumps(meta))
 
         # Build and cache page preview
@@ -328,6 +338,7 @@ async def try_store_result(
             session_url=session_url,
             poll_token=poll_token or "",
             mcp_server_url=mcp_server_url,
+            artifact_id=artifact_id,
             requested_page_size=page_size,
             skip_widget=skip_widget,
             skip_session=skip_session,

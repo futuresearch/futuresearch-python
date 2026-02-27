@@ -844,7 +844,7 @@ async def everyrow_results_stdio(
     task_id = params.task_id
 
     try:
-        df, _session_id = await _fetch_task_result(client, task_id)
+        df, _session_id, artifact_id = await _fetch_task_result(client, task_id)
     except TaskNotReady as e:
         return [
             TextContent(
@@ -865,11 +865,12 @@ async def everyrow_results_stdio(
 
     output_file = Path(params.output_path)
     save_result_to_csv(df, output_file)
+    artifact_line = f"\nOutput artifact_id: {artifact_id}" if artifact_id else ""
     return [
         TextContent(
             type="text",
             text=dedent(f"""\
-                Saved {len(df)} rows to {output_file}
+                Saved {len(df)} rows to {output_file}{artifact_line}
 
                 Tip: For multi-step pipelines or custom response models, \
                 use the everyrow Python SDK directly."""),
@@ -924,7 +925,7 @@ async def everyrow_results_http(
 
     # ── Fetch from API ────────────────────────────────────────────
     try:
-        df, session_id = await _fetch_task_result(client, task_id)
+        df, session_id, artifact_id = await _fetch_task_result(client, task_id)
         session_url = get_session_url(UUID(session_id)) if session_id else ""
     except TaskNotReady as e:
         return [
@@ -955,6 +956,7 @@ async def everyrow_results_http(
         params.page_size,
         session_url,
         mcp_server_url=mcp_server_url,
+        artifact_id=artifact_id,
         skip_widget=skip_widget,
         skip_session=skip_session,
     )

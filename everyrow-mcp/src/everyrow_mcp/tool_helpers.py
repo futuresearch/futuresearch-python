@@ -375,6 +375,14 @@ class TaskState(BaseModel):
 
     @computed_field
     @property
+    def artifact_id(self) -> str:
+        aid = self._response.artifact_id
+        if aid is not None and not isinstance(aid, Unset):
+            return str(aid)
+        return ""
+
+    @computed_field
+    @property
     def error(self) -> str | None:
         err = self._response.error
         if err and not isinstance(err, Unset):
@@ -443,6 +451,8 @@ class TaskState(BaseModel):
                              After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
                 else:
                     next_call = f"Call everyrow_results(task_id='{task_id}', output_path='<choose_a_path>.csv') to save the output."
+                if self.artifact_id:
+                    completed_msg += f"\nOutput artifact_id: {self.artifact_id}"
                 return f"{completed_msg}\n{next_call}"
             return f"Task {self.status.value}. Report the error to the user."
 
@@ -535,13 +545,15 @@ class TaskNotReady(Exception):
         super().__init__(status)
 
 
-async def _fetch_task_result(client: Any, task_id: str) -> tuple[pd.DataFrame, str]:
-    """Fetch a task's result DataFrame and session ID from the API.
+async def _fetch_task_result(
+    client: Any, task_id: str
+) -> tuple[pd.DataFrame, str, str]:
+    """Fetch a task's result DataFrame, session ID, and output artifact ID from the API.
 
     Checks task status first, then retrieves and parses the result data.
 
     Returns:
-        Tuple of (DataFrame, session_id).
+        Tuple of (DataFrame, session_id, artifact_id).
 
     Raises:
         TaskNotReady: If the task is not in a terminal state.
@@ -576,9 +588,18 @@ async def _fetch_task_result(client: Any, task_id: str) -> tuple[pd.DataFrame, s
         )
     )
 
+    artifact_id = ""
+    aid = result_response.artifact_id
+    if aid is not None and not isinstance(aid, Unset):
+        artifact_id = str(aid)
+
     if isinstance(result_response.data, list):
         records = [item.additional_properties for item in result_response.data]
-        return pd.DataFrame(records), session_id
+        return pd.DataFrame(records), session_id, artifact_id
     if isinstance(result_response.data, TaskResultResponseDataType1):
-        return pd.DataFrame([result_response.data.additional_properties]), session_id
+        return (
+            pd.DataFrame([result_response.data.additional_properties]),
+            session_id,
+            artifact_id,
+        )
     raise ValueError("Task result has no table data.")
