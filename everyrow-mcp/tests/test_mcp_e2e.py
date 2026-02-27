@@ -179,6 +179,7 @@ class TestMcpProtocol:
                     "everyrow_classify",
                     "everyrow_dedupe",
                     "everyrow_forecast",
+                    "everyrow_list_session_tasks",
                     "everyrow_list_sessions",
                     "everyrow_merge",
                     "everyrow_progress",

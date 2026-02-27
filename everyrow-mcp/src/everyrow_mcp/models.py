@@ -741,3 +741,11 @@ class ListSessionsInput(BaseModel):
     limit: int = Field(
         25, ge=1, le=1000, description="Max sessions per page (default 25, max 1000)"
     )
+
+
+class ListSessionTasksInput(BaseModel):
+    """Input for listing tasks in a session."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(description="The session ID to list tasks for")

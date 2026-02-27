@@ -44,6 +44,7 @@ from everyrow_mcp.models import (
     ForecastInput,
     HttpResultsInput,
     ListSessionsInput,
+    ListSessionTasksInput,
     MergeInput,
     ProgressInput,
     RankInput,
@@ -1271,6 +1272,58 @@ async def everyrow_balance(ctx: EveryRowContext) -> list[TextContent]:
             text=f"Current balance: ${response.current_balance_dollars:.2f}",
         )
     ]
+
+
+@mcp.tool(
+    name="everyrow_list_session_tasks",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="List Tasks in a Session",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def everyrow_list_session_tasks(
+    params: ListSessionTasksInput, ctx: EveryRowContext
+) -> list[TextContent]:
+    """List all tasks in a session with their IDs, statuses, and types.
+
+    Use this to find task IDs for a session so you can display previous results
+    with mcp__display__show_task(task_id, label).
+    """
+    client = _get_client(ctx)
+
+    try:
+        response = await client.get_async_httpx_client().request(
+            method="get",
+            url=f"/sessions/{params.session_id}/tasks",
+        )
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error listing session tasks: {e!r}")]
+
+    tasks = data.get("tasks", [])
+    if not tasks:
+        return [
+            TextContent(
+                type="text", text=f"No tasks found in session {params.session_id}."
+            )
+        ]
+
+    lines = [f"Found {len(tasks)} task(s) in session {params.session_id}:\n"]
+    for t in tasks:
+        artifact = (
+            f" | output_artifact: {t['artifact_id']}" if t.get("artifact_id") else ""
+        )
+        lines.append(
+            f"- **{t['task_type']}** (task_id: {t['task_id']})\n"
+            f"  Status: {t['status']} | Created: {t['created_at']}{artifact}"
+        )
+
+    return [TextContent(type="text", text="\n".join(lines))]
 
 
 @mcp.tool(

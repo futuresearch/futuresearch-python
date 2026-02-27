@@ -74,6 +74,10 @@
       "description": "List everyrow sessions owned by the authenticated user (paginated)."
     },
     {
+      "name": "everyrow_list_session_tasks",
+      "description": "List all tasks in a session with their IDs, statuses, and types."
+    },
+    {
       "name": "everyrow_cancel",
       "description": "Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."
     },
