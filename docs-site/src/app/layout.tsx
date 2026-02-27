@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://everyrow.io"),
   title: "Everyrow Documentation",
-  description: "Documentation for the Everyrow SDK - AI-powered data operations for pandas DataFrames",
+  description: "EveryRow documentation. A researcher for every row. Forecast, score, classify, or research entire datasets.",
   openGraph: {
     siteName: "Everyrow",
     type: "website",

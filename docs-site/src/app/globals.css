@@ -459,6 +459,35 @@ a.docs-sidebar-section-title:hover {
   margin-bottom: 0.25rem;
 }
 
+/* Guide tabs (Claude Code / Python toggle) */
+.guide-tabs {
+  margin-top: 1.5rem;
+}
+
+.guide-tab-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* No-JS fallback: show all guide tab contents */
+@supports (scripting: none) {
+  .guide-tab-selector {
+    display: none;
+  }
+  .guide-tabs .tab-content {
+    display: block;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    margin-top: 1.5rem;
+  }
+  .guide-tabs .tab-content:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+}
+
 /* Installation tabs */
 .installation-tabs {
   margin-top: 1.5rem;

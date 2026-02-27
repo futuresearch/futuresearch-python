@@ -1,0 +1,131 @@
+---
+title: Screen 10,000 Rows
+metadataTitle: How to Screen 10,000 Rows in Claude Code
+description: Intelligent filtering at production scale. A two-pass pipeline with fast pre-filtering and per-row LLM evaluation handles tens of thousands of records.
+---
+
+# Screen 10,000 Rows
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code handles filtering a hundred rows natively by reading and evaluating each one. Scaling to 10,000 rows needs an approach where a fast pre-filter narrows candidates first, then LLM agents evaluate only the plausible matches individually.
+
+Here, we get Claude Code to screen 9,949 FDA product recalls to find products relevant to a child born on 2021-08-01. Each row requires reasoning about whether a recalled product (food, medication, device) would plausibly be used for a child of that age.
+
+| Metric         | Value         |
+| -------------- | ------------- |
+| Rows processed | 9,949         |
+| Rows passing   | 2,271 (22.8%) |
+| Total cost     | $37.13        |
+| Time           | 11.8 minutes  |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+With the FDA recalls CSV in your working directory, tell Claude:
+
+```
+Screen this FDA product recalls dataset to find recalls of products that I might
+have used for my child born on 2021-08-01.
+```
+
+Claude calls everyrow's `screen` MCP tool. At this scale, the two-pass pipeline is critical: a fast first pass triages all 9,949 rows, then a careful second pass re-evaluates borderline cases with a stronger model:
+
+```
+Tool: everyrow_screen
+├─ task: "Find recalls of products that I might have used for my child born on 2021-08-01."
+├─ input_csv: "/Users/you/fda_product_recalls.csv"
+└─ response_schema: null
+
+→ Submitted: 9,949 rows for screening.
+  Session: https://everyrow.io/sessions/310fc823-0adc-402c-bff1-7dc43fda2636
+  Task ID: 310f...
+
+Tool: everyrow_progress
+├─ task_id: "310f..."
+→ Running: 0/9949 complete (30s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 9949/9949 (0 failed) in 707s.
+
+Tool: everyrow_results
+├─ task_id: "310f..."
+├─ output_path: "/Users/you/child_relevant_recalls.csv"
+→ Saved 2271 rows to /Users/you/child_relevant_recalls.csv
+```
+
+2,271 of 9,949 recalls are relevant. [View the session](https://everyrow.io/sessions/310fc823-0adc-402c-bff1-7dc43fda2636).
+
+Sample passing recalls (products a child could have been exposed to):
+
+| Product | Firm | Why Relevant |
+|---------|------|--------------|
+| White Hot Dog Enriched Buns | Perfection Bakeries | Food item, child eating solids by recall date |
+| ExactaMed Oral Dispenser | Baxter Healthcare | Medical device used for infant medication |
+| Chickenless Crispy Tenders | Dr. Praeger's | Food item for toddler-age child |
+
+Sample non-passing recalls (correctly excluded):
+
+| Product | Why Excluded |
+|---------|-------------|
+| Lase Discectomy Device Kit | Surgical back surgery device, not for children |
+| Heparin/Lidocaine irrigation | Clinical use only |
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK's `screen()` function filters a dataframe by applying LLMs to every row. This demonstrates screening at scale: 10,000 FDA product recalls screened for personal relevance.
+
+| Metric         | Value         |
+| -------------- | ------------- |
+| Rows processed | ~9,949        |
+| Rows passing   | 1,046 (12.8%) |
+| Total cost     | $12.10        |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from everyrow import create_session
+from everyrow.ops import screen
+
+fda_recalls = pd.read_csv("fda_product_recalls.csv")
+fda_recalls["center_classification_date"] = pd.to_datetime(
+    fda_recalls["center_classification_date"], errors="coerce"
+)
+fda_recalls = fda_recalls[
+    fda_recalls["center_classification_date"] > pd.Timestamp("2021-08-01")
+]
+
+async def main():
+    async with create_session(name="FDA Recall Screening") as session:
+        result = await screen(
+            task="Find recalls of products that I might have used for my child born on 2021-08-01.",
+            input=fda_recalls,
+        )
+        return result.data
+
+results = asyncio.run(main())
+```
+
+At $0.001 per row, the cost scales linearly. The two-pass pipeline uses a fast model for initial triage and a stronger model for borderline cases, keeping accuracy high while controlling cost.
+
+</GuideTabContent>
+</GuideTabs>

@@ -7,6 +7,13 @@ description: Install everyrow and run your first operation.
 
 Everyrow lets you perform qualitative data transformations on noisy real-world data, at quantitative scale. Define your fuzzy logic concisely in natural language, and everyrow handles the complexity of orchestrating the execution.
 
+**Using Claude Code?** Install the plugin and ask Claude in natural language:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
 ## Prerequisites
 
 - Python 3.12+
@@ -90,6 +97,21 @@ async with create_session(name="Lead Qualification") as session:
 
 The session URL lets you monitor progress and inspect results in the web UI while your script runs.
 
+### Listing Sessions
+
+Retrieve all your sessions programmatically with `list_sessions`:
+
+```python
+from everyrow import list_sessions
+
+sessions = await list_sessions()
+for s in sessions:
+    print(f"{s.name} ({s.session_id}) — created {s.created_at:%Y-%m-%d}")
+    print(f"  View: {s.get_url()}")
+```
+
+Each item is a `SessionInfo` with `session_id`, `name`, `created_at`, and `updated_at` fields.
+
 ## Async Operations
 
 For long-running jobs, use the `_async` variants to submit work and continue without blocking:
@@ -113,6 +135,9 @@ async with create_session(name="Background Ranking") as session:
 
     # Wait for result when ready
     result = await task.await_result()
+
+    # Or cancel if no longer needed
+    await task.cancel()
 ```
 
 **Print the task ID.** If your script crashes, recover the result later:
@@ -136,5 +161,5 @@ df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
 ## See Also
 
 - [Guides](/filter-dataframe-with-llm): step-by-step tutorials
-- [Case Studies](/notebooks/basic-usage): worked examples
+- [Case Studies](/case-studies/basic-usage): worked examples
 - [Skills vs MCP](/skills-vs-mcp): integration options

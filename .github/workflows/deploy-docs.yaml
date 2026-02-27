@@ -51,6 +51,9 @@ jobs:
       # - name: Validate notebook structure
       #   run: python docs-site/scripts/validate-notebooks.py
 
+      - name: Validate notebook patterns
+        run: python docs-site/scripts/validate-notebook-patterns.py
+
       - name: Convert notebooks to HTML
         run: uv run --group case-studies python docs-site/scripts/convert-notebooks.py
 

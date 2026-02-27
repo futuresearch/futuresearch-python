@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.env
+*.env
+!.env.example
+.claude/
+.vscode/
+*.egg-info
+dist/
+build/
+node_modules/
+docs-site/

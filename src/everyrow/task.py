@@ -11,6 +11,7 @@ from pydantic.main import BaseModel
 from everyrow.api_utils import create_client, handle_response
 from everyrow.constants import EveryrowError
 from everyrow.generated.api.tasks import (
+    cancel_task_tasks_task_id_cancel_post,
     get_task_result_tasks_task_id_result_get,
     get_task_status_tasks_task_id_status_get,
 )
@@ -80,6 +81,16 @@ class EveryrowTask[T: BaseModel]:
                 "No client available. Provide a client or use the task within a session context."
             )
         return await get_task_status(self.task_id, client)
+
+    async def cancel(self, client: AuthenticatedClient | None = None) -> None:
+        if self.task_id is None:
+            raise EveryrowError("Task must be submitted before cancelling")
+        client = client or self._client
+        if client is None:
+            raise EveryrowError(
+                "No client available. Provide a client or use the task within a session context."
+            )
+        await cancel_task(self.task_id, client)
 
     async def await_result(
         self,
@@ -173,6 +184,24 @@ async def await_task_completion(
         raise EveryrowError("Task was revoked")
 
     return status_response
+
+
+async def cancel_task(task_id: UUID, client: AuthenticatedClient) -> None:
+    """Cancel a running task by its ID.
+
+    Args:
+        task_id: The UUID of the task to cancel.
+        client: An authenticated client.
+
+    Raises:
+        EveryrowError: If the task is not found, already in a terminal state, or another error occurs.
+    """
+    response = await cancel_task_tasks_task_id_cancel_post.asyncio_detailed(
+        task_id=task_id, client=client
+    )
+    if response.status_code == 200:
+        return
+    handle_response(response.parsed)
 
 
 async def get_task_status(
@@ -274,6 +303,16 @@ class MergeTask:
                 "No client available. Provide a client or use the task within a session context."
             )
         return await get_task_status(self.task_id, client)
+
+    async def cancel(self, client: AuthenticatedClient | None = None) -> None:
+        if self.task_id is None:
+            raise EveryrowError("Task must be submitted before cancelling")
+        client = client or self._client
+        if client is None:
+            raise EveryrowError(
+                "No client available. Provide a client or use the task within a session context."
+            )
+        await cancel_task(self.task_id, client)
 
     async def await_result(
         self, client: AuthenticatedClient | None = None

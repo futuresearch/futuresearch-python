@@ -7,14 +7,14 @@ import { MDXContent } from "@/components/MDXContent";
 export const metadata: Metadata = {
   title: "Everyrow Documentation",
   description:
-    "Run LLM Research Agents at Scale",
+    "A researcher for every row. Forecast, score, classify, or research entire datasets.",
   alternates: {
     canonical: "https://everyrow.io/docs",
   },
   openGraph: {
     title: "Everyrow Documentation",
     description:
-      "Run LLM Research Agents at Scale",
+      "A researcher for every row. Forecast, score, classify, or research entire datasets.",
     url: "https://everyrow.io/docs",
     images: [{ url: "https://everyrow.io/everyrow-og.png" }],
   },
@@ -27,15 +27,15 @@ const SECTION_ICONS: Record<string, string> = {
 };
 
 const SECTION_DESCRIPTIONS: Record<string, string> = {
-  Guides: "Step-by-step tutorials for common data processing tasks",
-  "API Reference": "Detailed documentation for all everyrow functions",
-  "Case Studies": "Real-world examples with Jupyter notebooks",
+  Guides: "Step-by-step tutorials for web research at scale",
+  "API Reference": "API reference for all everyrow operations",
+  "Case Studies": "Real-world examples with verified results",
 };
 
 const SECTION_LINKS: Record<string, string> = {
   "API Reference": "/api",
   Guides: "/guides",
-  "Case Studies": "/notebooks",
+  "Case Studies": "/case-studies",
 };
 
 function SectionCard({ section }: { section: NavSection }) {
@@ -102,7 +102,7 @@ export default async function DocsHome() {
       <div className="landing-hero">
         <h1 className="landing-title"><span className="landing-title-brand">everyrow</span> documentation</h1>
         <p className="landing-subtitle">
-          Run LLM Research Agents at Scale
+          A researcher for every row
         </p>
       </div>
 

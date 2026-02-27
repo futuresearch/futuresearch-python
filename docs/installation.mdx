@@ -7,13 +7,70 @@ description: Get started with everyrow. Install the Python SDK via pip, add the 
 
 Get an API key at [everyrow.io/api-key](https://everyrow.io/api-key) ($20 free credit included).
 
-```bash
-export EVERYROW_API_KEY=your_key_here
-```
-
 Select your platform and integration method below.
 
 <InstallationTabs>
+
+<TabContent agent="claude-code" type="plugin">
+
+Install the everyrow plugin from the marketplace:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+This installs both the skill and MCP server together. You can toggle each on/off in Claude Code settings.
+
+**Important:** be sure to supply your API key when launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=sk-cho...
+claude
+```
+
+You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
+
+[Official Claude Code Plugin Docs](https://code.claude.com/docs/en/discover-plugins#add-from-github)
+
+</TabContent>
+
+<TabContent agent="claude-code" type="mcp">
+
+Add everyrow to your MCP config (requires [uv](https://docs.astral.sh/uv/)):
+
+```json
+{
+  "mcpServers": {
+    "everyrow": {
+      "command": "uvx",
+      "args": ["everyrow-mcp"],
+      "env": {
+        "EVERYROW_API_KEY": "${EVERYROW_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Or install with pip and use `"command": "everyrow-mcp"` instead of uvx.
+
+Config file location:
+- **User scope:** `~/.claude.json` (in the `mcpServers` field)
+- **Project scope:** `.mcp.json` in your project root
+
+[Choosing the right scope](https://code.claude.com/docs/en/mcp#choosing-the-right-scope)
+
+**Important:** either insert your API key when creating the JSON file, or supply the key when launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=sk-cho...
+claude
+```
+
+You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
+
+</TabContent>
 
 <TabContent agent="python-sdk" type="pip">
 
@@ -22,6 +79,13 @@ pip install everyrow
 ```
 
 Requires Python 3.12+.
+
+**Important:** be sure to supply your API key when running scripts:
+
+```bash
+export EVERYROW_API_KEY=sk-cho...
+python3 example_script.py
+```
 
 **Quick example:**
 
@@ -89,94 +153,13 @@ See the [API Reference](/docs/api) for full documentation.
 
 </TabContent>
 
-<TabContent agent="claude-code" type="mcp">
-
-Add everyrow to your MCP config (requires [uv](https://docs.astral.sh/uv/)):
-
-```json
-{
-  "mcpServers": {
-    "everyrow": {
-      "command": "uvx",
-      "args": ["everyrow-mcp"],
-      "env": {
-        "EVERYROW_API_KEY": "${EVERYROW_API_KEY}"
-      }
-    }
-  }
-}
-```
-
-Or install with pip and use `"command": "everyrow-mcp"` instead of uvx.
-
-Config file location:
-- **User scope:** `~/.claude.json` (in the `mcpServers` field)
-- **Project scope:** `.mcp.json` in your project root
-
-[Choosing the right scope](https://code.claude.com/docs/en/mcp#choosing-the-right-scope)
-
-**Important:** either insert your API key when creating the JSON file, or supply the key when launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=sk-cho...
-claude
-```
-
-You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
-
-</TabContent>
-
-<TabContent agent="claude-code" type="plugin">
-
-Install the everyrow plugin from the marketplace:
-
-```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-This installs both the skill and MCP server together. You can toggle each on/off in Claude Code settings.
-
-**Important:** be sure to supply your API key when launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=sk-cho...
-claude
-```
-
-You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
-
-[Official Claude Code Plugin Docs](https://code.claude.com/docs/en/discover-plugins#add-from-github)
-
-</TabContent>
-
 <TabContent agent="claude-desktop" type="mcp">
 
-Download the latest `.mcpb` bundle from [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) and double-click to install. You'll be prompted for your API key during setup.
+First, make sure you have [uv installed](https://docs.astral.sh/uv/).
 
-> **Note:** Works in Claude Desktop's **Chat** mode only (not Cowork mode due to a [known limitation](https://github.com/anthropics/claude-code/issues/20377)).
+Then, download the latest `.mcpb` bundle from [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) and double-click to install. You'll be prompted for your API key during setup.
 
-**Manual installation:**
-
-Add to your MCP config (requires [uv](https://docs.astral.sh/uv/)):
-
-```json
-{
-  "mcpServers": {
-    "everyrow": {
-      "command": "uvx",
-      "args": ["everyrow-mcp"],
-      "env": {
-        "EVERYROW_API_KEY": "sk-cho..."
-      }
-    }
-  }
-}
-```
-
-Config file location:
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+After installing the bundle, you can use everyrow from Chat, Cowork and Code within Claude Desktop.
 
 </TabContent>
 
@@ -365,6 +348,6 @@ Config file location:
 
 ## Dependencies
 
-The MCP server requires **uv** (if using `uvx`) or **pip** (if installed directly). The Python SDK requires **Python 3.12+**.
+The MCP server requires [**uv**](https://docs.astral.sh/uv/) (if using `uvx`) or [**pip**](https://pip.pypa.io/en/stable/) (if installed directly). The Python SDK requires **Python 3.12+**.
 
 For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar) in the progress monitoring guide.

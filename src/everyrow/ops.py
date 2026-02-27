@@ -11,6 +11,7 @@ from everyrow.generated.api.artifacts import create_artifact_artifacts_post
 from everyrow.generated.api.operations import (
     agent_map_operations_agent_map_post,
     dedupe_operations_dedupe_post,
+    forecast_operations_forecast_post,
     merge_operations_merge_post,
     rank_operations_rank_post,
     screen_operations_screen_post,
@@ -26,6 +27,8 @@ from everyrow.generated.models import (
     DedupeOperation,
     DedupeOperationInputType1Item,
     DedupeOperationStrategy,
+    ForecastOperation,
+    ForecastOperationInputType1Item,
     LLMEnumPublic,
     MergeOperation,
     MergeOperationLeftInputType1Item,
@@ -45,7 +48,7 @@ from everyrow.generated.models import (
 from everyrow.generated.types import UNSET
 from everyrow.result import MergeResult, Result, ScalarResult, TableResult
 from everyrow.session import Session, create_session
-from everyrow.task import LLM, EffortLevel, EveryrowTask, MergeTask
+from everyrow.task import LLM, EffortLevel, EveryrowTask, MergeTask, print_progress
 
 T = TypeVar("T", bound=BaseModel)
 InputData = UUID | list[dict[str, Any]] | dict[str, Any]
@@ -147,7 +150,7 @@ async def single_agent[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: Literal[False] = False,
 ) -> ScalarResult[T]: ...
@@ -161,7 +164,7 @@ async def single_agent(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[BaseModel] = DefaultAgentResponse,
     return_table: Literal[True] = True,
 ) -> TableResult: ...
@@ -174,7 +177,7 @@ async def single_agent[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
 ) -> ScalarResult[T] | TableResult:
@@ -185,10 +188,10 @@ async def single_agent[T: BaseModel](
         session: Optional session. If not provided, one will be created automatically.
         input: Input data (BaseModel, DataFrame, UUID, or Result).
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
-            custom params (llm, iteration_budget, include_research). Default: medium.
+            custom params (llm, iteration_budget, include_reasoning). Default: medium.
         llm: LLM to use. Required when effort_level is None.
         iteration_budget: Number of agent iterations (0-20). Required when effort_level is None.
-        include_research: Include research notes. Required when effort_level is None.
+        include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
         return_table: If True, return a TableResult instead of ScalarResult.
 
@@ -204,7 +207,7 @@ async def single_agent[T: BaseModel](
                 effort_level=effort_level,
                 llm=llm,
                 iteration_budget=iteration_budget,
-                include_research=include_research,
+                include_reasoning=include_reasoning,
                 response_model=response_model,
                 return_table=return_table,
             )
@@ -216,7 +219,7 @@ async def single_agent[T: BaseModel](
         effort_level=effort_level,
         llm=llm,
         iteration_budget=iteration_budget,
-        include_research=include_research,
+        include_reasoning=include_reasoning,
         response_model=response_model,
         return_table=return_table,
     )
@@ -230,7 +233,7 @@ async def single_agent_async[T: BaseModel](
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
 ) -> EveryrowTask[T]:
@@ -252,7 +255,7 @@ async def single_agent_async[T: BaseModel](
         else UNSET,
         llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
-        include_research=include_research if include_research is not None else UNSET,
+        include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         return_list=return_table,
     )
 
@@ -278,7 +281,7 @@ async def agent_map(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
 ) -> TableResult:
@@ -289,10 +292,10 @@ async def agent_map(
         session: Optional session. If not provided, one will be created automatically.
         input: The input table (DataFrame, UUID, or TableResult).
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
-            custom params (llm, iteration_budget, include_research). Default: low.
+            custom params (llm, iteration_budget, include_reasoning). Default: low.
         llm: LLM to use for each agent. Required when effort_level is None.
         iteration_budget: Number of agent iterations per row (0-20). Required when effort_level is None.
-        include_research: Include research notes. Required when effort_level is None.
+        include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
 
     Returns:
@@ -309,7 +312,7 @@ async def agent_map(
                 effort_level=effort_level,
                 llm=llm,
                 iteration_budget=iteration_budget,
-                include_research=include_research,
+                include_reasoning=include_reasoning,
                 enforce_row_independence=enforce_row_independence,
                 response_model=response_model,
             )
@@ -324,7 +327,7 @@ async def agent_map(
         effort_level=effort_level,
         llm=llm,
         iteration_budget=iteration_budget,
-        include_research=include_research,
+        include_reasoning=include_reasoning,
         enforce_row_independence=enforce_row_independence,
         response_model=response_model,
     )
@@ -341,7 +344,7 @@ async def agent_map_async(
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
     llm: LLM | None = None,
     iteration_budget: int | None = None,
-    include_research: bool | None = None,
+    include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
 ) -> EveryrowTask[BaseModel]:
@@ -361,7 +364,7 @@ async def agent_map_async(
         else UNSET,
         llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
-        include_research=include_research if include_research is not None else UNSET,
+        include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         join_with_input=True,
         enforce_row_independence=enforce_row_independence,
     )
@@ -580,19 +583,22 @@ async def merge(
     merge_on_left: str | None = None,
     merge_on_right: str | None = None,
     use_web_search: Literal["auto", "yes", "no"] | None = None,
-    relationship_type: Literal["many_to_one", "one_to_one"] | None = None,
+    relationship_type: Literal[
+        "many_to_one", "one_to_one", "one_to_many", "many_to_many"
+    ]
+    | None = None,
 ) -> MergeResult:
-    """Merge two tables using AI.
+    """Merge two tables using AI (LEFT JOIN semantics).
 
     Args:
         task: The task description for the merge operation
         session: Optional session. If not provided, one will be created automatically.
-        left_table: The left table to merge (DataFrame, UUID, or TableResult)
-        right_table: The right table to merge (DataFrame, UUID, or TableResult)
-        merge_on_left: Optional column name in left table to merge on
-        merge_on_right: Optional column name in right table to merge on
-        use_web_search: Optional. Control web search behavior: "auto" tries LLM merge first then conditionally searches, "no" skips web search entirely, "yes" forces web search on every row. Defaults to "auto" if not provided.
-        relationship_type: Optional. Control merge relationship type: "many_to_one" (default) allows multiple left rows to match one right row, "one_to_one" enforces unique matching between left and right rows.
+        left_table: The table being enriched — all its rows are kept in the output (DataFrame, UUID, or TableResult)
+        right_table: The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls (DataFrame, UUID, or TableResult)
+        merge_on_left: Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted.
+        merge_on_right: Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted.
+        use_web_search: Control web search behavior: "auto" (default) tries LLM merge first then conditionally searches, "no" skips web search entirely, "yes" forces web search on every row.
+        relationship_type: Control merge relationship type / cardinality between the two tables: "many_to_one" (default) allows multiple left rows to match one right row (e.g. matching reviews to product), "one_to_one" enforces unique matching between left and right rows (e.g. CEO to company), "one_to_many" allows one left row to match multiple right rows (e.g. company to products), "many_to_many" allows multiple left rows to match multiple right rows (e.g. companies to investors). For one_to_many and many_to_many, multiple matches are represented by joining the right-table values with " | " in each added column.
 
     Returns:
         MergeResult containing the merged table and match breakdown by method (exact, fuzzy, llm, web)
@@ -639,7 +645,10 @@ async def merge_async(
     merge_on_left: str | None = None,
     merge_on_right: str | None = None,
     use_web_search: Literal["auto", "yes", "no"] | None = None,
-    relationship_type: Literal["many_to_one", "one_to_one"] | None = None,
+    relationship_type: Literal[
+        "many_to_one", "one_to_one", "one_to_many", "many_to_many"
+    ]
+    | None = None,
 ) -> MergeTask:
     """Submit a merge task asynchronously.
 
@@ -763,5 +772,90 @@ async def dedupe_async(
     response = handle_response(response)
 
     cohort_task = EveryrowTask(response_model=BaseModel, is_map=True, is_expand=False)
+    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    return cohort_task
+
+
+# --- Forecast ---
+
+
+async def forecast(
+    input: DataFrame | UUID | TableResult,
+    context: str | None = None,
+    session: Session | None = None,
+) -> TableResult:
+    """Forecast the probability of binary questions resolving YES or NO.
+
+    Each row is forecast using an approach validated against FutureSearch's
+    past-casting environment of 1500 hard forecasting questions and 15M research
+    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
+    and https://arxiv.org/abs/2506.21558.
+
+    The input table should contain at minimum a ``question`` column with the binary
+    question to forecast.  Recommended additional columns: ``resolution_criteria``,
+    ``resolution_date``, ``background``.  All columns are passed to the research
+    agents and forecasters.
+
+    Args:
+        input: The input table.  Each row should contain the question/scenario to
+            forecast.
+        context: Optional batch-level context or instructions that apply to every
+            row (e.g. "Focus on EU regulatory sources" or "Assume resolution by
+            end of 2027").  Leave *None* when the rows are self-contained.
+        session: Optional session. If not provided, one will be created automatically.
+
+    Returns:
+        TableResult with ``probability`` (int, 0-100) and ``rationale`` (str) columns
+        added to each input row.
+    """
+    task = context or ""
+    if session is None:
+        async with create_session() as internal_session:
+            cohort_task = await forecast_async(
+                task=task,
+                session=internal_session,
+                input=input,
+            )
+            result = await cohort_task.await_result(on_progress=print_progress)
+            if isinstance(result, TableResult):
+                return result
+            raise EveryrowError("Forecast task did not return a table result")
+    cohort_task = await forecast_async(
+        task=task,
+        session=session,
+        input=input,
+    )
+    result = await cohort_task.await_result(on_progress=print_progress)
+    if isinstance(result, TableResult):
+        return result
+    raise EveryrowError("Forecast task did not return a table result")
+
+
+async def forecast_async(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+) -> EveryrowTask[BaseModel]:
+    """Submit a forecast task asynchronously.
+
+    Returns:
+        EveryrowTask that resolves to a TableResult with `probability` and `rationale` columns.
+    """
+    input_data = _prepare_table_input(input, ForecastOperationInputType1Item)
+
+    body = ForecastOperation(
+        input_=input_data,  # type: ignore
+        task=task,
+        session_id=session.session_id,
+    )
+
+    response = await forecast_operations_forecast_post.asyncio(
+        client=session.client, body=body
+    )
+    response = handle_response(response)
+
+    cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
+        response_model=BaseModel, is_map=True, is_expand=False
+    )
     cohort_task.set_submitted(response.task_id, response.session_id, session.client)
     return cohort_task

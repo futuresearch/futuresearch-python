@@ -90,17 +90,26 @@ class Detailed(BaseModel):
 
 Compare: regex on "remote-friendly" job postings gets 68% precision.
 
+## Via MCP
+
+MCP tool: `everyrow_screen`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `csv_path` | string | Path to input CSV file |
+| `task` | string | What should pass |
+
 ## Related docs
 
 ### Guides
 - [Filter a DataFrame with LLMs](/docs/filter-dataframe-with-llm)
 
-### Notebooks
-- [LLM Screening at Scale](/docs/notebooks/llm-powered-screening-at-scale)
-- [Screen Job Postings by Criteria](/docs/notebooks/screen-job-postings-by-criteria)
-- [Screen Stocks by Investment Thesis](/docs/notebooks/screen-stocks-by-investment-thesis)
-- [Screen Stocks by Margin Sensitivity](/docs/notebooks/screen-stocks-by-margin-sensitivity)
-- [Multi-Stage Lead Qualification](/docs/notebooks/multi-stage-lead-qualification)
+### Case Studies
+- [LLM Screening at Scale](/docs/case-studies/llm-powered-screening-at-scale)
+- [Screen Job Postings by Criteria](/docs/case-studies/screen-job-postings-by-criteria)
+- [Screen Stocks by Investment Thesis](/docs/case-studies/screen-stocks-by-investment-thesis)
+- [Screen Stocks by Margin Sensitivity](/docs/case-studies/screen-stocks-by-margin-sensitivity)
+- [Multi-Stage Lead Qualification](/docs/case-studies/multi-stage-lead-qualification)
 
 ### Blog posts
 - [Thematic Stock Screen](https://futuresearch.ai/thematic-stock-screening/)

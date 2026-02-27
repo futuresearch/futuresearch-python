@@ -1,0 +1,223 @@
+---
+title: Rank Data by External Metrics
+metadataTitle: Get Claude Code to Score and Rank Data Using Live Web Research
+description: Sort any dataset by information you don't have yet. Research agents look up live data per row and return a fully ranked result.
+---
+
+# Rank Data by External Metrics
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code's web search works well for looking up a few packages. When you need two separate metrics researched for each of 300 packages, that is hundreds of individual lookups that need to happen in parallel.
+
+Here, we get Claude Code to rank 300 PyPI packages by two metrics that require external lookup: days since last release (from PyPI) and number of contributors (from GitHub).
+
+| Metric                 | Value        |
+| ---------------------- | ------------ |
+| Rows processed         | 300          |
+| Total cost             | $13.26       |
+| Time                   | ~6.5 minutes |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+The dataset is the top 300 PyPI packages by monthly downloads, fetched from the [top-pypi-packages](https://hugovk.github.io/top-pypi-packages/) API. The only columns are `package` and `monthly_downloads`. No release dates, no contributor counts. Tell Claude:
+
+```
+Rank these 300 PyPI packages by days since their last release.
+Look up each package on pypi.org to find the release date.
+Sort by most recently released first.
+```
+
+Claude calls everyrow's `rank` MCP tool, then polls for progress until the operation completes:
+
+```
+Tool: everyrow_rank
+├─ task: "Find the number of days since this package's last release on PyPI..."
+├─ input_csv: "/Users/you/top_pypi_packages.csv"
+├─ field_name: "days_since_release"
+├─ field_type: "int"
+└─ ascending_order: true
+
+→ Submitted: 300 rows for ranking.
+  Session: https://everyrow.io/sessions/7a461cd9-056b-42b2-b335-8d52fe3f685c
+  Task ID: 7a46...
+
+Tool: everyrow_progress
+├─ task_id: "7a46..."
+→ Running: 0/300 complete, 300 running (15s elapsed)
+
+Tool: everyrow_progress
+→ Running: 150/300 complete, 150 running (120s elapsed)
+
+...
+
+Tool: everyrow_progress
+→ Completed: 300/300 (0 failed) in 236s.
+
+Tool: everyrow_results
+├─ task_id: "7a46..."
+├─ output_path: "/Users/you/pypi_ranked_by_release.csv"
+→ Saved 300 rows to /Users/you/pypi_ranked_by_release.csv
+```
+
+Under the hood, everyrow dispatched LLM-powered web research agents to look up each package on PyPI. The agents found that `fastapi` was released today, while `webencodings` hasn't been updated in 8.9 years.
+
+| Package | Days Since Release |
+|---------|-------------------|
+| fastapi | 0 |
+| typer | 0 |
+| langsmith | 0 |
+| grpcio | 1 |
+| greenlet | 1 |
+| ... | ... |
+| toml | 1,938 |
+| pysocks | 2,346 |
+| ply | 2,928 |
+| webencodings | 3,244 |
+
+The same approach works for any metric you can describe. A second rank call on the same data, asking for number of GitHub contributors, ran in parallel:
+
+```
+Tool: everyrow_rank
+├─ task: "Find the number of contributors to this package's GitHub repository..."
+├─ input_csv: "/Users/you/top_pypi_packages.csv"
+├─ field_name: "num_contributors"
+├─ field_type: "int"
+└─ ascending_order: false
+
+→ Completed: 300/300 in 391s.
+```
+
+| Package | Contributors |
+|---------|-------------|
+| torch | 4,257 |
+| langchain | 3,897 |
+| langchain-core | 3,897 |
+| transformers | 3,655 |
+| scikit-learn | 3,170 |
+| ... | ... |
+| scramp | 1 |
+| et-xmlfile | 0 |
+| beautifulsoup4 | 0 |
+| docutils | 0 |
+
+Both operations completed in ~6.5 minutes of wall clock time. [View the sessions](https://everyrow.io/sessions/7a461cd9-056b-42b2-b335-8d52fe3f685c).
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow Python SDK can rank or sort data on criteria you don't have in your dataset, if it can find them on the web. It dispatches LLM-powered web research agents to look up each row in parallel.
+
+This guide shows how to rank 300 PyPI packages by two different metrics that require external lookup: days since last release (from PyPI) and number of contributors (from GitHub).
+
+| Metric                 | Rows | Cost  | Time        | Session                                                                   |
+| ---------------------- | ---- | ----- | ----------- | ------------------------------------------------------------------------- |
+| Days since release     | 300  | $3.90 | 4.3 minutes | [view](https://everyrow.io/sessions/24190033-4656-4366-86e9-79295c6f4510) |
+| Number of contributors | 300  | $4.13 | 6.0 minutes | [view](https://everyrow.io/sessions/8b63da61-8597-45ae-ab8b-3b4d28dd1a33) |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+The dataset is the top 300 PyPI packages by monthly downloads, fetched from the [top-pypi-packages](https://hugovk.github.io/top-pypi-packages/) API. The only columns are `package` and `monthly_downloads`—no release dates.
+
+```python
+import asyncio
+import requests
+import pandas as pd
+from everyrow.ops import rank
+
+# Fetch top PyPI packages
+response = requests.get(
+    "https://hugovk.github.io/top-pypi-packages/top-pypi-packages-30-days.min.json"
+)
+packages = response.json()["rows"][50:350]  # Skip AWS libs at top
+df = pd.DataFrame(packages).rename(
+    columns={"project": "package", "download_count": "monthly_downloads"}
+)
+
+async def main():
+    result = await rank(
+        task="""
+            Find the number of days since this package's last release on PyPI.
+            Look up the package on pypi.org to find the release date.
+            Return the number of days as an integer.
+        """,
+        input=df,
+        field_name="days_since_release",
+        field_type="int",
+        ascending_order=True,  # Most recent first
+    )
+    print(result.data[["package", "days_since_release"]])
+
+asyncio.run(main())
+```
+
+```
+                   package  days_since_release
+0                pyparsing                   0
+1                 httplib2                   1
+2              yandexcloud                   2
+3             multiprocess                   2
+4                  pyarrow                   3
+...
+295        ptyprocess                1850
+296              toml                1907
+297               ply                2897
+298      webencodings                3213
+```
+
+The SDK dispatched LLM-powered web research agents to review each row. It found that `pyparsing` was released today (Jan 20 2026), and `webencodings` hasn't been updated in 8.8 years.
+
+The same approach works for any metric you can describe. Here's the same dataset ranked by number of GitHub contributors:
+
+```python
+result = await rank(
+    task="""
+        Find the number of contributors to this package's GitHub repository.
+        Look up the package's source repo from PyPI, then find the contributor
+        count on GitHub. Return the number as an integer.
+    """,
+    input=df,
+    field_name="num_contributors",
+    field_type="int",
+    ascending_order=False,  # Most contributors first
+)
+```
+
+```
+                    package  num_contributors
+0                     torch              4191
+1                 langchain              3858
+2            langchain-core              3858
+3              transformers              3608
+4              scikit-learn              3157
+...
+295        jsonpath-ng                 2
+296         et-xmlfile                 1
+297     beautifulsoup4                 1
+298        ruamel-yaml                 1
+299            pkginfo                 1
+```
+
+`torch` has 4,191 contributors; `pkginfo` has 1. The task prompt tells the agent what to look up and where—citation counts, benchmark scores, API response times, or anything else you can describe.
+
+</GuideTabContent>
+</GuideTabs>
+
+---
+
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [rank documentation](reference/RANK) for more options including field types and sort order.

@@ -27,6 +27,7 @@ class DedupeOperation:
             list of JSON objects
         equivalence_relation (str): Description of what makes two rows equivalent/duplicates
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
+        webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
         strategy (DedupeOperationStrategy | Unset): Strategy for handling duplicates: 'identify' (cluster only),
             'select' (pick best), 'combine' (synthesize combined row) Default: DedupeOperationStrategy.SELECT.
         strategy_prompt (None | str | Unset): Optional instructions guiding how selection or combining is performed
@@ -35,6 +36,7 @@ class DedupeOperation:
     input_: DedupeOperationInputType2 | list[DedupeOperationInputType1Item] | UUID
     equivalence_relation: str
     session_id: None | Unset | UUID = UNSET
+    webhook_url: None | str | Unset = UNSET
     strategy: DedupeOperationStrategy | Unset = DedupeOperationStrategy.SELECT
     strategy_prompt: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -62,6 +64,12 @@ class DedupeOperation:
         else:
             session_id = self.session_id
 
+        webhook_url: None | str | Unset
+        if isinstance(self.webhook_url, Unset):
+            webhook_url = UNSET
+        else:
+            webhook_url = self.webhook_url
+
         strategy: str | Unset = UNSET
         if not isinstance(self.strategy, Unset):
             strategy = self.strategy.value
@@ -82,6 +90,8 @@ class DedupeOperation:
         )
         if session_id is not UNSET:
             field_dict["session_id"] = session_id
+        if webhook_url is not UNSET:
+            field_dict["webhook_url"] = webhook_url
         if strategy is not UNSET:
             field_dict["strategy"] = strategy
         if strategy_prompt is not UNSET:
@@ -145,6 +155,15 @@ class DedupeOperation:
 
         session_id = _parse_session_id(d.pop("session_id", UNSET))
 
+        def _parse_webhook_url(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
+
         _strategy = d.pop("strategy", UNSET)
         strategy: DedupeOperationStrategy | Unset
         if isinstance(_strategy, Unset):
@@ -165,6 +184,7 @@ class DedupeOperation:
             input_=input_,
             equivalence_relation=equivalence_relation,
             session_id=session_id,
+            webhook_url=webhook_url,
             strategy=strategy,
             strategy_prompt=strategy_prompt,
         )

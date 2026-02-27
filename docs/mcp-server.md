@@ -19,7 +19,7 @@ Filter rows in a CSV based on criteria that require judgment.
 |-----------|------|----------|-------------|
 | `task` | string | Yes | Screening criteria. Rows that meet the criteria pass. |
 | `input_csv` | string | Yes | Absolute path to input CSV. |
-| `response_schema` | object | No | JSON schema for custom fields. Default: `{passes: bool}`. |
+| `response_schema` | object | No | JSON schema for custom fields. Default: `{"type": "object", "properties": {"passes": {"type": "boolean"}}}`. |
 
 Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
 
@@ -51,15 +51,16 @@ Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
 
 ### everyrow_merge
 
-Join two CSVs using intelligent entity matching.
+Join two CSVs using intelligent entity matching (LEFT JOIN semantics).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `task` | string | Yes | How to match rows between tables. |
-| `left_csv` | string | Yes | Absolute path to primary CSV. |
-| `right_csv` | string | Yes | Absolute path to secondary CSV. |
-| `merge_on_left` | string | No | Column in left table to match on. |
-| `merge_on_right` | string | No | Column in right table to match on. |
+| `left_csv` | string | Yes | The table being enriched — all its rows are kept in the output. |
+| `right_csv` | string | Yes | The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls. |
+| `merge_on_left` | string | No | Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit. |
+| `merge_on_right` | string | No | Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit. |
+| `relationship_type` | string | No | `many_to_one` (default) — multiple left rows can match one right row. `one_to_one` — unique matching between left and right rows. `one_to_many` — one left row can match multiple right rows. `many_to_many` — multiple left rows can match multiple right rows. For `one_to_many` and `many_to_many`, multiple matches are joined with `" \| "` in each added column. |
 | `use_web_search` | string | No | `auto` (default), `yes`, or `no`. |
 
 Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
@@ -72,7 +73,19 @@ Run web research agents on each row.
 |-----------|------|----------|-------------|
 | `task` | string | Yes | Task for the agent to perform on each row. |
 | `input_csv` | string | Yes | Absolute path to input CSV. |
-| `response_schema` | object | No | JSON schema for structured output. Default: `{answer: str}`. |
+| `response_schema` | object | No | JSON schema for structured output. Default: `{"type": "object", "properties": {"answer": {"type": "string"}}}`. |
+
+Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
+
+### everyrow_single_agent
+
+Run a single web research agent on a question, without a CSV. Use this when you want to research one thing — the agent can search the web, read pages, and return structured results.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task` | string | Yes | Natural language task for the agent to perform. |
+| `input_data` | object | No | Optional context as key-value pairs (e.g. `{"company": "Acme", "url": "acme.com"}`). |
+| `response_schema` | object | No | JSON schema for structured output. Default: `{"type": "object", "properties": {"answer": {"type": "string"}}}`. |
 
 Returns `task_id` and `session_url`. Call `everyrow_progress` to monitor.
 
@@ -98,6 +111,22 @@ Retrieve results from a completed task and save to CSV.
 | `output_path` | string | Yes | Directory or full .csv path for output. |
 
 Returns confirmation with row count and file path.
+
+### everyrow_cancel
+
+Cancel a running task. Use when the user wants to stop a task that is currently processing.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | Yes | The task ID to cancel. |
+
+Returns a confirmation message. If the task has already finished, returns an error with its current state.
+
+### everyrow_list_sessions
+
+List all sessions owned by the authenticated user. Returns session names, IDs, timestamps, and dashboard URLs. No parameters required.
+
+Returns a formatted list of sessions with links to the web dashboard.
 
 ## Workflow
 
@@ -127,6 +156,7 @@ All tools that accept `response_schema` take a JSON schema object:
 
 ```json
 {
+  "type": "object",
   "properties": {
     "annual_revenue": {
       "type": "integer",
@@ -141,7 +171,8 @@ All tools that accept `response_schema` take a JSON schema object:
 }
 ```
 
-Supported types: `string`, `integer`, `number`, `boolean`, `array`, `object`.
+The top-level `type` must be `object`, and the `properties` must be non-empty.
+The valid field types are: `string`, `integer`, `number`, `boolean`, `array`, `object`.
 
 ## Plugin
 

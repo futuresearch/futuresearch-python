@@ -29,28 +29,33 @@ class SingleAgentOperation:
             form of a list of JSON objects
         task (str): Instructions for the AI agent
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
+        webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
         response_schema (None | SingleAgentOperationResponseSchemaType0 | Unset): JSON Schema for the response format.
             If not provided, use default answer schema.
         llm (LLMEnumPublic | None | Unset): LLM to use for the agent. Required when effort_level is not set.
         effort_level (None | PublicEffortLevel | Unset): Effort level preset: low (quick), medium (balanced), high
-            (thorough). Mutually exclusive with llm/iteration_budget/include_research - use either a preset or custom
+            (thorough). Mutually exclusive with llm/iteration_budget/include_reasoning - use either a preset or custom
             params, not both. If not specified, you must provide all individual parameters (llm, iteration_budget,
-            include_research).
+            include_reasoning).
         return_list (bool | Unset): If True, treat the output as a list of responses instead of a single response.
             Default: True.
         iteration_budget (int | None | Unset): Number of agent iterations (0-20). Required when effort_level is not set.
-        include_research (bool | None | Unset): Include research notes in the response. Required when effort_level is
+        include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.
+        include_research (bool | None | Unset): Deprecated: use include_reasoning instead. Include research notes in the
+            response. Required when effort_level is not set.
     """
 
     input_: list[SingleAgentOperationInputType1Item] | SingleAgentOperationInputType2 | UUID
     task: str
     session_id: None | Unset | UUID = UNSET
+    webhook_url: None | str | Unset = UNSET
     response_schema: None | SingleAgentOperationResponseSchemaType0 | Unset = UNSET
     llm: LLMEnumPublic | None | Unset = UNSET
     effort_level: None | PublicEffortLevel | Unset = UNSET
     return_list: bool | Unset = True
     iteration_budget: int | None | Unset = UNSET
+    include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -78,6 +83,12 @@ class SingleAgentOperation:
             session_id = str(self.session_id)
         else:
             session_id = self.session_id
+
+        webhook_url: None | str | Unset
+        if isinstance(self.webhook_url, Unset):
+            webhook_url = UNSET
+        else:
+            webhook_url = self.webhook_url
 
         response_schema: dict[str, Any] | None | Unset
         if isinstance(self.response_schema, Unset):
@@ -111,6 +122,12 @@ class SingleAgentOperation:
         else:
             iteration_budget = self.iteration_budget
 
+        include_reasoning: bool | None | Unset
+        if isinstance(self.include_reasoning, Unset):
+            include_reasoning = UNSET
+        else:
+            include_reasoning = self.include_reasoning
+
         include_research: bool | None | Unset
         if isinstance(self.include_research, Unset):
             include_research = UNSET
@@ -127,6 +144,8 @@ class SingleAgentOperation:
         )
         if session_id is not UNSET:
             field_dict["session_id"] = session_id
+        if webhook_url is not UNSET:
+            field_dict["webhook_url"] = webhook_url
         if response_schema is not UNSET:
             field_dict["response_schema"] = response_schema
         if llm is not UNSET:
@@ -137,6 +156,8 @@ class SingleAgentOperation:
             field_dict["return_list"] = return_list
         if iteration_budget is not UNSET:
             field_dict["iteration_budget"] = iteration_budget
+        if include_reasoning is not UNSET:
+            field_dict["include_reasoning"] = include_reasoning
         if include_research is not UNSET:
             field_dict["include_research"] = include_research
 
@@ -201,6 +222,15 @@ class SingleAgentOperation:
 
         session_id = _parse_session_id(d.pop("session_id", UNSET))
 
+        def _parse_webhook_url(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
+
         def _parse_response_schema(data: object) -> None | SingleAgentOperationResponseSchemaType0 | Unset:
             if data is None:
                 return data
@@ -263,6 +293,15 @@ class SingleAgentOperation:
 
         iteration_budget = _parse_iteration_budget(d.pop("iteration_budget", UNSET))
 
+        def _parse_include_reasoning(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        include_reasoning = _parse_include_reasoning(d.pop("include_reasoning", UNSET))
+
         def _parse_include_research(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -276,11 +315,13 @@ class SingleAgentOperation:
             input_=input_,
             task=task,
             session_id=session_id,
+            webhook_url=webhook_url,
             response_schema=response_schema,
             llm=llm,
             effort_level=effort_level,
             return_list=return_list,
             iteration_budget=iteration_budget,
+            include_reasoning=include_reasoning,
             include_research=include_research,
         )
 

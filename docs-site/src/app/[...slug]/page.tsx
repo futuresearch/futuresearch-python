@@ -26,14 +26,16 @@ export async function generateMetadata({ params }: PageProps) {
 
   const canonicalUrl = `https://everyrow.io/docs/${slugPath}`;
 
+  const pageTitle = doc.metadataTitle || doc.title;
+
   return {
-    title: doc.title,
+    title: pageTitle,
     description: doc.description,
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: doc.title,
+      title: pageTitle,
       description: doc.description,
       url: canonicalUrl,
       images: [{ url: "https://everyrow.io/everyrow-og.png" }],

@@ -15,7 +15,7 @@ docs-site/src/notebooks/*.html
         ↓
     Next.js build (reads HTML, wraps in DocsLayout)
         ↓
-docs-site/out/notebooks/*.html (full pages with sidebar)
+docs-site/out/case-studies/*.html (full pages with sidebar)
 ```
 
 The `src/notebooks/` directory is gitignored since files are generated at build time.

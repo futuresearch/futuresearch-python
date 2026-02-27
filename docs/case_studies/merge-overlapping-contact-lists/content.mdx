@@ -1,0 +1,126 @@
+---
+title: Deduplicate Contact Lists
+metadataTitle: Can Claude Code Identify Duplicate People Across Contact Lists?
+description: Identity resolution across contact databases. Accurately match people despite nicknames, initials, and inconsistent formatting across sources.
+---
+
+# Deduplicate Contact Lists
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code can diff two lists. But what if "Dr. Sarah Chen" on one list is "S. Chen" on another, and "Robert Johnson" appears as "Bob Johnson"? You need semantic matching that understands nicknames and initials.
+
+Here, we get Claude Code to merge two overlapping contact lists (12 and 10 people) to identify duplicates across name formats.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Left list      | 12 contacts |
+| Right list     | 10 contacts |
+| Matched pairs  | 7           |
+| Total cost     | $0.00       |
+| Time           | 128 seconds |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+With both contact CSVs in your working directory, tell Claude:
+
+```
+Merge these two contact lists to find the same person across both. Account for
+nicknames (Bob/Robert, Mike/Michael, Tom/Thomas), initials (S. Chen = Sarah Chen),
+and institution matching. When in doubt, favor false negatives over false positives.
+```
+
+Claude calls everyrow's `merge` MCP tool:
+
+```
+Tool: everyrow_merge
+├─ task: "Match contacts between two lists to identify the same person..."
+├─ left_csv: "/Users/you/contacts_list_a.csv"
+├─ right_csv: "/Users/you/contacts_list_b.csv"
+├─ merge_on_left: "name"
+├─ merge_on_right: "full_name"
+└─ relationship_type: "one_to_one"
+
+→ Submitted: 12 rows for merging.
+  Session: https://everyrow.io/sessions/1d39b32d-d71e-48e8-8ac7-de907f86745a
+
+Tool: everyrow_results
+→ Saved 12 rows to /Users/you/merged_contacts.csv
+```
+
+7 matches found, 5 correctly left unmatched. [View the session](https://everyrow.io/sessions/1d39b32d-d71e-48e8-8ac7-de907f86745a).
+
+| List A | List B | Match Type |
+|--------|--------|------------|
+| Dr. Sarah Chen | S. Chen | Initial + institution |
+| Michael O'Brien | Mike O'Brien | Nickname |
+| James Wilson | James R. Wilson | Middle initial |
+| Robert Johnson | Bob Johnson | Nickname |
+| Thomas Lee | Tom Lee | Nickname |
+| Priya Sharma | Priya S. | Initial |
+| Elena Rodriguez | Elena R. | Initial |
+
+David Kim, Anna Kowalski, Maria Santos, Jennifer Park, and Christopher Davis were correctly left unmatched (no counterpart in the other list). The merge handled all variations via fuzzy matching without needing LLM calls.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK's `merge()` identifies the same person across lists with different name formats, nicknames, and initials.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Left list      | 12 contacts |
+| Right list     | 10 contacts |
+| Matched pairs  | 7           |
+| Cost           | $0.00       |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from everyrow import create_session
+from everyrow.ops import merge
+
+list_a = pd.read_csv("contacts_list_a.csv")
+list_b = pd.read_csv("contacts_list_b.csv")
+
+async def main():
+    async with create_session(name="Contact List Merge") as session:
+        result = await merge(
+            session=session,
+            task="""
+                Match contacts between two lists to identify the same person.
+                Account for nicknames (Bob/Robert, Mike/Michael, Tom/Thomas),
+                initials (S. Chen = Sarah Chen), and institution matching.
+                Favor false negatives over false positives.
+            """,
+            left_table=list_a,
+            right_table=list_b,
+            merge_on_left="name",
+            merge_on_right="full_name",
+        )
+        return result.data
+
+merged = asyncio.run(main())
+```
+
+7 matches found at $0.00. The merge correctly handled nickname matching (Bob/Robert, Mike/Michael, Tom/Thomas), initial matching (S. Chen to Sarah Chen), and left 5 contacts unmatched when no counterpart existed.
+
+</GuideTabContent>
+</GuideTabs>

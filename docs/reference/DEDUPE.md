@@ -136,14 +136,23 @@ Output (selected rows only):
 | 500 | ~2 min | ~$1.67 |
 | 2,000 | ~8 min | ~$7 |
 
+## Via MCP
+
+MCP tool: `everyrow_dedupe`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `csv_path` | string | Path to input CSV file |
+| `equivalence_relation` | string | What makes two rows duplicates |
+
 ## Related docs
 
 ### Guides
 - [Remove Duplicates from ML Training Data](/docs/deduplicate-training-data-ml)
 - [Resolve Duplicate Entities](/docs/resolve-entities-python)
 
-### Notebooks
-- [Dedupe CRM Company Records](/docs/notebooks/dedupe-crm-company-records)
+### Case Studies
+- [Dedupe CRM Company Records](/docs/case-studies/dedupe-crm-company-records)
 
 ### Blog posts
 - [CRM Deduplication](https://futuresearch.ai/crm-deduplication/)

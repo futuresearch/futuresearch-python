@@ -1,0 +1,121 @@
+---
+title: Enrich Contacts with Company Data
+metadataTitle: How to Use Claude Code to Enrich Contact Records with Company Data
+description: Join contact-level and organization-level records automatically. Resolves company name variations, abbreviations, and legal suffixes into clean, matched data.
+---
+
+# Enrich Contacts with Company Data
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code's pandas merge works when column values match exactly. When "Bridgewater" needs to match "Bridgewater Associates" and "D.E. Shaw" needs to match "D. E. Shaw & Co.", the merge needs fuzzy matching that understands company name conventions.
+
+Here, we get Claude Code to merge 10 contacts with 10 fund records, handling company name variations.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 10         |
+| Matched        | 10 (100%)  |
+| Total cost     | $0.00      |
+| Time           | 9 seconds  |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+With both CSVs in your working directory, tell Claude:
+
+```
+Merge crm_contacts.csv with crm_funds.csv. Match contacts to their fund based
+on company name, ignoring legal suffixes (LLC, Inc, LP), abbreviations
+(Mgmt = Management, Tech = Technologies), and extra descriptors.
+```
+
+Claude calls everyrow's `merge` MCP tool:
+
+```
+Tool: everyrow_merge
+├─ task: "Match contacts to their associated fund/company..."
+├─ left_csv: "/Users/you/crm_contacts.csv"
+├─ right_csv: "/Users/you/crm_funds.csv"
+├─ merge_on_left: "company_name"
+├─ merge_on_right: "fund_name"
+└─ relationship_type: "one_to_one"
+
+→ Submitted: 10 rows for merging.
+  Session: https://everyrow.io/sessions/8e2eb233-e2cb-4144-b949-0e4fb4962cb2
+
+Tool: everyrow_results
+→ Saved 10 rows to /Users/you/merged_contacts.csv
+```
+
+All 10 matched in 9 seconds for $0.00. [View the session](https://everyrow.io/sessions/8e2eb233-e2cb-4144-b949-0e4fb4962cb2).
+
+| Contact | Company (left) | Fund (right) |
+|---------|---------------|--------------|
+| John Smith | Bridgewater | Bridgewater Associates |
+| Sarah Johnson | Citadel LLC | Citadel |
+| Jessica Wang | D.E. Shaw | D. E. Shaw & Co. |
+| Robert Brown | Point72 Asset Mgmt | Point72 Asset Management |
+| Amanda Wilson | Renaissance Tech | Renaissance Technologies |
+
+The merge cascade handled all variations (abbreviations, suffixes, spacing) via fuzzy matching without needing LLM calls. When simpler methods work, everyrow uses them.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK's `merge()` handles company name variations for CRM data imports.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 10         |
+| Matched        | 10 (100%)  |
+| Cost           | $0.00      |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from everyrow import create_session
+from everyrow.ops import merge
+
+contacts_df = pd.read_csv("crm_contacts.csv")
+funds_df = pd.read_csv("crm_funds.csv")
+
+async def main():
+    async with create_session(name="CRM Merge Workflow") as session:
+        result = await merge(
+            session=session,
+            task="""
+                Match contacts to their associated fund/company.
+                Company names may vary between tables. Match on core company name,
+                ignoring legal suffixes, abbreviations, and descriptors.
+            """,
+            left_table=contacts_df,
+            right_table=funds_df,
+            merge_on_left="company_name",
+            merge_on_right="fund_name",
+        )
+        return result.data
+
+merged = asyncio.run(main())
+```
+
+All 10 contacts matched at $0.00. The fuzzy matching cascade handled abbreviations ("Mgmt" to "Management"), legal suffixes ("LLC"), and spacing variations without needing LLM calls.
+
+</GuideTabContent>
+</GuideTabs>

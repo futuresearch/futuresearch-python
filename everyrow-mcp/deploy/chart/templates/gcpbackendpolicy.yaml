@@ -1,0 +1,15 @@
+{{- if .Values.sessionAffinity.gcpBackendPolicy.enabled }}
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  default:
+    sessionAffinity:
+      type: GENERATED_COOKIE
+      cookieTtlSec: {{ .Values.sessionAffinity.gcpBackendPolicy.cookieTtlSec }}
+  targetRef:
+    group: ""
+    kind: Service
+    name: {{ .Release.Name }}
+{{- end }}

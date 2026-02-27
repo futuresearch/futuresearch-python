@@ -1,0 +1,120 @@
+---
+title: Score Leads from Fragmented Data
+metadataTitle: How to Score Business Leads from Incomplete Data in Claude Code
+description: Lead scoring for companies whose data is scattered across disconnected sources. Assess characteristics that predict product fit across fragmented, incomplete records.
+---
+
+# Score Leads from Fragmented Data
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Claude Code is great at researching a single company's operations. Scoring 20 prospects on data fragmentation risk is harder. Each one needs web research into operational complexity, M&A history, and system diversity, then a consistent 0-100 score calibrated across the full set.
+
+Here, we get Claude Code to score B2B companies on their likelihood of needing data integration solutions.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 20         |
+| Cost           | $0.08      |
+| Time           | 40 seconds |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download [b2b_companies.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/b2b_companies.csv). Tell Claude:
+
+```
+Score each company from 0-100 on their likelihood of suffering from data
+fragmentation challenges. High scores for multi-location operations, M&A
+history, disconnected systems. Low scores for single-location, cloud-native,
+integrated stacks.
+```
+
+Claude calls everyrow's `rank` MCP tool:
+
+```
+Tool: everyrow_rank
+├─ task: "Score each company from 0-100 on data fragmentation risk..."
+├─ input_csv: "/Users/you/b2b_companies.csv"
+├─ field_name: "score"
+├─ field_type: "int"
+└─ ascending_order: false
+
+→ Submitted: 20 rows for ranking.
+  Session: https://everyrow.io/sessions/0a3de921-5ffd-4031-91be-9a447e51b96a
+
+Tool: everyrow_results
+→ Saved 20 rows to /Users/you/scored_leads.csv
+```
+
+[View the session](https://everyrow.io/sessions/0a3de921-5ffd-4031-91be-9a447e51b96a).
+
+| Company | Industry | Score |
+|---------|----------|-------|
+| QuickServe Restaurants | Food Service | 95 |
+| Global Logistics Partners | Logistics | 95 |
+| CityMed Physicians Group | Healthcare | 95 |
+| Midwest Healthcare Network | Healthcare | 92 |
+| First National Bancorp | Banking | 92 |
+| ... | ... | ... |
+| TechFlow Solutions | Software | 15 |
+| CloudFirst Startup | Software | 10 |
+| SimpleRetail Co | Retail | 10 |
+| Boutique Law LLP | Legal | 10 |
+
+Multi-location businesses (restaurants, healthcare networks, logistics) score highest. Cloud-native single-location companies score lowest. No web research was needed since the company descriptions contained enough context.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK's `rank()` scores every row using LLM reasoning. For B2B lead scoring, it evaluates operational complexity from company descriptions.
+
+| Metric         | Value      |
+| -------------- | ---------- |
+| Rows processed | 20         |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from everyrow import create_session
+from everyrow.ops import rank
+
+companies_df = pd.read_csv("b2b_companies.csv")
+
+async def main():
+    async with create_session(name="Data Fragmentation Lead Scoring") as session:
+        result = await rank(
+            session=session,
+            task="""
+                Score each company from 0-100 on data fragmentation risk.
+                High (70-100): Multiple locations, M&A history, disconnected systems.
+                Low (0-30): Single location, cloud-native, integrated stack.
+            """,
+            input=companies_df,
+            field_name="score",
+        )
+        return result.data.sort_values("score", ascending=False)
+
+results = asyncio.run(main())
+```
+
+Top scores: QuickServe Restaurants (95), Global Logistics Partners (95), TransGlobal Shipping (92). Bottom scores: CloudFirst Startup (5), SimpleRetail Co (10), Boutique Law LLP (10). Food service, logistics, hospitality, and healthcare companies score highest due to multi-location operations and disconnected systems.
+
+</GuideTabContent>
+</GuideTabs>

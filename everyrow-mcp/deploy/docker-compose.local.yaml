@@ -1,0 +1,12 @@
+# Local development overrides — NOT for production use.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.local.yaml up
+services:
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+
+  mcp-server:
+    environment:
+      MCP_SERVER_URL: "${MCP_SERVER_URL:-http://localhost:8000}"
+      TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
+      EXTRA_ALLOWED_HOSTS: "host.docker.internal:*"  # local dev only — widens DNS rebinding allowlist

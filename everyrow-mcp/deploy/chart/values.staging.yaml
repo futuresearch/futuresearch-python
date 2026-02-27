@@ -1,0 +1,16 @@
+# Staging overrides — layered on top of values.yaml via:
+#   helm upgrade everyrow-mcp-staging . -n everyrow-mcp-staging \
+#     -f values.yaml \
+#     -f values.staging.yaml -f values.secrets.staging.yaml
+#
+# EVERYROW_API_URL is intentionally not overridden — there is no staging API.
+# The MCP server is a frontend to the production EveryRow API in both environments.
+
+replicaCount: 2
+
+env:
+  MCP_SERVER_URL: "https://mcp-staging.everyrow.io"
+  REDIS_DB: "14"
+
+httproute:
+  host: mcp-staging.everyrow.io

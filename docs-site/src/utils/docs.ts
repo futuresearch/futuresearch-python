@@ -9,6 +9,7 @@ const DOCS_DIR = path.join(process.cwd(), "..", "docs");
 export interface DocMeta {
   slug: string;
   title: string;
+  metadataTitle?: string;
   description?: string;
   category: string;
   format: "md" | "mdx";
@@ -43,8 +44,8 @@ export function getAllDocs(): DocMeta[] {
       const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        // Skip data directory
-        if (entry.name === "data") continue;
+        // Skip directories served by other routes or not documentation
+        if (["data", "case_studies", "claude-code-runs"].includes(entry.name)) continue;
         scanDir(fullPath, path.join(prefix, entry.name));
       } else if (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) {
         const isMdx = entry.name.endsWith(".mdx");
@@ -56,6 +57,7 @@ export function getAllDocs(): DocMeta[] {
         docs.push({
           slug,
           title: data.title || slugToTitle(path.basename(slug)),
+          metadataTitle: data.metadataTitle,
           description: data.description,
           category: getCategory(relativePath),
           format: isMdx ? "mdx" : "md",
@@ -82,6 +84,7 @@ export function getDocBySlug(slug: string): Doc | null {
       return {
         slug: baseSlug,
         title: data.title || slugToTitle(path.basename(baseSlug)),
+        metadataTitle: data.metadataTitle,
         description: data.description,
         category: getCategory(baseSlug),
         format: ext === ".mdx" ? "mdx" : "md",
@@ -152,14 +155,15 @@ export function getNavigation(): NavSection[] {
           "guides",
           "notebooks",
           "api",
+          "case-studies",
         ].includes(d.slug))
         .map((d) => ({ slug: d.slug, title: d.title })),
     },
     {
       title: "Case Studies",
-      href: "/notebooks",
+      href: "/case-studies",
       items: notebooks.map((n) => ({
-        slug: `notebooks/${n.slug}`,
+        slug: `case-studies/${n.slug}`,
         title: n.title,
       })),
     },

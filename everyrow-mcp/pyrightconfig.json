@@ -1,0 +1,13 @@
+{
+  "venvPath": "..",
+  "venv": ".venv",
+  "pythonVersion": "3.13",
+  "include": ["src", "tests"],
+  "exclude": ["scripts"],
+  "extraPaths": [
+    "src",
+    "../src"
+  ],
+  "reportUnusedCallResult": false,
+  "reportUnknownVariableType": false
+}

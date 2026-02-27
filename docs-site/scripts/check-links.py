@@ -23,6 +23,11 @@ BASE_PATH = "/docs"
 # GitHub blob URLs pointing into this repo are checked as local files
 REPO_BLOB_PREFIX = "https://github.com/futuresearch/everyrow-sdk/blob/main/"
 
+# Colab URLs pointing into this repo are checked as local files
+REPO_COLAB_PREFIX = (
+    "https://colab.research.google.com/github/futuresearch/everyrow-sdk/blob/main/"
+)
+
 # Git LFS media URLs — the correct way to link to LFS-tracked files.
 # These are checked as local files instead of fetching from GitHub.
 REPO_LFS_PREFIX = (
@@ -42,7 +47,8 @@ CHECKED_DOMAINS: set[str] = {
 # Each URL must be listed explicitly — new links to the same domain will
 # error until added here, so broken links don't slip through unnoticed.
 SKIPPED_URLS: set[str] = {
-    "https://arxiv.org/abs/2506.06287",
+    "https://clinicaltrials.gov/",
+    "https://clinicaltrials.gov/data-api/about-api",
     "https://code.claude.com/docs/en/discover-plugins",
     "https://code.claude.com/docs/en/mcp",
     "https://cursor.com/deeplink/mcp-install-dark.svg",
@@ -60,6 +66,7 @@ SKIPPED_URLS: set[str] = {
     "https://github.com/futuresearch/everyrow-sdk/releases",
     "https://github.com/user-attachments/assets/254fa2ed-c1f3-4ee8-b93d-d169edf32f27",
     "https://huggingface.co/datasets/fancyzhx/dbpedia_14",
+    "https://huggingface.co/datasets/google-research-datasets/paws",
     "https://hugovk.github.io/top-pypi-packages/",
     "https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=fff",
     "https://img.shields.io/badge/License-MIT-yellow.svg",
@@ -70,7 +77,12 @@ SKIPPED_URLS: set[str] = {
     "https://opensource.org/licenses/MIT",
     "https://pypi.org/project/everyrow/",
     "https://python.org/downloads/",
+    "https://pip.pypa.io/en/stable/",
     "https://www.kaggle.com/code/rafaelpoyiadzi/active-learning-with-an-llm-oracle",
+    "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
+    "https://arxiv.org/abs/2506.21558",
+    "https://arxiv.org/abs/2506.06287",
+    "https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv"
 }
 
 
@@ -213,6 +225,17 @@ def validate_link(
                 )
             return None, None
 
+        # Colab links to this repo: check the notebook exists locally
+        if url_without_fragment.startswith(REPO_COLAB_PREFIX):
+            rel_path = url_without_fragment[len(REPO_COLAB_PREFIX) :]
+            if not (REPO_ROOT / rel_path).exists():
+                return (
+                    f"  {file_label}: file not found for {href!r}"
+                    f" (expected {rel_path})",
+                    None
+                )
+            return None, None
+
         if url_without_fragment in SKIPPED_URLS:
             return None, None
 
@@ -330,7 +353,7 @@ def check_markdown_file(
         if href in seen_hrefs:
             continue
         seen_hrefs.add(href)
-        
+
         error, unknown = validate_link(
             href, file_label, None, valid_paths, url_cache, md_file
         )

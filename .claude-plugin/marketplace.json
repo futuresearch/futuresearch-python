@@ -4,14 +4,14 @@
     "name": "FutureSearch"
   },
   "metadata": {
-    "description": "AI-powered data processing plugins from FutureSearch"
+    "description": "everyrow plugins from FutureSearch"
   },
   "plugins": [
     {
       "name": "everyrow",
       "source": "./",
-      "description": "Claude Code plugin for the everyrow SDK - AI-powered data processing utilities for transforming, deduping, merging, ranking, and screening dataframes",
-      "version": "0.3.0"
+      "description": "Give Claude Code a research team. Forecast, score, classify, or research every row of a dataset.",
+      "version": "0.4.0"
     }
   ]
 }

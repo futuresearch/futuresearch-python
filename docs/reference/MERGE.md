@@ -14,15 +14,17 @@ from everyrow.ops import merge
 
 result = await merge(
     task="Match each software product to its parent company",
-    left_table=software_products,
-    right_table=approved_vendors,
-    merge_on_left="product_name",
-    merge_on_right="company_name",
+    left_table=software_products,   # table being enriched — all rows kept
+    right_table=approved_vendors,    # lookup/reference table — columns appended
+    # merge_on_left/merge_on_right omitted: auto-detection handles most cases.
+    # Only specify them when you expect exact string matches on specific columns
+    # or want to draw agent attention to them.
 )
 print(result.data.head())
 ```
 
-For ambiguous cases, add context:
+For ambiguous cases, add context. Here `merge_on_left`/`merge_on_right` are set because
+the column names ("sponsor", "company") are too generic for auto-detection:
 
 ```python
 result = await merge(
@@ -34,10 +36,10 @@ result = await merge(
         - Regional names (MSD is Merck outside the US)
         - Abbreviations (BMS → Bristol-Myers Squibb)
     """,
-    left_table=trials,
-    right_table=pharma_companies,
-    merge_on_left="sponsor",
-    merge_on_right="company",
+    left_table=trials,              # table being enriched — all rows kept
+    right_table=pharma_companies,   # lookup table
+    merge_on_left="sponsor",        # specified: draws agent attention to this column
+    merge_on_right="company",       # specified: draws agent attention to this column
 )
 print(result.data.head())
 ```
@@ -51,10 +53,12 @@ A DataFrame with all left table columns plus matched right table columns. Rows t
 | Name | Type | Description |
 |------|------|-------------|
 | `task` | str | How to match the tables |
-| `left_table` | DataFrame | Primary table (all rows kept) |
-| `right_table` | DataFrame | Table to match from |
-| `merge_on_left` | Optional[str] | Column in left table. Model will try to guess if not specified. |
-| `merge_on_right` | Optional[str] | Column in right table. Model will try to guess if not specified. |
+| `left_table` | DataFrame | The table being enriched — all its rows are kept in the output (LEFT JOIN). |
+| `right_table` | DataFrame | The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls. |
+| `merge_on_left` | Optional[str] | Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted. |
+| `merge_on_right` | Optional[str] | Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted. |
+| `relationship_type` | Optional[str] | `"many_to_one"` (default) — multiple left rows can match one right row. `"one_to_one"` — unique matching between left and right rows. `"one_to_many"` — one left row can match multiple right rows. `"many_to_many"` — multiple left rows can match multiple right rows. For `one_to_many` and `many_to_many`, multiple matches are joined with `" \| "` in each added column. |
+| `use_web_search` | Optional[str] | `"auto"` (default), `"yes"`, or `"no"`. Controls whether agents use web search to resolve matches. |
 | `session` | Session | Optional, auto-created if omitted |
 
 ## Performance
@@ -65,16 +69,26 @@ A DataFrame with all left table columns plus matched right table columns. Rows t
 | 2,000 × 50 | ~8 min | ~$9 |
 | 1,000 × 1,000 | ~12 min | ~$15 |
 
+## Via MCP
+
+MCP tool: `everyrow_merge`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `left_csv_path` | string | Path to the table being enriched (left join) |
+| `right_csv_path` | string | Path to the lookup/reference table |
+| `task` | string | How to match rows across tables |
+
 ## Related docs
 
 ### Guides
 - [Fuzzy Join Without Matching Keys](/docs/fuzzy-join-without-keys)
 
-### Notebooks
-- [LLM Merging at Scale](/docs/notebooks/llm-powered-merging-at-scale)
-- [Match Software Vendors to Requirements](/docs/notebooks/match-software-vendors-to-requirements)
-- [Merge Contacts with Company Data](/docs/notebooks/merge-contacts-with-company-data)
-- [Merge Overlapping Contact Lists](/docs/notebooks/merge-overlapping-contact-lists)
+### Case Studies
+- [LLM Merging at Scale](/docs/case-studies/llm-powered-merging-at-scale)
+- [Match Software Vendors to Requirements](/docs/case-studies/match-software-vendors-to-requirements)
+- [Merge Contacts with Company Data](/docs/case-studies/merge-contacts-with-company-data)
+- [Merge Overlapping Contact Lists](/docs/case-studies/merge-overlapping-contact-lists)
 
 ### Blog posts
 - [Software Supplier Matching](https://futuresearch.ai/software-supplier-matching/)

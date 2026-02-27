@@ -131,11 +131,28 @@ companies = await single_agent(
 )
 ```
 
+## Via MCP
+
+MCP tools: `everyrow_agent` (DataFrame), `everyrow_single_agent` (single question)
+
+**everyrow_agent:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `csv_path` | string | Path to input CSV file |
+| `task` | string | What to research for each row |
+
+**everyrow_single_agent:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `task` | string | The question to research |
+
 ## Related docs
 
 ### Guides
 - [Add a Column with Web Lookup](/docs/add-column-web-lookup)
 - [Classify and Label Data with an LLM](/docs/classify-dataframe-rows-llm)
 
-### Notebooks
-- [LLM Web Research Agents at Scale](/docs/notebooks/llm-web-research-agents-at-scale)
+### Case Studies
+- [LLM Web Research Agents at Scale](/docs/case-studies/llm-web-research-agents-at-scale)

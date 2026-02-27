@@ -5,8 +5,8 @@ from everyrow.constants import DEFAULT_EVERYROW_API_URL, EveryrowError
 from everyrow.generated.client import AuthenticatedClient
 from everyrow.generated.models.error_response import ErrorResponse
 from everyrow.generated.models.http_validation_error import HTTPValidationError
-from everyrow.generated.models.insufficient_balance_error import (
-    InsufficientBalanceError,
+from everyrow.generated.models.insufficient_balance_response import (
+    InsufficientBalanceResponse,
 )
 
 
@@ -35,13 +35,17 @@ T = TypeVar("T")
 
 
 def handle_response[T](
-    response: T | ErrorResponse | HTTPValidationError | InsufficientBalanceError | None,
+    response: T
+    | ErrorResponse
+    | HTTPValidationError
+    | InsufficientBalanceResponse
+    | None,
 ) -> T:
     if isinstance(response, ErrorResponse):
         raise EveryrowError(response.message)
     if isinstance(response, HTTPValidationError):
         raise EveryrowError(response.detail)
-    if isinstance(response, InsufficientBalanceError):
+    if isinstance(response, InsufficientBalanceResponse):
         raise EveryrowError(response.message)
     if response is None:
         raise EveryrowError("Unknown error")

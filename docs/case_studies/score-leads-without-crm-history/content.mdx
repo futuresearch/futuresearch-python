@@ -1,0 +1,124 @@
+---
+title: Score Cold Leads via Web Research
+metadataTitle: Using Claude Code to Research and Score Leads from Scratch
+description: Cold lead qualification powered by live web research. Score prospects based on publicly available information about their strategy, team, and market position.
+---
+
+# Score Cold Leads via Web Research
+
+<GuideTabs>
+<GuideTabContent tab="claude-code">
+
+Ask Claude Code to evaluate whether a hedge fund buys research tools and it will investigate the firm's strategy and team structure. Doing that for 15 firms, each with unique investment approaches ranging from pure quant to fundamental research, needs per-firm web research running in parallel.
+
+Here, we get Claude Code to rank investment firms using web research to assess each firm's research intensity.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Rows processed | 15          |
+| Cost           | $0.30       |
+| Time           | 149 seconds |
+
+First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
+
+Set your API key before launching Claude Code:
+
+```bash
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+Download [investment_firms.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/investment_firms.csv). Tell Claude:
+
+```
+Score each investment firm from 0-100 on their likelihood to purchase
+third-party research tools. High scores for fundamental/activist/short-sellers.
+Low scores for passive index funds and pure quant.
+```
+
+Claude calls everyrow's `rank` MCP tool. Each agent researches the firm's actual strategy:
+
+```
+Tool: everyrow_rank
+├─ task: "Score each investment firm on likelihood to purchase research tools..."
+├─ input_csv: "/Users/you/investment_firms.csv"
+├─ field_name: "score"
+├─ field_type: "int"
+└─ ascending_order: false
+
+→ Submitted: 15 rows for ranking.
+  Session: https://everyrow.io/sessions/f759d5fb-822d-4bb0-b978-85b36909b919
+
+...
+
+Tool: everyrow_results
+→ Saved 15 rows to /Users/you/scored_firms.csv
+```
+
+[View the session](https://everyrow.io/sessions/f759d5fb-822d-4bb0-b978-85b36909b919).
+
+| Firm | Score | Strategy |
+|------|-------|----------|
+| Muddy Waters Research | 95 | Short-seller, research-driven |
+| ValueAct Capital | 95 | Activist, deep research |
+| Elliott Management | 95 | Activist, multi-strategy |
+| Baupost Group | 92 | Value, fundamental research |
+| Third Point | 92 | Activist, event-driven |
+| Lone Pine Capital | 90 | Long/short equity |
+| Pershing Square | 90 | Concentrated activist |
+| ... | ... | ... |
+| AQR Capital | 20 | Systematic/quant |
+| Two Sigma | 15 | Quantitative |
+| Renaissance Technologies | 20 | Pure quant |
+| Bridgewater Associates | 15 | Systematic macro |
+| Vanguard Index Funds | 0 | Passive index |
+
+Activist and fundamental research firms score highest. Pure quant and passive index funds score lowest. The web research verified each firm's actual strategy and team composition.
+
+</GuideTabContent>
+<GuideTabContent tab="python">
+
+The everyrow SDK's `rank()` performs web research on each row to score firms by a criterion that requires external knowledge.
+
+| Metric         | Value       |
+| -------------- | ----------- |
+| Rows processed | 15          |
+
+```bash
+pip install everyrow
+export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+```
+
+```python
+import asyncio
+import pandas as pd
+from everyrow import create_session
+from everyrow.ops import rank
+
+firms_df = pd.read_csv("investment_firms.csv")
+
+async def main():
+    async with create_session(name="Research Tool Adoption Scoring") as session:
+        result = await rank(
+            session=session,
+            task="""
+                Score each investment firm from 0-100 on likelihood to purchase
+                third-party research tools. High for fundamental/activist/short-sellers.
+                Low for passive index funds and pure quant.
+            """,
+            input=firms_df,
+            field_name="score",
+        )
+        return result.data
+
+results = asyncio.run(main())
+```
+
+9 firms scored 70+ (high priority), 6 scored below 40 (low priority). Muddy Waters Research (98) and Pershing Square (95) top the list. Vanguard Index Funds (10) and Renaissance Technologies (15) are at the bottom.
+
+</GuideTabContent>
+</GuideTabs>

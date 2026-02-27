@@ -1,15 +1,27 @@
 """Tests for utility functions."""
 
+import socket
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pandas as pd
 import pytest
 
 from everyrow_mcp.utils import (
+    _ALLOWED_PORTS,
+    _is_blocked_ip,
+    _normalise_google_sheets_url,
+    _resolve_and_validate,
+    _SSRFSafeTransport,
+    _validate_port,
+    _validate_url_target,
+    is_url,
     resolve_output_path,
     save_result_to_csv,
     validate_csv_path,
     validate_output_path,
+    validate_url,
 )
 
 
@@ -46,6 +58,19 @@ class TestValidateCsvPath:
 
         with pytest.raises(ValueError, match="must be a CSV"):
             validate_csv_path(str(txt_file))
+
+    def test_path_traversal_resolved(self, tmp_path: Path):
+        """Path with /../ segments is resolved before validation."""
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        # Construct a path with traversal: /tmp/xxx/sub/../test.csv
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        traversal_path = str(sub) + "/../test.csv"
+
+        # Should resolve to the real file and pass
+        validate_csv_path(traversal_path)
 
 
 class TestValidateOutputPath:
@@ -112,3 +137,366 @@ class TestSaveResultToCsv:
         loaded = pd.read_csv(output_path)
         assert list(loaded.columns) == ["a", "b"]
         assert len(loaded) == 3
+
+
+class TestIsUrl:
+    """Tests for is_url."""
+
+    def test_http_url(self):
+        assert is_url("http://example.com") is True
+
+    def test_https_url(self):
+        assert is_url("https://example.com/data.csv") is True
+
+    def test_local_path(self):
+        assert is_url("/Users/test/data.csv") is False
+
+    def test_relative_path(self):
+        assert is_url("data.csv") is False
+
+
+class TestValidateUrl:
+    """Tests for validate_url."""
+
+    def test_valid_https(self):
+        url = "https://example.com/data.csv"
+        assert validate_url(url) == url
+
+    def test_valid_http(self):
+        url = "http://example.com/data.csv"
+        assert validate_url(url) == url
+
+    def test_rejects_ftp(self):
+        with pytest.raises(ValueError, match="http or https"):
+            validate_url("ftp://example.com/data.csv")
+
+    def test_rejects_no_host(self):
+        with pytest.raises(ValueError, match="no host"):
+            validate_url("https://")
+
+
+class TestNormaliseGoogleSheetsUrl:
+    """Tests for _normalise_google_sheets_url."""
+
+    def test_edit_url_to_export(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/edit"
+        result = _normalise_google_sheets_url(url)
+        assert result == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+
+    def test_edit_url_with_gid(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/edit#gid=123"
+        result = _normalise_google_sheets_url(url)
+        assert (
+            result
+            == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv&gid=123"
+        )
+
+    def test_already_export_url(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+        result = _normalise_google_sheets_url(url)
+        assert result == url
+
+    def test_pub_url_to_export(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/pub?output=html"
+        result = _normalise_google_sheets_url(url)
+        assert result == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv"
+
+    def test_pub_url_with_gid(self):
+        url = "https://docs.google.com/spreadsheets/d/1abc/pub?gid=456&single=true"
+        result = _normalise_google_sheets_url(url)
+        assert (
+            result
+            == "https://docs.google.com/spreadsheets/d/1abc/export?format=csv&gid=456"
+        )
+
+    def test_non_google_url_unchanged(self):
+        url = "https://example.com/data.csv"
+        result = _normalise_google_sheets_url(url)
+        assert result == url
+
+
+# ── SSRF protection tests ─────────────────────────────────────
+
+
+def _mock_resolve(hostname, resolved_ip):  # noqa: ARG001
+    """Return a mock getaddrinfo result resolving hostname to a single IP."""
+    return [(socket.AF_INET, socket.SOCK_STREAM, 0, "", (resolved_ip, 0))]
+
+
+class TestSsrfProtection:
+    """Tests for SSRF protection in URL validation."""
+
+    def test_blocks_localhost(self):
+        assert _is_blocked_ip("127.0.0.1") is True
+
+    def test_blocks_10_x(self):
+        assert _is_blocked_ip("10.0.0.1") is True
+
+    def test_blocks_172_16_x(self):
+        assert _is_blocked_ip("172.16.0.1") is True
+
+    def test_blocks_192_168_x(self):
+        assert _is_blocked_ip("192.168.1.1") is True
+
+    def test_blocks_link_local(self):
+        assert _is_blocked_ip("169.254.169.254") is True
+
+    def test_blocks_ipv6_loopback(self):
+        assert _is_blocked_ip("::1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_loopback(self):
+        assert _is_blocked_ip("::ffff:127.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_private(self):
+        assert _is_blocked_ip("::ffff:10.0.0.1") is True
+
+    def test_blocks_ipv4_mapped_ipv6_metadata(self):
+        assert _is_blocked_ip("::ffff:169.254.169.254") is True
+
+    def test_allows_public_ip(self):
+        assert _is_blocked_ip("8.8.8.8") is False
+
+    def test_allows_public_ip_2(self):
+        assert _is_blocked_ip("93.184.216.34") is False
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_blocks_localhost(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("localhost", "127.0.0.1"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                await _validate_url_target("http://localhost/secret")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_blocks_10_x(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("internal.corp", "10.0.0.5"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                await _validate_url_target("http://internal.corp/data")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_blocks_metadata_endpoint(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("metadata", "169.254.169.254"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                await _validate_url_target("http://metadata/latest/api-token")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_allows_public(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            # Should not raise
+            await _validate_url_target("https://example.com/data.csv")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_blocks_unresolvable(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name resolution failed"),
+        ):
+            with pytest.raises(ValueError, match="Could not resolve"):
+                await _validate_url_target("http://nonexistent.invalid/data")
+
+
+# ── Port restriction tests ────────────────────────────────────
+
+
+class TestPortRestriction:
+    """Tests for port allowlist in URL validation."""
+
+    def test_default_port_allowed(self):
+        """None (default port) is always allowed."""
+        _validate_port(None)
+
+    def test_standard_ports_allowed(self):
+        for port in sorted(_ALLOWED_PORTS):
+            _validate_port(port)
+
+    def test_redis_port_blocked(self):
+        with pytest.raises(ValueError, match="not permitted"):
+            _validate_port(6379)
+
+    def test_postgres_port_blocked(self):
+        with pytest.raises(ValueError, match="not permitted"):
+            _validate_port(5432)
+
+    def test_smtp_port_blocked(self):
+        with pytest.raises(ValueError, match="not permitted"):
+            _validate_port(25)
+
+    def test_arbitrary_high_port_blocked(self):
+        with pytest.raises(ValueError, match="not permitted"):
+            _validate_port(9090)
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_blocks_redis_port(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                await _validate_url_target("http://example.com:6379/data")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_allows_port_443(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            await _validate_url_target("https://example.com:443/data.csv")
+
+    @pytest.mark.asyncio
+    async def test_validate_url_target_allows_port_8080(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            await _validate_url_target("http://example.com:8080/data.csv")
+
+
+# ── DNS-pinning tests ────────────────────────────────────────
+
+
+class TestResolveAndValidate:
+    """Tests for _resolve_and_validate (IP pinning)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_ip_for_public_hostname(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("example.com", "93.184.216.34"),
+        ):
+            ip = await _resolve_and_validate("example.com")
+            assert ip == "93.184.216.34"
+
+    @pytest.mark.asyncio
+    async def test_returns_ip_literal_directly(self):
+        ip = await _resolve_and_validate("8.8.8.8")
+        assert ip == "8.8.8.8"
+
+    @pytest.mark.asyncio
+    async def test_blocks_private_ip_literal(self):
+        with pytest.raises(ValueError, match="blocked IP"):
+            await _resolve_and_validate("127.0.0.1")
+
+    @pytest.mark.asyncio
+    async def test_blocks_metadata_hostname(self):
+        with pytest.raises(ValueError, match="not permitted"):
+            await _resolve_and_validate("metadata.google.internal")
+
+    @pytest.mark.asyncio
+    async def test_blocks_hostname_resolving_to_private(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            return_value=_mock_resolve("evil.com", "10.0.0.1"),
+        ):
+            with pytest.raises(ValueError, match="not permitted"):
+                await _resolve_and_validate("evil.com")
+
+    @pytest.mark.asyncio
+    async def test_blocks_unresolvable(self):
+        with patch(
+            "everyrow_mcp.utils.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name resolution failed"),
+        ):
+            with pytest.raises(ValueError, match="Could not resolve"):
+                await _resolve_and_validate("nonexistent.invalid")
+
+    @pytest.mark.asyncio
+    async def test_unwraps_ipv4_mapped_ipv6(self):
+        with pytest.raises(ValueError, match="blocked IP"):
+            await _resolve_and_validate("::ffff:127.0.0.1")
+
+    @pytest.mark.asyncio
+    async def test_allows_public_ipv6_literal(self):
+        ip = await _resolve_and_validate("2001:db8::1")
+        assert ip == "2001:db8::1"
+
+    @pytest.mark.asyncio
+    async def test_blocks_ipv6_ula(self):
+        with pytest.raises(ValueError, match="blocked IP"):
+            await _resolve_and_validate("fd12:3456:789a::1")
+
+    @pytest.mark.asyncio
+    async def test_blocks_ipv6_link_local(self):
+        with pytest.raises(ValueError, match="blocked IP"):
+            await _resolve_and_validate("fe80::1")
+
+
+# ── IPv6 Host header tests ───────────────────────────────────
+
+
+class TestSSRFSafeTransportIPv6Host:
+    """Tests for IPv6 Host header bracket wrapping in _SSRFSafeTransport."""
+
+    @pytest.mark.asyncio
+    async def test_ipv6_host_header_no_port(self):
+        """IPv6 hostname gets brackets in Host header even without explicit port."""
+        transport = _SSRFSafeTransport()
+        request = httpx.Request("GET", "http://[2001:db8::1]/data")
+
+        with patch.object(
+            transport._transport,
+            "handle_async_request",
+            return_value=httpx.Response(200),
+        ) as mock:
+            with patch(
+                "everyrow_mcp.utils._resolve_and_validate",
+                new_callable=AsyncMock,
+                return_value="2001:db8::1",
+            ):
+                await transport.handle_async_request(request)
+
+        pinned = mock.call_args[0][0]
+        assert pinned.headers["host"] == "[2001:db8::1]"
+
+    @pytest.mark.asyncio
+    async def test_ipv6_host_header_with_non_standard_port(self):
+        """IPv6 hostname + non-standard port gets [addr]:port format."""
+        transport = _SSRFSafeTransport()
+        request = httpx.Request("GET", "http://[2001:db8::1]:8080/data")
+
+        with patch.object(
+            transport._transport,
+            "handle_async_request",
+            return_value=httpx.Response(200),
+        ) as mock:
+            with patch(
+                "everyrow_mcp.utils._resolve_and_validate",
+                new_callable=AsyncMock,
+                return_value="2001:db8::1",
+            ):
+                with patch("everyrow_mcp.utils._validate_port"):
+                    await transport.handle_async_request(request)
+
+        pinned = mock.call_args[0][0]
+        assert pinned.headers["host"] == "[2001:db8::1]:8080"
+
+    @pytest.mark.asyncio
+    async def test_ipv4_host_header_no_brackets(self):
+        """IPv4 hostname does NOT get brackets."""
+        transport = _SSRFSafeTransport()
+        request = httpx.Request("GET", "http://example.com:8080/data")
+
+        with patch.object(
+            transport._transport,
+            "handle_async_request",
+            return_value=httpx.Response(200),
+        ) as mock:
+            with patch(
+                "everyrow_mcp.utils._resolve_and_validate",
+                new_callable=AsyncMock,
+                return_value="93.184.216.34",
+            ):
+                with patch("everyrow_mcp.utils._validate_port"):
+                    await transport.handle_async_request(request)
+
+        pinned = mock.call_args[0][0]
+        assert pinned.headers["host"] == "example.com:8080"

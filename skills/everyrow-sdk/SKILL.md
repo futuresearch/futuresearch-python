@@ -1,11 +1,11 @@
 ---
 name: everyrow-sdk
-description: Helps write Python code using the everyrow SDK for AI-powered data processing - transforming, deduping, merging, ranking, and screening dataframes with natural language instructions
+description: Use when the user wants Claude to dispatch researchers to forecast, score, classify, or add to a dataset at scale.
 ---
 
 # everyrow SDK
 
-The everyrow SDK provides intelligent data processing utilities powered by AI agents. Use this skill when writing Python code that needs to:
+everyrow gives Claude a research team for your data. Use this skill when writing Python code that needs to:
 
 > **Documentation**: For detailed guides, case studies, and API reference, see:
 > - Docs site: [everyrow.io/docs](https://everyrow.io/docs)
@@ -116,15 +116,17 @@ Parameters:
 ```
 
 ### everyrow_merge
-Join two CSV files using intelligent entity matching.
+Join two CSV files using intelligent entity matching (LEFT JOIN semantics).
 ```
 Parameters:
 - task: Natural language description of how to match rows
-- left_csv: Absolute path to primary CSV
-- right_csv: Absolute path to secondary CSV
+- left_csv: Absolute path to the left CSV — the table being enriched (ALL its rows are kept in the output)
+- right_csv: Absolute path to the right CSV — the lookup/reference table (its columns are appended to matches; unmatched left rows get nulls)
 - output_path: Directory or full .csv path for output
-- merge_on_left: (optional) Column name in left table
-- merge_on_right: (optional) Column name in right table
+- merge_on_left: (optional) Only set if you expect exact string matches on the chosen column or want to draw agent attention to it. Fine to omit.
+- merge_on_right: (optional) Only set if you expect exact string matches on the chosen column or want to draw agent attention to it. Fine to omit.
+- relationship_type: (optional) Defaults to "many_to_one", which is correct in most cases (e.g. products → companies). "one_to_one" when both tables have unique entities of the same kind. "one_to_many" when one left row can match multiple right rows (e.g. company → products). "many_to_many" when multiple left rows can match multiple right rows (e.g. companies → investors). For one_to_many and many_to_many, multiple matches are joined with " | " in each added column.
+- use_web_search: (optional) "auto" (default), "yes", or "no"
 ```
 
 ### everyrow_agent
@@ -225,22 +227,22 @@ Parameters: `input`, `equivalence_relation`, `strategy`, `strategy_prompt`, `ses
 
 ### merge - Merge tables with AI matching
 
-Join two tables when the keys don't match exactly. The AI knows "Photoshop" belongs to "Adobe" and "Genentech" is a Roche subsidiary:
+Join two tables when the keys don't match exactly (LEFT JOIN semantics). The AI knows "Photoshop" belongs to "Adobe" and "Genentech" is a Roche subsidiary:
 
 ```python
 from everyrow.ops import merge
 
 result = await merge(
     task="Match each software product to its parent company",
-    left_table=software_products,
-    right_table=approved_suppliers,
-    merge_on_left="software_name",
-    merge_on_right="company_name",
+    left_table=software_products,   # table being enriched — all rows kept
+    right_table=approved_suppliers,  # lookup/reference table — columns appended to matches
+    # merge_on_left/merge_on_right: omit unless you expect exact string matches
+    # on the chosen columns or want to draw agent attention to them.
 )
 print(result.data.head())
 ```
 
-Parameters: `task`, `left_table`, `right_table`, `merge_on_left`, `merge_on_right`, `session`
+Parameters: `task`, `left_table`, `right_table`, `merge_on_left`, `merge_on_right`, `relationship_type`, `use_web_search`, `session`
 
 ### screen - Evaluate and filter rows
 

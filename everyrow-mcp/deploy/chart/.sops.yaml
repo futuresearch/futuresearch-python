@@ -1,0 +1,2 @@
+creation_rules:
+    - gcp_kms: projects/varuna-400921/locations/global/keyRings/sops/cryptoKeys/sops-key
