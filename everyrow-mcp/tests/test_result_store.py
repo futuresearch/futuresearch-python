@@ -251,6 +251,42 @@ class TestBuildResultResponse:
         assert "poll_token" not in widget
         assert "download_token_url" not in widget
 
+    def test_artifact_id_included_in_widget_and_text(self):
+        """When artifact_id is provided, it appears in widget JSON and text summary."""
+        preview = [{"a": 1}]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-aid/download?token=abc"
+        result = _build_result_response(
+            task_id="task-aid",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=1,
+            columns=["a"],
+            offset=0,
+            page_size=10,
+            artifact_id="abc-123-def",
+        )
+        widget = json.loads(result[0].text)
+        assert widget["artifact_id"] == "abc-123-def"
+        assert "abc-123-def" in result[1].text
+        assert "Output artifact_id" in result[1].text
+
+    def test_no_artifact_id_when_empty(self):
+        """When artifact_id is empty, widget JSON and text omit it."""
+        preview = [{"a": 1}]
+        csv_url = f"{FAKE_SERVER_URL}/api/results/task-noaid/download?token=abc"
+        result = _build_result_response(
+            task_id="task-noaid",
+            csv_url=csv_url,
+            preview_records=preview,
+            total=1,
+            columns=["a"],
+            offset=0,
+            page_size=10,
+        )
+        widget = json.loads(result[0].text)
+        assert "artifact_id" not in widget
+        assert "Output artifact_id" not in result[1].text
+
 
 # ── Async functions ────────────────────────────────────────────
 
@@ -326,6 +362,29 @@ class TestTryCachedResult:
         assert widget["session_url"] == "https://everyrow.io/sessions/xyz"
 
     @pytest.mark.asyncio
+    async def test_preserves_artifact_id_from_meta(self, _http_state):
+        meta = json.dumps(
+            {
+                "total": 1,
+                "columns": ["a"],
+                "artifact_id": "cached-artifact-789",
+            }
+        )
+        page = json.dumps([{"a": 1}])
+        task_id = "task-cached-aid"
+
+        await redis_store.store_result_meta(task_id, meta)
+        await redis_store.store_result_page(task_id, 0, 10, page)
+        await redis_store.store_poll_token(task_id, "test-token")
+
+        result = await try_cached_result(task_id, 0, 10, mcp_server_url=FAKE_SERVER_URL)
+
+        assert result is not None
+        widget = json.loads(result[0].text)
+        assert widget["artifact_id"] == "cached-artifact-789"
+        assert "cached-artifact-789" in result[1].text
+
+    @pytest.mark.asyncio
     async def test_returns_none_when_json_expired(self, _http_state):
         """When metadata exists but JSON is gone, fall back to API (return None)."""
         task_id = "task-json-expired"
@@ -382,6 +441,35 @@ class TestTryStoreResult:
         meta = json.loads(meta_raw)
         assert meta["total"] == 3
         assert meta["columns"] == ["name", "score"]
+
+    @pytest.mark.asyncio
+    async def test_stores_artifact_id_in_meta_and_response(
+        self, sample_df, _http_state
+    ):
+        task_id = "task-aid-store"
+        await redis_store.store_poll_token(task_id, "test-token")
+
+        result = await try_store_result(
+            task_id,
+            sample_df,
+            0,
+            10,
+            mcp_server_url=FAKE_SERVER_URL,
+            artifact_id="output-artifact-456",
+        )
+
+        # Verify artifact_id in Redis metadata
+        meta_raw = await redis_store.get_result_meta(task_id)
+        assert meta_raw is not None
+        meta = json.loads(meta_raw)
+        assert meta["artifact_id"] == "output-artifact-456"
+
+        # Verify artifact_id in widget JSON
+        widget = json.loads(result[0].text)
+        assert widget["artifact_id"] == "output-artifact-456"
+
+        # Verify artifact_id in text summary
+        assert "output-artifact-456" in result[1].text
 
     @pytest.mark.asyncio
     async def test_includes_session_url_in_meta(self, sample_df, _http_state):
