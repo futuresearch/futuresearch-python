@@ -1,12 +1,3 @@
-"""Presigned URL upload system for large files (HTTP mode only).
-
-Delegates URL generation to the Cohort Engine API (POST /uploads/request).
-The Engine returns a presigned URL pointing at itself, but we rewrite it to
-point at the MCP server — the Claude.ai sandbox can reach the MCP server
-(via Cloudflare tunnel) but not api.everyrow.ai.  The MCP server proxies the
-PUT body to the Engine transparently.
-"""
-
 from __future__ import annotations
 
 import json
@@ -189,9 +180,14 @@ def _rewrite_upload_url(engine_url: str, mcp_server_url: str) -> str:
 # connected to, but does NOT control which domains the sandbox's curl
 # can reach.
 #
-# The sandbox CAN reach the MCP server (via its Cloudflare tunnel URL),
-# so we rewrite the Engine's presigned URL to point at the MCP server
-# and proxy the PUT body through to the Engine.  This adds one hop but
+# The sandbox CAN reach the MCP server, so the MCP server acts as a
+# two-way proxy for uploads:
+#
+#   1. Request phase:  User → MCP → Engine → MCP (rewrites URL) → User
+#   2. Upload phase:   User → MCP → Engine → MCP (passthrough) → User
+#
+# The only smart thing the MCP does is rewrite the URL in step 1.
+# Everything else is transparent forwarding.  This adds one hop but
 # is the only viable path given the sandbox's network constraints.
 
 
