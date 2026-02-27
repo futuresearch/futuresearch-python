@@ -137,6 +137,11 @@ async def everyrow_browse_lists(
     Call with no parameters to see all available lists, or use search/category
     to narrow results.
     """
+    logger.info(
+        "everyrow_browse_lists: search=%s category=%s",
+        params.search,
+        params.category,
+    )
     client = _get_client(ctx)
 
     try:
@@ -156,6 +161,7 @@ async def everyrow_browse_lists(
             )
         ]
 
+    logger.info("everyrow_browse_lists: found %d list(s)", len(results))
     lines = [f"Found {len(results)} built-in list(s):\n"]
     for i, item in enumerate(results, 1):
         fields_str = ", ".join(item.fields) if item.fields else "(no fields listed)"
@@ -193,6 +199,7 @@ async def everyrow_use_list(
 
     The copy is a fast database operation (<1s) — no polling needed.
     """
+    logger.info("everyrow_use_list: artifact_id=%s", params.artifact_id)
     client = _get_client(ctx)
 
     try:
@@ -211,6 +218,11 @@ async def everyrow_use_list(
     except Exception as e:
         return [TextContent(type="text", text=f"Error importing built-in list: {e!r}")]
 
+    logger.info(
+        "everyrow_use_list: imported artifact_id=%s rows=%d",
+        result.artifact_id,
+        len(df),
+    )
     return [
         TextContent(
             type="text",
@@ -993,6 +1005,7 @@ async def everyrow_progress(
     unless the task is completed or failed. The tool handles pacing internally.
     Do not add commentary between progress calls, just call again immediately.
     """
+    logger.info("everyrow_progress: task_id=%s", params.task_id)
     client = _get_client(ctx)
     task_id = params.task_id
 
@@ -1044,6 +1057,7 @@ async def everyrow_results_stdio(
     Only call this after everyrow_progress reports status 'completed'.
     Pass output_path (ending in .csv) to save results as a local CSV file.
     """
+    logger.info("everyrow_results (stdio): task_id=%s", params.task_id)
     client = _get_client(ctx)
     task_id = params.task_id
 
@@ -1092,6 +1106,12 @@ async def everyrow_results_http(
     controls how many rows _you_ can read.
     After results load, tell the user how many rows you can see vs the total.
     """
+    logger.info(
+        "everyrow_results (http): task_id=%s offset=%s page_size=%s",
+        params.task_id,
+        params.offset,
+        params.page_size,
+    )
     client = _get_client(ctx)
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
@@ -1186,6 +1206,11 @@ async def everyrow_list_sessions(
     Use this to find past sessions or check what's been run.
     Results are paginated — 25 sessions per page by default.
     """
+    logger.info(
+        "everyrow_list_sessions: offset=%s limit=%s",
+        params.offset,
+        params.limit,
+    )
     log_client_info(ctx, "everyrow_list_sessions")
     client = _get_client(ctx)
 
@@ -1251,6 +1276,7 @@ async def everyrow_balance(ctx: EveryRowContext) -> list[TextContent]:
     Returns the account balance in dollars. Use this to verify available
     credits before submitting tasks.
     """
+    logger.info("everyrow_balance: called")
     client = _get_client(ctx)
 
     try:
@@ -1266,6 +1292,7 @@ async def everyrow_balance(ctx: EveryRowContext) -> list[TextContent]:
             )
         ]
 
+    logger.info("everyrow_balance: $%.2f", response.current_balance_dollars)
     return [
         TextContent(
             type="text",
@@ -1341,6 +1368,7 @@ async def everyrow_cancel(
     params: CancelInput, ctx: EveryRowContext
 ) -> list[TextContent]:
     """Cancel a running everyrow task. Use when the user wants to stop a task that is currently processing."""
+    logger.info("everyrow_cancel: task_id=%s", params.task_id)
     log_client_info(ctx, "everyrow_cancel")
     client = _get_client(ctx)
     task_id = params.task_id

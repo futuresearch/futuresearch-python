@@ -119,12 +119,13 @@ def register_upload_tool(mcp: FastMCP, mcp_server_url: str) -> None:
 
         try:
             engine_upload_url = data["upload_url"]
+            upload_id = data["upload_id"]
             # Rewrite the URL to point at the MCP server instead of the Engine.
             # The Claude.ai sandbox can reach the MCP server but not api.everyrow.ai.
             upload_url = _rewrite_upload_url(engine_upload_url, mcp_server_url)
             result = {
                 "upload_url": upload_url,
-                "upload_id": data["upload_id"],
+                "upload_id": upload_id,
                 "expires_in": data["expires_in"],
                 "max_size_bytes": data["max_size_bytes"],
                 "curl_command": f'curl -X PUT -H "Content-Type: text/csv" -T {shlex.quote(params.filename)} {shlex.quote(upload_url)}',
@@ -138,6 +139,12 @@ def register_upload_tool(mcp: FastMCP, mcp_server_url: str) -> None:
                 )
             ]
 
+        logger.info(
+            "Upload URL requested: upload_id=%s filename=%s expires_in=%s",
+            upload_id,
+            params.filename,
+            data.get("expires_in"),
+        )
         return [TextContent(type="text", text=json.dumps(result))]
 
 
@@ -205,18 +212,48 @@ async def proxy_upload(request: Request) -> Response:
         engine_url = f"{engine_url}?{request.url.query}"
 
     body = await request.body()
+    size_bytes = len(body)
     headers = {
         k: v
         for k, v in request.headers.items()
         if k.lower() in ("content-type", "content-length")
     }
 
+    logger.info(
+        "Upload proxy started: upload_id=%s size_bytes=%d",
+        upload_id,
+        size_bytes,
+    )
+
     try:
         async with httpx.AsyncClient(timeout=_PROXY_TIMEOUT) as http:
             resp = await http.put(engine_url, content=body, headers=headers)
     except httpx.HTTPError as exc:
-        logger.error("Upload proxy failed: %s", exc)
+        logger.error("Upload proxy failed: upload_id=%s error=%s", upload_id, exc)
         return JSONResponse({"detail": "Upload proxy error"}, status_code=502)
+
+    if resp.status_code >= 400:
+        logger.warning(
+            "Upload proxy error response: upload_id=%s status=%d body=%s",
+            upload_id,
+            resp.status_code,
+            resp.text[:200],
+        )
+    else:
+        # Parse artifact_id from Engine response for traceability
+        artifact_id = None
+        try:
+            resp_data = resp.json()
+            artifact_id = resp_data.get("artifact_id")
+        except Exception:
+            pass
+        logger.info(
+            "Upload proxy completed: upload_id=%s status=%d artifact_id=%s size_bytes=%d",
+            upload_id,
+            resp.status_code,
+            artifact_id,
+            size_bytes,
+        )
 
     return Response(
         content=resp.content,
