@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import datetime
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from everyrow.generated.models.public_task_type import PublicTaskType
+from everyrow.generated.models.task_progress_info import TaskProgressInfo
 from everyrow.generated.models.task_status import TaskStatus
-from everyrow.generated.types import UNSET
+from everyrow.generated.types import UNSET, Unset
 
 from everyrow_mcp.tool_helpers import TaskState
 from tests.conftest import override_settings
@@ -17,12 +19,12 @@ def _make_status_response(
     *,
     status: TaskStatus = TaskStatus.COMPLETED,
     task_type: PublicTaskType = PublicTaskType.AGENT,
-    artifact_id=UNSET,
-    session_id=None,
-    error=UNSET,
-    progress=None,
-    created_at=None,
-    updated_at=None,
+    artifact_id: Unset | UUID | None = UNSET,
+    session_id: UUID | None = None,
+    error: str | Unset | None = UNSET,
+    progress: TaskProgressInfo | None = None,
+    created_at: datetime.datetime | None = None,
+    updated_at: datetime.datetime | None = None,
 ):
     """Build a mock TaskStatusResponse."""
     resp = MagicMock()

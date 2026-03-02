@@ -419,7 +419,9 @@ class TestMcpProtocol:
 
             assert not result.isError
             assert len(result.content) == 1
-            assert "Error" in result.content[0].text
+            item = result.content[0]
+            assert isinstance(item, TextContent)
+            assert "Error" in item.text
 
 
 # ── TestMcpE2ERealApi — real API tests ────────────────────────

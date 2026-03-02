@@ -427,7 +427,6 @@ class TestApiDownloadToken:
         assert dl_resp.status_code == 200
         assert "val1" in dl_resp.body.decode()  # pyright: ignore[reportAttributeAccessIssue]
 
-
     @pytest.mark.asyncio
     async def test_csv_download_quotes_all_fields(self):
         """CSV download uses QUOTE_ALL so commas in text never break parsing."""

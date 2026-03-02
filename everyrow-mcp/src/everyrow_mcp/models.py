@@ -737,9 +737,12 @@ class ListSessionsInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    offset: int = Field(0, ge=0, description="Number of sessions to skip")
+    offset: int = Field(default=0, ge=0, description="Number of sessions to skip")
     limit: int = Field(
-        25, ge=1, le=1000, description="Max sessions per page (default 25, max 1000)"
+        default=25,
+        ge=1,
+        le=1000,
+        description="Max sessions per page (default 25, max 1000)",
     )
 
 
