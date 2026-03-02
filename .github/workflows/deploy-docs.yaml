@@ -19,6 +19,9 @@ on:
       - "docs/**"
       - "docs-site/**"
       - ".github/workflows/deploy-docs.yaml"
+  schedule:
+    # Rebuild daily at 6am UTC to pick up any API spec changes
+    - cron: "0 6 * * *"
 
 env:
   # GCS bucket for static docs files (e.g., "everyrow-docs")
@@ -57,6 +60,9 @@ jobs:
       - name: Convert notebooks to HTML
         run: uv run --group case-studies python docs-site/scripts/convert-notebooks.py
 
+      - name: Fetch OpenAPI spec
+        run: python3 docs-site/scripts/fetch-openapi.py
+
       # --- Node.js setup for docs site ---
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -82,17 +88,17 @@ jobs:
         run: python docs-site/scripts/check-links.py
 
       - name: Log in to Google Cloud
-        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production }}
+        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production || github.event_name == 'schedule' }}
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS_GLOBAL }}
 
       - name: Set up Cloud SDK
-        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production }}
+        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production || github.event_name == 'schedule' }}
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy docs site to GCS
-        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production }}
+        if: ${{ github.ref == 'refs/heads/main' || inputs.deploy_production || github.event_name == 'schedule' }}
         working-directory: ./docs-site
         run: |
           gsutil -m -h "Cache-Control:max-age=300" rsync -r -d ./out/ gs://${{ env.DOCS_BUCKET }}

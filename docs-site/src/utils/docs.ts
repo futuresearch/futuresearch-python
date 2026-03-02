@@ -136,10 +136,13 @@ export function getNavigation(): NavSection[] {
     {
       title: "API Reference",
       href: "/api",
-      items: reference.map((d) => ({
-        slug: d.slug,
-        title: d.title.replace(/^reference\//, ""),
-      })),
+      items: [
+        { slug: "rest-api", title: "REST API", href: "/rest-api" },
+        ...reference.map((d) => ({
+          slug: d.slug,
+          title: d.title.replace(/^reference\//, ""),
+        })),
+      ],
     },
     {
       title: "Guides",
