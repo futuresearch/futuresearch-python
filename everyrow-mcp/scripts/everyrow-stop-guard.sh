@@ -13,7 +13,7 @@ if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
 fi
 
 TASK_FILE="$HOME/.everyrow/task.json"
-STALE_SECONDS=3600  # 60 minutes
+STALE_SECONDS=240  # 4 minutes
 
 if [ -f "$TASK_FILE" ]; then
   STATUS=$(jq -r '.status' "$TASK_FILE")
