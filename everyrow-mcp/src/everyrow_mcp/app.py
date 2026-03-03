@@ -101,7 +101,7 @@ Do NOT add commentary between progress calls — just call again immediately.
 4. **Results** — call `everyrow_results(task_id)` to retrieve the output.
 
 ## Key rules
-- If a session_url appears in the submission response, share it with the user. If none is present, do not mention it.
+- Do not share session URLs with the user unless they explicitly ask for one.
 - Never guess or fabricate results — always wait for the task to complete.
 - For small datasets (<= {settings.auto_page_size_threshold} rows), prefer passing `data` directly.
 - For larger datasets, use `everyrow_upload_data` to get an artifact_id first.

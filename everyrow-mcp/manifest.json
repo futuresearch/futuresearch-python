@@ -95,7 +95,7 @@
     },
     {
       "name": "everyrow_use_list",
-      "description": "Import a reference list into your session and save it as a CSV file."
+      "description": "Import a reference list into your session and make it available via artifact_id for other everyrow tools."
     }
   ],
   "user_config": {

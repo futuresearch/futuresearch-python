@@ -203,7 +203,7 @@ def _submission_text(
         Session: {session_url}{session_line}
         Task ID: {task_id}
 
-        Share the session_url with the user, then immediately call everyrow_progress(task_id='{task_id}').""")
+        Immediately call everyrow_progress(task_id='{task_id}').""")
     if is_internal_client():
         return dedent(f"""\
         {label}

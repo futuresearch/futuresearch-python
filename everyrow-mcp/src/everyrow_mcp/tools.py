@@ -198,11 +198,11 @@ async def everyrow_browse_lists(
 async def everyrow_use_list(
     params: UseListInput, ctx: EveryRowContext
 ) -> list[TextContent]:
-    """Import a reference list into your session and save it as a CSV file.
+    """Import a reference list into your session and make it available via artifact_id for other everyrow tools.
 
-    This copies the dataset into a new session, fetches the data, and saves
-    it as a CSV file ready to pass to other everyrow utilities for analysis
-    or research.
+    This copies the dataset into a new session and returns an artifact_id
+    that can be passed directly to other everyrow tools (everyrow_agent,
+    everyrow_rank, etc.) for analysis or research.
 
     The copy is a fast database operation (<1s) — no polling needed.
     """
@@ -217,11 +217,15 @@ async def everyrow_use_list(
                 session=session,
             )
 
-            # Fetch the copied data and save as CSV
+            # Fetch the copied data for summary info
             df, _, _ = await _fetch_task_result(client, str(result.task_id))
 
-            csv_path = Path.cwd() / f"built-in-list-{result.artifact_id}.csv"
-            df.to_csv(csv_path, index=False, quoting=csv.QUOTE_ALL)
+            # Stdio mode: also save CSV locally for inspection
+            csv_line = ""
+            if settings.is_stdio:
+                csv_path = Path.cwd() / f"built-in-list-{result.artifact_id}.csv"
+                df.to_csv(csv_path, index=False, quoting=csv.QUOTE_ALL)
+                csv_line = f"CSV saved to: {csv_path}\n"
     except Exception as e:
         return [TextContent(type="text", text=f"Error importing built-in list: {e!r}")]
 
@@ -235,11 +239,12 @@ async def everyrow_use_list(
             type="text",
             text=(
                 f"Imported built-in list into your session.\n\n"
-                f"CSV saved to: {csv_path}\n"
+                f"Artifact ID: {result.artifact_id}\n"
+                f"{csv_line}"
                 f"Rows: {len(df)}\n"
                 f"Columns: {', '.join(df.columns)}\n"
                 f"Session: {session_url}\n\n"
-                f"Pass {csv_path} as input_csv to other everyrow utilities for analysis or research."
+                f'Pass artifact_id="{result.artifact_id}" to other everyrow tools.'
             ),
         )
     ]
@@ -269,7 +274,7 @@ async def everyrow_agent(params: AgentInput, ctx: EveryRowContext) -> list[TextC
     - "Find pricing information for this product"
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
@@ -350,7 +355,7 @@ async def everyrow_single_agent(
     - "What are the pricing tiers for this product?" (with input_data: {"product": "Snowflake"})
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
@@ -426,7 +431,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     - "Score this candidate by fit for a senior engineering role, with 100 being the best"
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
 
@@ -434,8 +439,7 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
         params: RankInput
 
     Returns:
-        Success message containing session_url (for the user to open) and
-        task_id (for monitoring progress)
+        Success message containing task_id for monitoring progress
     """
     logger.info(
         "everyrow_rank: task=%.80s rows=%s",
@@ -520,7 +524,7 @@ async def everyrow_screen(
     - "Is this lead likely to need our product based on company description?"
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
 
@@ -528,8 +532,7 @@ async def everyrow_screen(
         params: ScreenInput
 
     Returns:
-        Success message containing session_url (for the user to open) and
-        task_id (for monitoring progress)
+        Success message containing task_id for monitoring progress
     """
     logger.info(
         "everyrow_screen: task=%.80s rows=%s",
@@ -607,7 +610,7 @@ async def everyrow_dedupe(
     - Dedupe research papers: "Same work including preprints and published versions"
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
 
@@ -615,8 +618,7 @@ async def everyrow_dedupe(
         params: DedupeInput
 
     Returns:
-        Success message containing session_url (for the user to open) and
-        task_id (for monitoring progress)
+        Success message containing task_id for monitoring progress
     """
     logger.info(
         "everyrow_dedupe: equivalence=%.80s rows=%s",
@@ -705,7 +707,7 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
       matched values joined with " | ").
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
 
@@ -713,8 +715,7 @@ async def everyrow_merge(params: MergeInput, ctx: EveryRowContext) -> list[TextC
         params: MergeInput
 
     Returns:
-        Success message containing session_url (for the user to open) and
-        task_id (for monitoring progress)
+        Success message containing task_id for monitoring progress
     """
     logger.info(
         "everyrow_merge: task=%.80s left_rows=%s right_rows=%s",
@@ -799,7 +800,7 @@ async def everyrow_forecast(
     Output columns added: ``rationale`` (str) and ``probability`` (int, 0-100).
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
@@ -875,7 +876,7 @@ async def everyrow_classify(
     containing the assigned category. Optionally a ``reasoning`` column if ``include_reasoning`` is true.
 
     This function submits the task and returns immediately with a task_id and session_url.
-    After receiving a result from this tool, share the session_url with the user.
+
     Then immediately call everyrow_progress(task_id) to monitor.
     Once the task is completed, call everyrow_results to save the output.
     """
