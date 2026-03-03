@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "cd .. && uv run --group case-studies python docs-site/scripts/convert-notebooks.py",
+    "predev": "cd .. && uv run --group case-studies python docs-site/scripts/convert-notebooks.py && python3 docs-site/scripts/fetch-openapi.py",
     "dev": "next dev",
+    "prebuild": "python3 scripts/fetch-openapi.py",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "@scalar/api-reference-react": "^0.8.66",
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
     "next": "16.1.6",
