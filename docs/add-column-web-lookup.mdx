@@ -7,6 +7,24 @@ description: Add pricing, specs, funding rounds, or any public information as ne
 # Add a Column via Web Research
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [saas_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/saas_products.csv), and enter:
+
+> For each product, find the annual price of its lowest paid tier. Visit the product's pricing page to find this. If only monthly pricing is shown, multiply by 12. Return the price and the tier name. If no paid tier exists, use 0.
+
+All 246 products researched in about 5.5 minutes. 45 products (18.3%) correctly reported $0 for usage-based or non-public pricing.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [saas_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/saas_products.csv) and ask Claude:
+
+> For each product, find the annual price of its lowest paid tier. Visit the product's pricing page to find this. If only monthly pricing is shown, multiply by 12. Return the price and the tier name. If no paid tier exists, use 0.
+
+All 246 products researched in about 5.5 minutes. 45 products (18.3%) correctly reported $0 for usage-based or non-public pricing.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Ask Claude Code to find the pricing for a SaaS product and it will search the web and give you an answer. Doing that for 246 products means visiting 246 separate pricing pages, each with a different layout and pricing model. That volume of web research needs to happen in parallel.
@@ -20,17 +38,10 @@ Here, we get Claude Code to find the annual price of the lowest paid tier for 24
 | Time         | 5.5 minutes  |
 | Success rate | 100%         |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download the dataset: [saas_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/saas_products.csv) (246 SaaS and developer tools like Slack, Notion, Asana). With the CSV in your working directory, tell Claude:

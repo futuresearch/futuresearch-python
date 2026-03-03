@@ -7,6 +7,24 @@ description: Cold lead qualification powered by live web research. Score prospec
 # Score Cold Leads via Web Research
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [investment_firms.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/investment_firms.csv), and enter:
+
+> Score each investment firm from 0-100 on their likelihood to purchase third-party research tools. High scores for fundamental/activist/short-sellers. Low scores for passive index funds and pure quant.
+
+15 firms scored in about 2.5 minutes. Activist and fundamental research firms score highest, quant and passive funds lowest.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [investment_firms.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/investment_firms.csv) and ask Claude:
+
+> Score each investment firm from 0-100 on their likelihood to purchase third-party research tools. High scores for fundamental/activist/short-sellers. Low scores for passive index funds and pure quant.
+
+15 firms scored in about 2.5 minutes. Activist and fundamental research firms score highest, quant and passive funds lowest.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Ask Claude Code to evaluate whether a hedge fund buys research tools and it will investigate the firm's strategy and team structure. Doing that for 15 firms, each with unique investment approaches ranging from pure quant to fundamental research, needs per-firm web research running in parallel.
@@ -19,17 +37,10 @@ Here, we get Claude Code to rank investment firms using web research to assess e
 | Cost           | $0.30       |
 | Time           | 149 seconds |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [investment_firms.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/investment_firms.csv). Tell Claude:

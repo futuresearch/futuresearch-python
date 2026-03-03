@@ -7,6 +7,24 @@ description: Identity resolution across contact databases. Accurately match peop
 # Deduplicate Contact Lists
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload both contact CSVs, and enter:
+
+> Merge these two contact lists to find the same person across both. Account for nicknames (Bob/Robert, Mike/Michael, Tom/Thomas), initials (S. Chen = Sarah Chen), and institution matching. When in doubt, favor false negatives over false positives.
+
+7 matches found, 5 correctly left unmatched. Results are nearly instant.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload both contact CSVs and ask Claude:
+
+> Merge these two contact lists to find the same person across both. Account for nicknames (Bob/Robert, Mike/Michael, Tom/Thomas), initials (S. Chen = Sarah Chen), and institution matching. When in doubt, favor false negatives over false positives.
+
+7 matches found, 5 correctly left unmatched. Results are nearly instant.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code can diff two lists. But what if "Dr. Sarah Chen" on one list is "S. Chen" on another, and "Robert Johnson" appears as "Bob Johnson"? You need semantic matching that understands nicknames and initials.
@@ -21,17 +39,10 @@ Here, we get Claude Code to merge two overlapping contact lists (12 and 10 peopl
 | Total cost     | $0.00       |
 | Time           | 128 seconds |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With both contact CSVs in your working directory, tell Claude:

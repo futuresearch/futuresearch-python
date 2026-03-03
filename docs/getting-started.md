@@ -1,36 +1,30 @@
 ---
-title: "Getting Started"
-description: Install everyrow and run your first operation.
+title: Using the EveryRow Python SDK
+description: How to directly control your team of research agents to forecast, classify, rank, score, or gather data for you.
 ---
 
 # Getting Started
 
-Everyrow lets you perform qualitative data transformations on noisy real-world data, at quantitative scale. Define your fuzzy logic concisely in natural language, and everyrow handles the complexity of orchestrating the execution.
+> **Just want to use everyrow?** Go to [everyrow.io/app](https://everyrow.io/app), add it to [Claude.ai](/claude-ai), [Cowork](/claude-cowork), or [Claude Code](/claude-code). This guide is for developers using the Python SDK.
 
-**Using Claude Code?** Install the plugin and ask Claude in natural language:
+Using the Python SDK gives you direct access to the utilities for directing your team of researchers. You can use all the methods documented in the [API Reference](/docs/api) and control the parameters such as effort level, which LLM to use, etc.
 
-```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-## Prerequisites
-
-- Python 3.12+
-- API key from [everyrow.io/api-key](https://everyrow.io/api-key)
-
-## Installation
+## Python SDK with pip
 
 ```bash
 pip install everyrow
-export EVERYROW_API_KEY=your_key_here
 ```
 
-See the [docs homepage](/docs) for other options (MCP servers, coding agent plugins).
+Requires Python 3.12+.
 
-## Basic Example
+**Important:** be sure to supply your API key when running scripts:
 
-Shortlist an initial set of companies.
+```bash
+export EVERYROW_API_KEY=sk-cho...
+python3 example_script.py
+```
+
+**Quick example:**
 
 ```python
 import asyncio
@@ -38,32 +32,29 @@ import pandas as pd
 from everyrow.ops import screen
 from pydantic import BaseModel, Field
 
-jobs = pd.DataFrame([
-    {"company": "Airtable",   "post": "Async-first team, 8+ yrs exp, $185-220K base"},
-    {"company": "Vercel",     "post": "Lead our NYC team. Competitive comp, DOE"},
-    {"company": "Notion",     "post": "In-office SF. Staff eng, $200K + equity"},
-    {"company": "Linear",     "post": "Bootcamp grads welcome! $85K, remote-friendly"},
-    {"company": "Descript",   "post": "Work from anywhere. Principal architect, $250K"},
+companies = pd.DataFrame([
+    {"company": "Airtable",}, {"company": "Vercel",}, {"company": "Notion",}
 ])
 
 class JobScreenResult(BaseModel):
-    qualifies: bool = Field(description="True if meets ALL criteria")
+    qualifies: bool = Field(description="True if company lists jobs with all criteria")
 
 async def main():
     result = await screen(
-        task="""
-            Qualifies if ALL THREE are met:
-            1. Remote-friendly
-            2. Senior-level (5+ yrs exp OR Senior/Staff/Principal in title)
-            3. Salary disclosed (specific numbers, not "competitive" or "DOE")
-        """,
-        input=jobs,
+        task="""Qualifies if: 1. Remote-friendly, 2. Senior, and 3. Discloses salary""",
+        input=companies,
         response_model=JobScreenResult,
     )
-    print(result.data)
+    print(result.data.head())
 
 asyncio.run(main())
 ```
+
+## Dependencies
+
+The MCP server requires [**uv**](https://docs.astral.sh/uv/) (if using `uvx`) or [**pip**](https://pip.pypa.io/en/stable/) (if installed directly). The Python SDK requires **Python 3.12+**.
+
+For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar) in the progress monitoring guide.
 
 ## Sessions
 

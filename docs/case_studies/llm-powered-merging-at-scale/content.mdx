@@ -7,6 +7,24 @@ description: Semantic record matching at production scale. Join thousands of rec
 # Merge Thousands of Records
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload both the people CSV and websites CSV, and enter:
+
+> Merge the people CSV with the websites CSV. Match each person to their personal website(s).
+
+2,243 of 2,246 matched (99.9%). Results take about 12.5 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload both the people CSV and websites CSV and ask Claude:
+
+> Merge the people CSV with the websites CSV. Match each person to their personal website(s).
+
+2,243 of 2,246 matched (99.9%). Results take about 12.5 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code is great at matching a person to their website using web search. It can cross-reference names, email domains, and institutions. Doing that for 2,246 people, where each match requires understanding names, affiliations, and URL patterns, is more web research than a single session can support.
@@ -20,17 +38,10 @@ Here, we get Claude Code to match people to their personal websites at scale.
 | Total cost     | $35.41        |
 | Time           | 12.5 minutes  |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With both CSVs in your working directory, tell Claude:

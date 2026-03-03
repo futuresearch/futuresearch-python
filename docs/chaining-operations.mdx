@@ -5,7 +5,7 @@ description: Combine screen, dedupe, merge, rank, and research operations to bui
 
 # Chaining Operations
 
-Operations can be chained together to build complete workflows. Each step refines your data further.
+Operations can be chained together to build complete workflows. Each step refines your data further. You can chain operations from any surface -- Claude Code, Claude.ai, the everyrow web app, or the Python SDK.
 
 **Example scenario:** A wizard rescuing magical creatures for a sanctuary.
 
@@ -338,15 +338,79 @@ Now you have everything needed to dispatch rescue teams.
 
 ---
 
+## Chaining from Different Surfaces
+
+You can chain operations from whichever surface fits your workflow. Claude handles the data flow between steps automatically.
+
+### In Claude Code
+
+Claude Code has access to everyrow tools and can chain operations in a single conversation. Ask for a multi-step workflow and Claude will run each operation, passing the results forward.
+
+**Example prompt:**
+
+> Screen my vendor list at ~/data/vendors.csv to keep only vendors with SOC2 and 50+ employees.
+> Then rank the ones that pass by fit for our infrastructure needs.
+> Finally, research the top 10 to find their pricing and contract terms.
+
+Claude Code will run the screen, feed the passing rows into rank, then take the top results into a research step -- all within one conversation. Each operation saves results to a CSV that the next operation picks up.
+
+**Another example:**
+
+> Upload this Google Sheet of leads: https://docs.google.com/spreadsheets/d/abc123/edit
+> Dedupe them -- same company even with Inc/LLC differences or abbreviations.
+> Then rank by likelihood to need our data integration product.
+
+### In Claude.ai
+
+The everyrow MCP connector is available in Claude.ai. Ask Claude to chain operations in natural language and it will run them sequentially, using the output of each step as input to the next.
+
+**Example prompt:**
+
+> I have a list of 200 SaaS companies. First, screen them to keep only ones with
+> enterprise pricing tiers. Then rank the survivors by AI/ML adoption maturity.
+> Use this data: [paste CSV or provide a Google Sheet link]
+
+Claude will run the screen, show you the passing rows, then automatically rank them. You can review results at each step and adjust before continuing.
+
+**Multi-turn chaining** also works naturally:
+
+> **You:** Screen this list of job postings to keep only remote-friendly senior roles.
+> *[Claude runs the screen, shows results]*
+>
+> **You:** Great, now research each of those to find salary ranges and tech stack requirements.
+> *[Claude runs the research on the screened results]*
+
+### In the everyrow web app
+
+In the web app at [app.everyrow.com](https://app.everyrow.com), chaining works through sessions. Each operation produces a result table that you can feed into the next operation.
+
+1. Run your first operation (e.g., screen a CSV).
+2. When it completes, the results appear as a new table in your session.
+3. Start a new operation in the same session, selecting the previous result as input.
+4. Repeat -- each step builds on the last.
+
+You can also download the CSV results from one session and upload them as input to a new session if you want to work across sessions.
+
+---
+
 ## Common Workflows
 
-Here are practical examples of chaining 2-3 operations for everyday analyst tasks.
+Here are practical examples of chaining 2-3 operations for everyday analyst tasks. Each workflow is shown with a natural language prompt (for Claude Code or Claude.ai) and the equivalent Python SDK code.
 
 ### Consolidate messy lead lists
 
 **Problem:** You have leads from a trade show, a purchased list, and your CRM export. Same companies appear under different names.
 
-**Workflow:** Concatenate → Dedupe → Rank
+**Workflow:** Concatenate -> Dedupe -> Rank
+
+**In Claude Code or Claude.ai:**
+
+> I have three CSV files of leads: trade_show.csv, purchased_list.csv, and crm_export.csv.
+> Combine them, then dedupe -- same company accounting for Inc/LLC variations, abbreviations,
+> and parent/subsidiary relationships. Then rank the deduped list by likelihood to need
+> our data integration product.
+
+**Python SDK:**
 
 ```python
 # Combine sources
@@ -370,7 +434,15 @@ ranked = await rank(
 
 **Problem:** You have 200 potential vendors. Need to shortlist ones that meet basic requirements, then rank by fit.
 
-**Workflow:** Screen → Rank
+**Workflow:** Screen -> Rank
+
+**In Claude Code or Claude.ai:**
+
+> Screen this vendor list to keep only vendors with SOC2 certification, 50+ employees,
+> and enterprise references. Then rank the qualified ones by alignment with our technical
+> requirements and budget constraints.
+
+**Python SDK:**
 
 ```python
 # Filter to qualified vendors
@@ -390,9 +462,18 @@ ranked = await rank(
 
 ### Match products to approved suppliers
 
-**Problem:** Procurement has a list of software products in use. Need to check each against the approved vendor list—but product names don't match company names (Photoshop vs Adobe).
+**Problem:** Procurement has a list of software products in use. Need to check each against the approved vendor list -- but product names don't match company names (Photoshop vs Adobe).
 
-**Workflow:** Research → Merge
+**Workflow:** Research -> Merge
+
+**In Claude Code or Claude.ai:**
+
+> I have two files: software_products.csv (list of tools we use) and approved_vendors.csv
+> (our approved vendor list). First, research each software product to find its parent company.
+> Then merge with the approved vendors list by parent company, and show me which products
+> are from unapproved vendors.
+
+**Python SDK:**
 
 ```python
 # First, enrich products with parent company info
@@ -418,7 +499,15 @@ unapproved = matched.data[matched.data["vendor_id"].isna()]
 
 **Problem:** CRM has company names but missing firmographic data. Need employee count and industry before assigning to sales territories.
 
-**Workflow:** Research → Rank
+**Workflow:** Research -> Rank
+
+**In Claude Code or Claude.ai:**
+
+> Take my accounts list in accounts.csv and research each company to find their employee count,
+> industry, and headquarters location. Then score them by revenue potential based on company
+> size and industry fit for territory assignment.
+
+**Python SDK:**
 
 ```python
 # Enrich with firmographics
@@ -439,7 +528,16 @@ ranked = await rank(
 
 **Problem:** You scraped company data from LinkedIn, Crunchbase, and news articles. Same companies appear with different descriptions.
 
-**Workflow:** Concatenate → Dedupe
+**Workflow:** Concatenate -> Dedupe
+
+**In Claude Code or Claude.ai:**
+
+> I have company data from three sources: linkedin_data.csv, crunchbase_data.csv, and
+> news_mentions.csv. Combine them and dedupe -- two rows are the same company if names
+> match accounting for legal suffixes, or if they share the same website domain or
+> headquarters address.
+
+**Python SDK:**
 
 ```python
 # Combine all research

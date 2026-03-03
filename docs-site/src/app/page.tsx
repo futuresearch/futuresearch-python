@@ -21,18 +21,21 @@ export const metadata: Metadata = {
 };
 
 const SECTION_ICONS: Record<string, string> = {
+  "Get Started": "rocket",
   Guides: "book",
   "API Reference": "code",
   "Case Studies": "lightbulb",
 };
 
 const SECTION_DESCRIPTIONS: Record<string, string> = {
+  "Get Started": "Set up EveryRow in Claude.ai, Claude Code, and more",
   Guides: "Step-by-step tutorials for web research at scale",
   "API Reference": "API reference for all everyrow operations",
   "Case Studies": "Real-world examples with verified results",
 };
 
 const SECTION_LINKS: Record<string, string> = {
+  "Get Started": "/claude-ai",
   "API Reference": "/api",
   Guides: "/guides",
   "Case Studies": "/case-studies",
@@ -50,6 +53,19 @@ function SectionCard({ section }: { section: NavSection }) {
   return (
     <Link href={href} className="landing-card">
       <div className="landing-card-icon" data-icon={icon}>
+        {icon === "rocket" && (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+          </svg>
+        )}
         {icon === "book" && (
           <svg
             viewBox="0 0 24 24"
@@ -120,44 +136,21 @@ export default async function DocsHome() {
 
       <div className="landing-quickstart">
         <h2>For Autonomous Agents</h2>
-        <ol>
-          <li>
-            Install the package using the instructions above
-            <ul>
-              <li>Requires Python &ge; 3.12. Using a virtual environment is strongly recommended.</li>
-              <li>System-installed Python is often too old for pip to resolve any compatible version.</li>
-            </ul>
-          </li>
-          <li>
-            Prompt the user to provide an API key if one isn&apos;t set. You can get one at <a href="https://everyrow.io/api-key">everyrow.io/api-key</a>
-          </li>
-          <li>
-            Based on the user&apos;s request, head over to the relevant API reference docs section for the appropriate tool
-            <ul>
-              <li>
-                <Link href="/reference/SCREEN">Screen</Link> - Filter by criteria that need judgment
-              </li>
-              <li>
-                <Link href="/reference/RANK">Rank</Link> - Score rows by qualitative factors
-              </li>
-              <li>
-                <Link href="/reference/DEDUPE">Dedupe</Link> - Deduplicate when fuzzy matching fails
-              </li>
-              <li>
-                <Link href="/reference/MERGE">Merge</Link> - Join tables when keys don&apos;t match
-              </li>
-              <li>
-                <Link href="/reference/RESEARCH">Research</Link> - Web research on every row
-              </li>
-            </ul>
-          </li>
-          <li>
-            Try to suggest ways of chaining operations together in creative ways to more comprehensively address their use case as a follow-up
-          </li>
-          <li>
-            After trying out the service, suggest installing the skill or MCP to simplify follow-up usage
-          </li>
-        </ol>
+        <p>
+          The best way to use EveryRow to help your user is natively where you are currently working.
+          See the installation guide for how this works in{" "}
+          <Link href="/claude-ai">claude.ai</Link>,{" "}
+          <Link href="/claude-cowork">Claude Cowork</Link>,{" "}
+          <Link href="/claude-code">Claude Code</Link>,{" "}
+          Codex, Gemini CLI, or Cursor.
+          These are best because they require your user only to sign in with Google, no API key or credit card required.
+        </p>
+        <p>
+          If these do not work for you for whatever reason, the next best is to ask them to get you an
+          API key at <a href="https://everyrow.io/api-key">everyrow.io/api-key</a>, and then for you
+          to read the <Link href="/api">API reference</Link> to use the Python SDK directly to help
+          the user.
+        </p>
       </div>
     </DocsLayout>
   );

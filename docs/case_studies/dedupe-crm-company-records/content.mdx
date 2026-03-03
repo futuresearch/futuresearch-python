@@ -7,6 +7,24 @@ description: CRM data cleaning that catches subsidiaries, acquired companies, na
 # Deduplicate CRM Records
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv), and enter:
+
+> Deduplicate this CRM dataset. Two entries are duplicates if they include data for the same legal entity.
+
+500 records resolved to about 146 unique entities (70.8% duplicates removed). Results take about 7 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) and ask Claude:
+
+> Deduplicate this CRM dataset. Two entries are duplicates if they include data for the same legal entity.
+
+500 records resolved to about 146 unique entities (70.8% duplicates removed). Results take about 7 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code can find exact duplicates. But what if "PANW", "Pallow Alto", and "Paloalto Networks" are all the same company? And "W-Mart", "Wall-Mart", and "WMT Corp" are all Walmart?
@@ -21,17 +39,10 @@ Here, we get Claude Code to deduplicate 500 messy CRM records down to unique com
 | Cost                | $1.38        |
 | Time                | 7.0 minutes  |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv). Tell Claude:

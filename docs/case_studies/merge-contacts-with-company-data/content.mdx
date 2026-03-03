@@ -7,6 +7,24 @@ description: Join contact-level and organization-level records automatically. Re
 # Enrich Contacts with Company Data
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload crm_contacts.csv and crm_funds.csv, and enter:
+
+> Merge crm_contacts.csv with crm_funds.csv. Match contacts to their fund based on company name, ignoring legal suffixes (LLC, Inc, LP), abbreviations (Mgmt = Management, Tech = Technologies), and extra descriptors.
+
+All 10 contacts matched in seconds for $0.00.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload crm_contacts.csv and crm_funds.csv and ask Claude:
+
+> Merge crm_contacts.csv with crm_funds.csv. Match contacts to their fund based on company name, ignoring legal suffixes (LLC, Inc, LP), abbreviations (Mgmt = Management, Tech = Technologies), and extra descriptors.
+
+All 10 contacts matched in seconds for $0.00.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code's pandas merge works when column values match exactly. When "Bridgewater" needs to match "Bridgewater Associates" and "D.E. Shaw" needs to match "D. E. Shaw & Co.", the merge needs fuzzy matching that understands company name conventions.
@@ -20,17 +38,10 @@ Here, we get Claude Code to merge 10 contacts with 10 fund records, handling com
 | Total cost     | $0.00      |
 | Time           | 9 seconds  |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With both CSVs in your working directory, tell Claude:

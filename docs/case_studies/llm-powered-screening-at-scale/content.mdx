@@ -7,6 +7,24 @@ description: Intelligent filtering at production scale. A two-pass pipeline with
 # Screen 10,000 Rows
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload the FDA product recalls CSV, and enter:
+
+> Screen this FDA product recalls dataset to find recalls of products that I might have used for my child born on 2021-08-01.
+
+2,271 of 9,949 recalls are relevant (22.8%). Results take about 12 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload the FDA product recalls CSV and ask Claude:
+
+> Screen this FDA product recalls dataset to find recalls of products that I might have used for my child born on 2021-08-01.
+
+2,271 of 9,949 recalls are relevant (22.8%). Results take about 12 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code handles filtering a hundred rows natively by reading and evaluating each one. Scaling to 10,000 rows needs an approach where a fast pre-filter narrows candidates first, then LLM agents evaluate only the plausible matches individually.
@@ -20,17 +38,10 @@ Here, we get Claude Code to screen 9,949 FDA product recalls to find products re
 | Total cost     | $37.13        |
 | Time           | 11.8 minutes  |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With the FDA recalls CSV in your working directory, tell Claude:

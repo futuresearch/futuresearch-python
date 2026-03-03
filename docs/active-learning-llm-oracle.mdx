@@ -7,6 +7,24 @@ description: High-quality labels for classification, tagging, and annotation tas
 # LLM-Powered Data Labeling
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV with 200 text samples from the [DBpedia-14 dataset](https://huggingface.co/datasets/fancyzhx/dbpedia_14), and enter:
+
+> Classify each text into exactly one DBpedia ontology category: Company, Educational Institution, Artist, Athlete, Office Holder, Mean Of Transportation, Building, Natural Place, Village, Animal, Plant, Album, Film, or Written Work.
+
+200 labels produced in under 5 minutes with 98.5% normalized accuracy.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload a CSV with 200 text samples from the [DBpedia-14 dataset](https://huggingface.co/datasets/fancyzhx/dbpedia_14) and ask Claude:
+
+> Classify each text into exactly one DBpedia ontology category: Company, Educational Institution, Artist, Athlete, Office Holder, Mean Of Transportation, Building, Natural Place, Village, Animal, Plant, Album, Film, or Written Work.
+
+200 labels produced in under 5 minutes with 98.5% normalized accuracy.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code's interactive classification works for labeling a dozen items in conversation. When an active learning loop requests hundreds of labels programmatically, with consistent schema and structured output every time, you need a labeling service that can run on demand.
@@ -21,17 +39,10 @@ Here, we get Claude Code to label 200 text samples from the DBpedia-14 dataset i
 | Time                  | 4.7 minutes  |
 | Cost                  | $3.35        |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Prepare a CSV with 200 text samples from the [DBpedia-14 dataset](https://huggingface.co/datasets/fancyzhx/dbpedia_14). Tell Claude:

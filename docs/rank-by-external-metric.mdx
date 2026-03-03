@@ -7,6 +7,24 @@ description: Sort any dataset by information you don't have yet. Research agents
 # Rank Data by External Metrics
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV of the top 300 PyPI packages (with `package` and `monthly_downloads` columns), and enter:
+
+> Rank these packages by days since their last release. Look up each package on pypi.org to find the release date. Sort by most recently released first.
+
+All 300 packages researched in about 6.5 minutes. Results range from packages released today to ones untouched for 8+ years.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload a CSV of the top 300 PyPI packages (with `package` and `monthly_downloads` columns) and ask Claude:
+
+> Rank these packages by days since their last release. Look up each package on pypi.org to find the release date. Sort by most recently released first.
+
+All 300 packages researched in about 6.5 minutes. Results range from packages released today to ones untouched for 8+ years.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code's web search works well for looking up a few packages. When you need two separate metrics researched for each of 300 packages, that is hundreds of individual lookups that need to happen in parallel.
@@ -19,17 +37,10 @@ Here, we get Claude Code to rank 300 PyPI packages by two metrics that require e
 | Total cost             | $13.26       |
 | Time                   | ~6.5 minutes |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 The dataset is the top 300 PyPI packages by monthly downloads, fetched from the [top-pypi-packages](https://hugovk.github.io/top-pypi-packages/) API. The only columns are `package` and `monthly_downloads`. No release dates, no contributor counts. Tell Claude:

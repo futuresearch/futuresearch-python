@@ -121,25 +121,31 @@ export function getNavigation(): NavSection[] {
 
   return [
     {
-      title: "Overview",
+      title: "Get Started",
       items: [
-        { slug: "installation", title: "Installation", href: "/" },
-        { slug: "getting-started", title: "Getting Started" },
+        { slug: "installation", title: "Get Started", href: "/" },
+        { slug: "claude-ai", title: "Claude.ai" },
+        { slug: "claude-cowork", title: "Claude Cowork" },
+        { slug: "claude-code", title: "Claude Code" },
+        { slug: "app", title: "Web App", href: "https://everyrow.io/app" },
+        { slug: "getting-started", title: "Python SDK" },
+      ],
+    },
+    {
+      title: "Reference",
+      href: "/api",
+      items: [
         { slug: "api-key", title: "API Key", href: "https://everyrow.io/api-key" },
+        ...reference.map((d) => ({
+          slug: d.slug,
+          title: d.title.replace(/^reference\//, ""),
+        })),
         { slug: "mcp-server", title: "MCP Server" },
-        { slug: "skills-vs-mcp", title: "Skills vs MCP" },
+        { slug: "skills-vs-mcp", title: "Skills" },
         { slug: "progress-monitoring", title: "Progress Monitoring" },
         { slug: "chaining-operations", title: "Chaining Operations" },
         { slug: "github", title: "GitHub", href: "https://github.com/futuresearch/everyrow-sdk" },
       ],
-    },
-    {
-      title: "API Reference",
-      href: "/api",
-      items: reference.map((d) => ({
-        slug: d.slug,
-        title: d.title.replace(/^reference\//, ""),
-      })),
     },
     {
       title: "Guides",
@@ -152,6 +158,9 @@ export function getNavigation(): NavSection[] {
           "progress-monitoring",
           "mcp-server",
           "skills-vs-mcp",
+          "claude-ai",
+          "claude-cowork",
+          "claude-code",
           "guides",
           "notebooks",
           "api",

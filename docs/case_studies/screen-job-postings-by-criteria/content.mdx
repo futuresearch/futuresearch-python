@@ -7,6 +7,24 @@ description: Intelligent job filtering that reads and understands full postings.
 # Screen Job Listings
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [job_postings.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/job_postings.csv), and enter:
+
+> Screen each job posting to find roles that meet ALL THREE criteria: 1. Remote-friendly: explicitly allows remote, hybrid, or distributed work. 2. Senior-level: title includes Senior/Staff/Lead/Principal, or requires 5+ years. 3. Salary disclosed: specific compensation figures, not "competitive" or "DOE".
+
+7 of 15 postings pass (46.7%). Results take under a minute.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [job_postings.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/job_postings.csv) and ask Claude:
+
+> Screen each job posting to find roles that meet ALL THREE criteria: 1. Remote-friendly: explicitly allows remote, hybrid, or distributed work. 2. Senior-level: title includes Senior/Staff/Lead/Principal, or requires 5+ years. 3. Salary disclosed: specific compensation figures, not "competitive" or "DOE".
+
+7 of 15 postings pass (46.7%). Results take under a minute.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code can read a job posting and tell you if it's remote-friendly. But what if you need to screen many postings against three criteria simultaneously, with structured yes/no output for each?
@@ -20,17 +38,10 @@ Here, we get Claude Code to screen 15 job postings for roles that are remote-fri
 | Total cost     | $0.03      |
 | Time           | 57 seconds |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [job_postings.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/job_postings.csv). Tell Claude:

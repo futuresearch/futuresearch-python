@@ -7,6 +7,24 @@ description: Consolidate records where the same entity appears under different s
 # Resolve Duplicate Entities
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv), and enter:
+
+> Deduplicate this CRM dataset. Two entries are duplicates if they represent the same company.
+
+500 records resolved to about 156 unique entities (68.8% duplicates removed). Results take about 15 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) and ask Claude:
+
+> Deduplicate this CRM dataset. Two entries are duplicates if they represent the same company.
+
+500 records resolved to about 156 unique entities (68.8% duplicates removed). Results take about 15 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code is great at writing normalization code to standardize company names. Stripping "Inc." and lowercasing gets you some matches. But "AbbVie Inc.", "AbbVie Pharmaceutical", "Abbvie", and "Abvie Inc" need more than normalization. Two of those are typos, one is a brand variant, and one is a division name.
@@ -21,17 +39,10 @@ Here, we get Claude Code to resolve 500 messy CRM records down to their unique e
 | Cost                | $2.02           |
 | Time                | 15.3 minutes    |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download the dataset: [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) (500 messy company records with typos, abbreviations, and missing fields). With the CSV in your working directory, tell Claude:

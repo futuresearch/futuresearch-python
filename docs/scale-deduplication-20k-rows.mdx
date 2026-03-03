@@ -7,6 +7,24 @@ description: Deduplication that scales linearly with dataset size. Embeddings an
 # Scale Deduplication to 20K Rows
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [fda_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv), and enter:
+
+> Deduplicate this dataset. Two rows are duplicates if they have the same ingredient + same strength + same applicant + same dosage form.
+
+20,000 rows deduplicated in about 22 minutes. 1,922 duplicates removed (9.6% reduction).
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [fda_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv) and ask Claude:
+
+> Deduplicate this dataset. Two rows are duplicates if they have the same ingredient + same strength + same applicant + same dosage form.
+
+20,000 rows deduplicated in about 22 minutes. 1,922 duplicates removed (9.6% reduction).
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code handles deduplication of a few hundred rows natively. Scaling to 20,000 rows needs an approach where embeddings and clustering narrow the search space first, so LLM calls target the ambiguous pairs instead of all 200 million possible combinations.
@@ -21,17 +39,10 @@ Here, we get Claude Code to deduplicate 20,000 FDA drug product records, using a
 | Time               | 22.5 minutes |
 | Cost               | $26.11       |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [fda_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv) (20,000 rows from the FDA Drugs@FDA database with ingredient, strength, applicant, and dosage form columns). Tell Claude:
