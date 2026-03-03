@@ -30,7 +30,7 @@ pip install everyrow
 
 ### MCP Server (for Claude Code, Claude Desktop, Cursor, etc.)
 
-If an MCP server is available (`everyrow_classify`, `everyrow_screen`, `everyrow_rank`, etc. tools), you can use it directly without writing Python code. The MCP server operates on local CSV files.
+If an MCP server is available (`everyrow_classify`, `everyrow_screen`, `everyrow_rank`, etc. tools), you can use it directly without writing Python code. The MCP server operates on uploaded data (via artifact IDs or inline JSON).
 
 To install the MCP server, add to your MCP config:
 
@@ -84,77 +84,187 @@ export EVERYROW_API_KEY=<their_key>
 
 # MCP Server Tools
 
-If you have the everyrow MCP server configured, these tools operate directly on CSV files.
+If you have the everyrow MCP server configured, these 18 tools are available. All data processing tools accept input via `artifact_id` (from upload_data or request_upload_url) or `data` (inline JSON rows). Provide exactly one.
 
-### everyrow_classify
-Classify each row into one of the provided categories.
+## Core Operations
+
+### everyrow_agent
+Run web research agents on each row.
 ```
 Parameters:
-- task: Natural language classification instructions
-- categories: Allowed categories (minimum 2)
-- classification_field: (optional) Output column name (default: "classification")
-- include_reasoning: (optional) Include reasoning column (default: false)
+- task: (required) Natural language description of research task
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects
+- response_schema: (optional) JSON schema for per-row agent response
+- session_id: (optional) Session UUID to resume
+- session_name: (optional) Name for a new session
 ```
 
-### everyrow_screen
-Filter CSV rows based on criteria that require judgment.
+### everyrow_single_agent
+Run a single research agent on one input (no CSV needed).
 ```
 Parameters:
-- task: Natural language description of screening criteria
-- input_csv: Absolute path to input CSV
-- output_path: Directory or full .csv path for output
+- task: (required) Natural language task for the agent
+- input_data: (optional) Context as key-value pairs (e.g. {"company": "Acme"})
+- response_schema: (optional) JSON schema for the agent response
+- session_id: (optional) Session UUID to resume
+- session_name: (optional) Name for a new session
 ```
 
 ### everyrow_rank
-Score and sort CSV rows based on qualitative criteria.
+Score and sort rows based on qualitative criteria.
 ```
 Parameters:
-- task: Natural language description of ranking criteria
-- input_csv: Absolute path to input CSV
-- output_path: Directory or full .csv path for output
-- field_name: Name of the score field to add
-- field_type: Type of field (float, int, str, bool)
-- ascending_order: Sort direction (default: true)
+- task: (required) Natural language instructions for scoring a single row
+- field_name: (required) Name of the score field to add
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects
+- field_type: (optional) "float" (default), "int", "str", or "bool"
+- ascending_order: (optional) Sort ascending (default: true)
+- response_schema: (optional) JSON schema for the response model
+- session_id / session_name: (optional)
+```
+
+### everyrow_screen
+Filter rows based on criteria that require judgment.
+```
+Parameters:
+- task: (required) Natural language screening criteria
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects
+- response_schema: (optional) JSON schema; must include at least one boolean property for pass/fail
+- session_id / session_name: (optional)
 ```
 
 ### everyrow_dedupe
 Remove duplicate rows using semantic equivalence.
 ```
 Parameters:
-- equivalence_relation: Natural language description of what makes rows duplicates
-- input_csv: Absolute path to input CSV
-- output_path: Directory or full .csv path for output
-- select_representative: Keep one row per duplicate group (default: true)
+- equivalence_relation: (required) Natural language description of what makes rows duplicates
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects
+- session_id / session_name: (optional)
 ```
 
 ### everyrow_merge
-Join two CSV files using intelligent entity matching (LEFT JOIN semantics).
+Join two tables using intelligent entity matching (LEFT JOIN semantics).
 ```
 Parameters:
-- task: Natural language description of how to match rows
-- left_csv: Absolute path to the left CSV — the table being enriched (ALL its rows are kept in the output)
-- right_csv: Absolute path to the right CSV — the lookup/reference table (its columns are appended to matches; unmatched left rows get nulls)
-- output_path: Directory or full .csv path for output
-- merge_on_left: (optional) Only set if you expect exact string matches on the chosen column or want to draw agent attention to it. Fine to omit.
-- merge_on_right: (optional) Only set if you expect exact string matches on the chosen column or want to draw agent attention to it. Fine to omit.
-- relationship_type: (optional) Defaults to "many_to_one", which is correct in most cases (e.g. products → companies). "one_to_one" when both tables have unique entities of the same kind. "one_to_many" when one left row can match multiple right rows (e.g. company → products). "many_to_many" when multiple left rows can match multiple right rows (e.g. companies → investors). For one_to_many and many_to_many, multiple matches are joined with " | " in each added column.
+- task: (required) Natural language description of how to match rows
+- left_artifact_id / left_data: (required, exactly one) Left table — the table being enriched (all rows kept)
+- right_artifact_id / right_data: (required, exactly one) Right table — lookup/reference (columns appended to matches)
+- merge_on_left: (optional) Only set if you expect exact string matches or want to draw agent attention to a column
+- merge_on_right: (optional) Same as merge_on_left for right table
+- relationship_type: (optional) "many_to_one" (default), "one_to_one", "one_to_many", "many_to_many"
 - use_web_search: (optional) "auto" (default), "yes", or "no"
+- session_id / session_name: (optional)
 ```
 
 ### everyrow_forecast
 Forecast the probability of binary questions.
 ```
 Parameters:
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects (must include "question" column)
 - context: (optional) Batch-level context for all questions
+- session_id / session_name: (optional)
 ```
 
-### everyrow_agent
-Run web research agents on each row of a CSV.
+### everyrow_classify
+Classify each row into one of the provided categories.
 ```
 Parameters:
-- task: Natural language description of research task
-- input_csv: Absolute path to input CSV
-- output_path: Directory or full .csv path for output
+- task: (required) Natural language classification instructions
+- categories: (required) Allowed categories (minimum 2)
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects
+- classification_field: (optional) Output column name (default: "classification")
+- include_reasoning: (optional) Include reasoning column (default: false)
+- session_id / session_name: (optional)
+```
+
+## Data Management
+
+### everyrow_browse_lists
+Browse available reference lists of well-known entities (S&P 500, FTSE 100, countries, universities, etc.).
+```
+Parameters:
+- search: (optional) Search term to match list names
+- category: (optional) Filter by category (e.g. "Finance", "Geography")
+```
+
+### everyrow_use_list
+Import a reference list into your session and save it as a CSV.
+```
+Parameters:
+- artifact_id: (required) artifact_id from everyrow_browse_lists results
+```
+
+### everyrow_upload_data
+Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
+```
+Parameters:
+- source: (required) HTTP(S) URL (Google Sheets supported) or local CSV path (stdio mode only)
+- session_id / session_name: (optional)
+```
+
+### everyrow_request_upload_url
+Request a presigned URL to upload a local CSV file (HTTP mode only).
+```
+Parameters:
+- filename: (required) Name of the file to upload (must end in .csv)
+```
+Steps: call this tool → execute the returned curl command → use the artifact_id from the response.
+
+## Task Lifecycle
+
+### everyrow_progress
+Check progress of a running task. Blocks briefly to limit polling rate.
+```
+Parameters:
+- task_id: (required) Task ID returned by the operation tool
+```
+After receiving a status update, immediately call everyrow_progress again unless the task is completed or failed.
+
+### everyrow_results
+Retrieve results from a completed task.
+```
+Parameters:
+- task_id: (required) Task ID of the completed task
+- output_path: (stdio) Full path to output CSV (must end in .csv)
+- offset: (http, optional) Row offset for pagination (default: 0)
+- page_size: (http, optional) Number of rows to load into context (default: auto threshold based on row count)
+```
+Only call after everyrow_progress reports status "completed".
+
+### everyrow_cancel
+Cancel a running task.
+```
+Parameters:
+- task_id: (required) Task ID to cancel
+```
+
+## Sessions & Account
+
+### everyrow_list_sessions
+List sessions owned by the authenticated user (paginated).
+```
+Parameters:
+- offset: (optional) Number of sessions to skip (default: 0)
+- limit: (optional) Max sessions per page (default: 25, max: 1000)
+```
+
+### everyrow_list_session_tasks
+List all tasks in a session with their IDs, statuses, and types.
+```
+Parameters:
+- session_id: (required) Session ID (UUID) to list tasks for
+```
+
+### everyrow_balance
+Check the current billing balance for the authenticated user.
+```
+No parameters.
 ```
 
 ---
