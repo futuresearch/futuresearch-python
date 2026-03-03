@@ -5,7 +5,7 @@ description: Reference for all everyrow MCP server tools — async operations wi
 
 # MCP Server Reference
 
-The everyrow MCP server exposes 17 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
+The everyrow MCP server exposes 18 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
 
 All operations use an async pattern: submit the task, poll for progress, then retrieve results. This allows long-running operations (1–10+ minutes) to work reliably with MCP clients.
 
@@ -236,6 +236,16 @@ Returns a confirmation message. If the task has already finished, returns an err
 List all sessions owned by the authenticated user. Returns session names, IDs, timestamps, and dashboard URLs. No parameters required.
 
 Returns a formatted list of sessions with links to the web dashboard.
+
+### everyrow_list_session_tasks
+
+List all tasks within a specific session. Returns task IDs, types, statuses, and timestamps.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | string | Yes | The session ID (UUID) to list tasks for. |
+
+Returns a formatted list of tasks in the session with their current status.
 
 ### everyrow_upload_data
 
