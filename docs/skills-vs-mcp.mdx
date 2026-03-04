@@ -1,67 +1,44 @@
 ---
-title: EveryRow Skill for Claude Code
-description: Install the everyrow plugin for Claude Code to research, score, classify, and forecast entire datasets from your terminal.
+title: EveryRow Skill
+description: A guidance file that teaches AI agents how to use everyrow for research, scoring, classification, and forecasting.
 ---
 
-# EveryRow Skill for Claude Code
+# EveryRow Skill
 
-The everyrow plugin gives Claude Code a team of web research agents. Ask Claude to process your data in natural language, and it dispatches parallel researchers to handle every row — screening, scoring, deduplicating, merging, classifying, or forecasting.
+The skill is a guidance file (`SKILL.md`) that teaches AI agents how to use everyrow effectively. It works with any MCP server backend, whether the remote OAuth server or a local API-key-based server.
 
-## What It Does
+## Install manually
 
-The plugin bundles three things into a single install:
+The skill file lives at [`skills/everyrow-sdk/SKILL.md`](https://github.com/futuresearch/everyrow-sdk/blob/main/skills/everyrow-sdk/SKILL.md). You can point any agent to it directly.
 
-1. **MCP server** — exposes everyrow operations as tool calls (screen, rank, dedupe, merge, agent, classify, forecast). Claude calls these directly; no Python code needed.
-2. **Hooks** — a stop guard that prevents Claude from ending its turn while an operation is running, a results notification (macOS), and session cleanup on exit.
-3. **Skill** — guides Claude to write Python SDK code when you need full control (custom Pydantic models, `preview=True`, effort levels, multi-step pipelines chained in memory).
-
-## Install
+## Install into Claude Code via plugin
 
 ```bash
 claude plugin marketplace add futuresearch/everyrow-sdk
 claude plugin install everyrow@futuresearch
 ```
 
-Then launch Claude Code and authenticate:
+The plugin bundles the skill, MCP server, and hooks (stop guard, results notification, session cleanup) into a single install.
 
-```
-claude
-\mcp → select everyrow → Authenticate
-```
+If you already have the [remote MCP server](/docs/claude-code) set up, the plugin adds the skill file and hooks on top.
 
-That's it. No API key, no Python environment, no MCP config file. The plugin handles everything.
+If you do not have the remote MCP server, the plugin sets up a local MCP server instead. This requires an [API key](https://everyrow.io/api-key):
 
-## Usage
-
-After installing, just ask Claude in natural language:
-
-> Score these companies by likelihood to need data integration solutions
-
-> Deduplicate this CRM export — same company even with Inc/LLC/Ltd variations
-
-> Research the latest funding round for each company in startups.csv
-
-Claude will pick the right everyrow operation, dispatch the researchers, poll for progress, and return results as a CSV in your working directory.
-
-## Progress Bar
-
-For a persistent progress bar in the Claude Code terminal footer, add this to your project or global settings (`.claude/settings.json`):
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "<path-to-plugin>/everyrow-mcp/scripts/everyrow-statusline.sh",
-    "padding": 1
-  }
-}
+```bash
+export EVERYROW_API_KEY=sk-cho-...
 ```
 
-Requires [jq](https://jqlang.org/) (`brew install jq` on macOS). See [Progress Monitoring](/docs/progress-monitoring) for details.
+## What the skill provides
+
+1. **Skill file** guides the agent to write Python SDK code when you need full control (custom Pydantic models, `preview=True`, effort levels, multi-step pipelines chained in memory).
+2. **Hooks** a stop guard that prevents the agent from ending its turn while an operation is running, a results notification (macOS), and session cleanup on exit.
 
 ## Related
 
-- [Claude Code setup](/claude-code) — MCP-only setup (without the plugin)
-- [Python SDK](/getting-started) — full SDK documentation for developers
-- [MCP Server Reference](/mcp-server) — all MCP tool parameters
-- [Progress Monitoring](/docs/progress-monitoring) — status bar, stop guard, and hooks
+[Claude Code setup](/docs/claude-code) remote MCP setup
+
+[Python SDK](/docs/getting-started) full SDK documentation for developers
+
+[MCP Server Reference](/docs/mcp-server) all MCP tool parameters
+
+[Progress Monitoring](/docs/progress-monitoring) status bar, stop guard, and hooks

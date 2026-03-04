@@ -24,4 +24,4 @@ claude
 
 Claude will dispatch everyrow researchers via MCP, poll for progress, and return results directly in your terminal.
 
-See also: [Skills](/skills-vs-mcp) | [MCP Server](/mcp-server)
+See also: [Skills](/docs/skills-vs-mcp) | [MCP Server](/docs/mcp-server)

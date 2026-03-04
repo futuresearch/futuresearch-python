@@ -18,7 +18,7 @@ All 10 contacts matched in seconds for $0.00.
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload crm_contacts.csv and crm_funds.csv and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload crm_contacts.csv and crm_funds.csv and ask Claude:
 
 > Merge crm_contacts.csv with crm_funds.csv. Match contacts to their fund based on company name, ignoring legal suffixes (LLC, Inc, LP), abbreviations (Mgmt = Management, Tech = Technologies), and extra descriptors.
 
@@ -38,7 +38,7 @@ Here, we get Claude Code to merge 10 contacts with 10 fund records, handling com
 | Total cost     | $0.00      |
 | Time           | 9 seconds  |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

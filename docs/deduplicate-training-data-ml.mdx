@@ -18,7 +18,7 @@ Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV of 3,000 sentence
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload a CSV of 3,000 sentences from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of 3,000 sentences from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset and ask Claude:
 
 > Deduplicate this dataset of sentences. Two sentences are duplicates if they convey the same meaning, even if phrased differently. This includes paraphrases, minor grammatical variations, and sentences about the same fact that would be redundant in a training set. They are NOT duplicates if they describe different facts, even if they share many words.
 
@@ -39,7 +39,7 @@ Here, we get Claude Code to deduplicate 3,000 sentences from the PAWS paraphrase
 | Time               | 28.2 minutes |
 | Cost               | $13.27       |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

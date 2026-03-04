@@ -5,7 +5,7 @@ description: Reference for all everyrow MCP server tools, async operations with 
 
 # MCP Server Reference
 
-> Quick setup: Most users should use the hosted remote server. Add it to [Claude.ai](/claude-ai), [Claude Cowork](/claude-cowork), or [Claude Code](/claude-code), authentication is via OAuth. The reference below applies to both the remote and local MCP servers.
+> Quick setup: Most users should use the hosted remote server. Add it to [Claude.ai](/docs/claude-ai), [Claude Cowork](/docs/claude-cowork), or [Claude Code](/docs/claude-code), authentication is via OAuth. The reference below applies to both the remote and local MCP servers.
 
 The everyrow MCP server enables deployment of a team of researchers to forecast, score, rank, or gather data. These tools are called directly by Claude Code, Claude.ai, and other MCP clients, no Python code is needed.
 

@@ -18,7 +18,7 @@ All 300 packages researched in about 6.5 minutes. Results range from packages re
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload a CSV of the top 300 PyPI packages (with `package` and `monthly_downloads` columns) and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of the top 300 PyPI packages (with `package` and `monthly_downloads` columns) and ask Claude:
 
 > Rank these packages by days since their last release. Look up each package on pypi.org to find the release date. Sort by most recently released first.
 
@@ -37,7 +37,7 @@ Here, we get Claude Code to rank 300 PyPI packages by two metrics that require e
 | Total cost             | $13.26       |
 | Time                   | ~6.5 minutes |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

@@ -18,7 +18,7 @@ Go to [everyrow.io/app](https://everyrow.io/app), upload [company_info.csv](http
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv) and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv) and ask Claude:
 
 > Merge company_info.csv with valuations.csv. The first table has company names, the second has stock tickers. Match companies to their stock tickers.
 
@@ -38,7 +38,7 @@ Here, we get Claude Code to join two S&P 500 tables (438 rows) where one has com
 | Cost           | $0.82       |
 | Time           | ~10.9 minutes |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

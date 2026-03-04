@@ -2,7 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 
-type Agent = "python-sdk" | "claude-code" | "claude-desktop" | "codex" | "gemini" | "cursor";
+type Agent = "claude-ai" | "claude-code" | "claude-cowork" | "python-sdk" | "codex" | "gemini" | "cursor";
 type IntegrationType = "pip" | "uv" | "skills" | "mcp" | "plugin";
 
 interface TabContextValue {
@@ -14,9 +14,10 @@ interface TabContextValue {
 const TabContext = createContext<TabContextValue | null>(null);
 
 const AGENTS: { id: Agent; label: string }[] = [
-  { id: "python-sdk", label: "Python SDK" },
+  { id: "claude-ai", label: "Claude.ai" },
   { id: "claude-code", label: "Claude Code" },
-  { id: "claude-desktop", label: "Claude Desktop" },
+  { id: "claude-cowork", label: "Claude Cowork" },
+  { id: "python-sdk", label: "Python SDK" },
   { id: "codex", label: "Codex" },
   { id: "gemini", label: "Gemini" },
   { id: "cursor", label: "Cursor" },
@@ -32,9 +33,10 @@ const TYPES: { id: IntegrationType; label: string }[] = [
 
 // Which integration types are available for each agent
 const AGENT_TYPES: Record<Agent, IntegrationType[]> = {
+  "claude-ai": ["mcp"],
+  "claude-code": ["mcp", "plugin"],
+  "claude-cowork": ["mcp"],
   "python-sdk": ["pip", "uv"],
-  "claude-code": ["plugin", "mcp"],
-  "claude-desktop": ["mcp"],
   "codex": ["skills", "mcp"],
   "gemini": ["skills", "mcp", "plugin"],
   "cursor": ["skills", "mcp"],
@@ -59,8 +61,8 @@ interface InstallationTabsProps {
 }
 
 export function InstallationTabs({ children }: InstallationTabsProps) {
-  const [selectedAgent, setSelectedAgent] = useState<Agent>("python-sdk");
-  const [selectedType, setSelectedType] = useState<IntegrationType>("pip");
+  const [selectedAgent, setSelectedAgent] = useState<Agent>("claude-ai");
+  const [selectedType, setSelectedType] = useState<IntegrationType>("mcp");
 
   // Read hash on mount (client-side only, after hydration)
   useEffect(() => {

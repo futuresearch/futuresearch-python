@@ -18,7 +18,7 @@ Go to [everyrow.io/app](https://everyrow.io/app), upload [case_01_crm_data.csv](
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [case_01_crm_data.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/case_01_crm_data.csv) and ask Claude:
 
 > Deduplicate this CRM dataset. Two entries are duplicates if they include data for the same legal entity.
 
@@ -39,7 +39,7 @@ Here, we get Claude Code to deduplicate 500 messy CRM records down to unique com
 | Cost                | $1.38        |
 | Time                | 7.0 minutes  |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

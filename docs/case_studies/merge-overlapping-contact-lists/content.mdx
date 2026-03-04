@@ -18,7 +18,7 @@ Go to [everyrow.io/app](https://everyrow.io/app), upload both contact CSVs, and 
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload both contact CSVs and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload both contact CSVs and ask Claude:
 
 > Merge these two contact lists to find the same person across both. Account for nicknames (Bob/Robert, Mike/Michael, Tom/Thomas), initials (S. Chen = Sarah Chen), and institution matching. When in doubt, favor false negatives over false positives.
 
@@ -39,7 +39,7 @@ Here, we get Claude Code to merge two overlapping contact lists (12 and 10 peopl
 | Total cost     | $0.00       |
 | Time           | 128 seconds |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

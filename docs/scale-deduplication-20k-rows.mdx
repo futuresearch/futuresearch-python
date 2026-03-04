@@ -18,7 +18,7 @@ Go to [everyrow.io/app](https://everyrow.io/app), upload [fda_products.csv](http
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload [fda_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv) and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [fda_products.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/fda_products.csv) and ask Claude:
 
 > Deduplicate this dataset. Two rows are duplicates if they have the same ingredient + same strength + same applicant + same dosage form.
 
@@ -39,7 +39,7 @@ Here, we get Claude Code to deduplicate 20,000 FDA drug product records, using a
 | Time               | 22.5 minutes |
 | Cost               | $26.11       |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
@@ -157,4 +157,4 @@ equivalence_relation="Same drug"
 
 ---
 
-Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [dedupe documentation](reference/DEDUPE) for more options. Related guides: [Resolve Duplicate Entities](/resolve-entities-python) (500-row CRM walkthrough), [Deduplicate Training Data](/deduplicate-training-data-ml) (semantic dedup for ML datasets).
+Built with [everyrow](https://github.com/futuresearch/everyrow-sdk). See the [dedupe documentation](reference/DEDUPE) for more options. Related guides: [Resolve Duplicate Entities](/docs/resolve-entities-python) (500-row CRM walkthrough), [Deduplicate Training Data](/docs/deduplicate-training-data-ml) (semantic dedup for ML datasets).

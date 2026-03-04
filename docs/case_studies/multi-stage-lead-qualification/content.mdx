@@ -18,7 +18,7 @@ Then filter results to funds scoring >= 50, re-upload, and run additional stages
 </GuideTabContent>
 <GuideTabContent tab="claude-ai">
 
-[Add the everyrow connector if you haven't already.](/claude-ai) Then upload a CSV of 20 investment funds and ask Claude:
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of 20 investment funds and ask Claude:
 
 > I have a CSV of 20 investment funds. Run this pipeline: 1. Score each fund 0-100 on likelihood to adopt research tools. 2. Filter to funds scoring &gt;= 50. 3. For remaining funds, estimate their investment team size. 4. Final screen: include if score &gt;= 70 OR team size &lt;= 5.
 
@@ -39,7 +39,7 @@ Here, we get Claude Code to run a three-stage qualification pipeline on 20 inves
 | Total cost     | $0.53       |
 | Time           | 4.2 minutes |
 
-[Add everyrow to Claude Code](/claude-code) if you haven't already:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
 claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp

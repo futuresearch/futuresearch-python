@@ -1,11 +1,11 @@
 ---
-title: Using the EveryRow Python SDK
+title: Python SDK
 description: How to directly control your team of research agents to forecast, classify, rank, score, or gather data for you.
 ---
 
-# Getting Started
+# Python SDK
 
-> **Just want to use everyrow?** Go to [everyrow.io/app](https://everyrow.io/app), add it to [Claude.ai](/claude-ai), [Cowork](/claude-cowork), or [Claude Code](/claude-code). This guide is for developers using the Python SDK.
+> **Just want to use everyrow?** Go to [everyrow.io/app](https://everyrow.io/app), add it to [Claude.ai](/docs/claude-ai), [Cowork](/docs/claude-cowork), or [Claude Code](/docs/claude-code). This guide is for developers using the Python SDK.
 
 Using the Python SDK gives you direct access to the utilities for directing your team of researchers. You can use all the methods documented in the [API Reference](/docs/api) and control the parameters such as effort level, which LLM to use, etc.
 
@@ -143,14 +143,14 @@ df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
 
 | Operation                       | Description                                |
 | ------------------------------- | ------------------------------------------ |
-| [Screen](/reference/SCREEN)     | Filter rows by criteria requiring judgment |
-| [Rank](/reference/RANK)         | Score rows by qualitative factors          |
-| [Dedupe](/reference/DEDUPE)     | Deduplicate when fuzzy matching fails      |
-| [Merge](/reference/MERGE)       | Join tables when keys don't match exactly  |
-| [Research](/reference/RESEARCH) | Run web agents to research each row        |
+| [Screen](/docs/reference/SCREEN)     | Filter rows by criteria requiring judgment |
+| [Rank](/docs/reference/RANK)         | Score rows by qualitative factors          |
+| [Dedupe](/docs/reference/DEDUPE)     | Deduplicate when fuzzy matching fails      |
+| [Merge](/docs/reference/MERGE)       | Join tables when keys don't match exactly  |
+| [Research](/docs/reference/RESEARCH) | Run web agents to research each row        |
 
 ## See Also
 
-- [Guides](/filter-dataframe-with-llm): step-by-step tutorials
-- [Case Studies](/case-studies/basic-usage): worked examples
-- [Skills vs MCP](/skills-vs-mcp): integration options
+- [Guides](/docs/filter-dataframe-with-llm): step-by-step tutorials
+- [Case Studies](/docs/case-studies/basic-usage): worked examples
+- [Skills vs MCP](/docs/skills-vs-mcp): integration options

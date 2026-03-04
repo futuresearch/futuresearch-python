@@ -23,4 +23,4 @@ Ask Claude:
 
 Claude Desktop (the native app) uses the same Connectors settings. Add the connector once and it works in both Chat and the Desktop app.
 
-See also: [Use everyrow in Claude Cowork](/claude-cowork)
+See also: [Use everyrow in Claude Cowork](/docs/claude-cowork)

@@ -121,14 +121,16 @@ export function getNavigation(): NavSection[] {
 
   return [
     {
-      title: "Get Started",
+      title: "Installation",
       items: [
-        { slug: "installation", title: "Get Started", href: "/" },
+        { slug: "installation", title: "All install methods", href: "/" },
         { slug: "claude-ai", title: "Claude.ai" },
         { slug: "claude-cowork", title: "Claude Cowork" },
         { slug: "claude-code", title: "Claude Code" },
         { slug: "app", title: "Web App", href: "https://everyrow.io/app" },
         { slug: "getting-started", title: "Python SDK" },
+        { slug: "skills-vs-mcp", title: "Skill" },
+        { slug: "mcp-server", title: "MCP Server" },
       ],
     },
     {
@@ -140,11 +142,8 @@ export function getNavigation(): NavSection[] {
           slug: d.slug,
           title: d.title.replace(/^reference\//, ""),
         })),
-        { slug: "mcp-server", title: "MCP Server" },
-        { slug: "skills-vs-mcp", title: "Skills" },
         { slug: "progress-monitoring", title: "Progress Monitoring" },
         { slug: "chaining-operations", title: "Chaining Operations" },
-        { slug: "github", title: "GitHub", href: "https://github.com/futuresearch/everyrow-sdk" },
       ],
     },
     {
