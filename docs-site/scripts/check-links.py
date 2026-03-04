@@ -82,6 +82,10 @@ SKIPPED_URLS: set[str] = {
     "https://www.kaggle.com/datasets/tunguz/pubmed-title-abstracts-2019-baseline",
     "https://arxiv.org/abs/2506.21558",
     "https://arxiv.org/abs/2506.06287",
+    "https://claude.ai/download",
+    "https://app.everyrow.com",
+    "https://docs.google.com/spreadsheets/d/abc123/edit",
+    "https://support.claude.com/en/articles/13345190-get-started-with-cowork",
 }
 
 

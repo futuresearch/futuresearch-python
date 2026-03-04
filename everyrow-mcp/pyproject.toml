@@ -1,6 +1,6 @@
 [project]
 name = "everyrow-mcp"
-version = "0.4.1"
+version = "0.4.2"
 description = "MCP server for everyrow: a researcher for every row"
 readme = "README.md"
 requires-python = ">=3.12"

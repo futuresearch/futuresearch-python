@@ -154,5 +154,5 @@ df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
 ## See Also
 
 - [Guides](/docs/filter-dataframe-with-llm): step-by-step tutorials
-- [Case Studies](/docs/case-studies/basic-usage): worked examples
+- [Case Studies](/docs/case-studies): worked examples
 - [Skills vs MCP](/docs/skills-vs-mcp): integration options
