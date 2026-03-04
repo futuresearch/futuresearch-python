@@ -7,6 +7,24 @@ description: Lead scoring for companies whose data is scattered across disconnec
 # Score Leads from Fragmented Data
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [b2b_companies.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/b2b_companies.csv), and enter:
+
+> Score each company from 0-100 on their likelihood of suffering from data fragmentation challenges. High scores for multi-location operations, M&A history, disconnected systems. Low scores for single-location, cloud-native, integrated stacks.
+
+20 companies scored in about 40 seconds. Multi-location businesses score highest, cloud-native startups lowest.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [b2b_companies.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/b2b_companies.csv) and ask Claude:
+
+> Score each company from 0-100 on their likelihood of suffering from data fragmentation challenges. High scores for multi-location operations, M&A history, disconnected systems. Low scores for single-location, cloud-native, integrated stacks.
+
+20 companies scored in about 40 seconds. Multi-location businesses score highest, cloud-native startups lowest.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code is great at researching a single company's operations. Scoring 20 prospects on data fragmentation risk is harder. Each one needs web research into operational complexity, M&A history, and system diversity, then a consistent 0-100 score calibrated across the full set.
@@ -19,17 +37,10 @@ Here, we get Claude Code to score B2B companies on their likelihood of needing d
 | Cost           | $0.08      |
 | Time           | 40 seconds |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [b2b_companies.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/b2b_companies.csv). Tell Claude:

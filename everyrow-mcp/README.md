@@ -1,5 +1,7 @@
 # everyrow MCP Server
 
+> Most users don't need to run the MCP server locally. Use the hosted remote server at `https://mcp.everyrow.io/mcp` — it authenticates via OAuth, no API key needed. See the [setup guide](https://everyrow.io/docs). The instructions below are for self-hosted or advanced use cases where an API key is required.
+
 MCP (Model Context Protocol) server for [everyrow](https://everyrow.io): agent ops at spreadsheet scale.
 
 This server exposes everyrow's core operations as MCP tools, allowing LLM applications to classify, screen, rank, dedupe, merge, forecast, and run agents on CSV files.

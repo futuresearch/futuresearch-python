@@ -2,13 +2,15 @@
 
 import { useState, createContext, useContext, ReactNode } from "react";
 
-type GuideTab = "claude-code" | "python";
+type GuideTab = "app" | "claude-ai" | "claude-code" | "python";
 
 const GuideTabContext = createContext<GuideTab | null>(null);
 
 const TABS: { id: GuideTab; label: string }[] = [
+  { id: "app", label: "App" },
+  { id: "claude-ai", label: "Claude.ai / Cowork" },
   { id: "claude-code", label: "Claude Code" },
-  { id: "python", label: "Python" },
+  { id: "python", label: "Python SDK" },
 ];
 
 interface GuideTabsProps {
@@ -16,7 +18,7 @@ interface GuideTabsProps {
 }
 
 export function GuideTabs({ children }: GuideTabsProps) {
-  const [selected, setSelected] = useState<GuideTab>("claude-code");
+  const [selected, setSelected] = useState<GuideTab>("app");
 
   return (
     <GuideTabContext.Provider value={selected}>

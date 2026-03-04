@@ -7,6 +7,24 @@ description: Multi-class labeling with LLM-powered classification. Structured ou
 # Classify and Label Rows
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [hn_jobs_classify.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_classify.csv), and enter:
+
+> Classify each row by primary engineering role. Use these categories: backend, frontend, fullstack, data, ml_ai, devops_sre, mobile, security, other. For each row, return the category and a short reasoning.
+
+All 200 rows classified in about a minute. Fullstack dominates at 44% because HN "Who's Hiring" posts are predominantly from startups.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [hn_jobs_classify.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_classify.csv) and ask Claude:
+
+> Classify each row by primary engineering role. Use these categories: backend, frontend, fullstack, data, ml_ai, devops_sre, mobile, security, other. For each row, return the category and a short reasoning.
+
+All 200 rows classified in about a minute. Fullstack dominates at 44% because HN "Who's Hiring" posts are predominantly from startups.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code's text processing works for classifying a few dozen items in a single prompt. When you have 200 rows that each need consistent, structured labels across 9 categories, you need batched parallel evaluation with a fixed schema.
@@ -20,17 +38,10 @@ Here, we get Claude Code to classify 200 job postings into 9 role categories in 
 | Cost         | $1.53       |
 | Cost per row | $0.008      |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download the dataset: [hn_jobs_classify.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_classify.csv) (3,616 Hacker News "Who's Hiring" posts). With the CSV in your working directory, tell Claude:

@@ -7,6 +7,24 @@ description: Chain scoring, filtering, enrichment, and screening into a single a
 # Multi-Stage Lead Qualification
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV of 20 investment funds, and enter:
+
+> Score each fund 0-100 on likelihood to adopt research tools.
+
+Then filter results to funds scoring >= 50, re-upload, and run additional stages for team size estimation and final screening. 14 of 20 funds qualified.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of 20 investment funds and ask Claude:
+
+> I have a CSV of 20 investment funds. Run this pipeline: 1. Score each fund 0-100 on likelihood to adopt research tools. 2. Filter to funds scoring &gt;= 50. 3. For remaining funds, estimate their investment team size. 4. Final screen: include if score &gt;= 70 OR team size &lt;= 5.
+
+14 of 20 funds qualified after the three-stage pipeline. Results take about 4 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code handles a single scoring or filtering step natively. Chaining three stages (score by research adoption, filter by threshold, estimate team sizes, then screen by a compound rule) needs an approach where each stage passes its output to the next with custom logic between steps.
@@ -21,17 +39,10 @@ Here, we get Claude Code to run a three-stage qualification pipeline on 20 inves
 | Total cost     | $0.53       |
 | Time           | 4.2 minutes |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Tell Claude to run the multi-stage pipeline:

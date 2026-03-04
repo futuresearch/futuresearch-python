@@ -7,6 +7,24 @@ description: Qualitative stock screening across hundreds of tickers. Apply inves
 # Screen Stocks by Investment Thesis
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload your S&P 500 CSV, and enter:
+
+> Screen to find companies with high-quality recurring revenue business models (>75% recurring) that would also benefit from escalating US-China tensions over Taiwan. Include CHIPS Act beneficiaries, defense contractors, cybersecurity, reshoring plays. Exclude companies dependent on Taiwan manufacturing or with significant China revenue at risk.
+
+63 of 502 companies pass (12.5%). Results take about 15.5 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload your S&P 500 CSV and ask Claude:
+
+> Screen to find companies with high-quality recurring revenue business models (>75% recurring) that would also benefit from escalating US-China tensions over Taiwan. Include CHIPS Act beneficiaries, defense contractors, cybersecurity, reshoring plays. Exclude companies dependent on Taiwan manufacturing or with significant China revenue at risk.
+
+63 of 502 companies pass (12.5%). Results take about 15.5 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Ask Claude Code to evaluate whether Apple has >75% recurring revenue and benefits from US-China tensions, and it will research both questions and give you a thorough answer. Applying that same depth of analysis to all 502 S&P 500 companies needs 502 independent research tasks running in parallel.
@@ -20,17 +38,10 @@ Here, we get Claude Code to screen the S&P 500 for companies with >75% recurring
 | Total cost     | $17.15       |
 | Time           | 15.5 minutes |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With your S&P 500 CSV in the working directory, tell Claude:

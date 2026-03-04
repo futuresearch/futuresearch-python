@@ -7,6 +7,24 @@ description: Identify paraphrases, reformatted text, and near-copies that share 
 # Deduplicate Training Data
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV of 3,000 sentences from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset, and enter:
+
+> Deduplicate this dataset of sentences. Two sentences are duplicates if they convey the same meaning, even if phrased differently. This includes paraphrases, minor grammatical variations, and sentences about the same fact that would be redundant in a training set. They are NOT duplicates if they describe different facts, even if they share many words.
+
+973 duplicates found and removed (32.4% reduction). Results take about 28 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of 3,000 sentences from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset and ask Claude:
+
+> Deduplicate this dataset of sentences. Two sentences are duplicates if they convey the same meaning, even if phrased differently. This includes paraphrases, minor grammatical variations, and sentences about the same fact that would be redundant in a training set. They are NOT duplicates if they describe different facts, even if they share many words.
+
+973 duplicates found and removed (32.4% reduction). Results take about 28 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code handles exact deduplication natively by writing Python to hash and compare rows. Scaling to 3,000 sentences where the duplicates are paraphrases needs an approach where each pair is evaluated for semantic equivalence. "The cat sat on the mat" and "On the mat, the cat was sitting" share no exact n-grams but mean the same thing.
@@ -21,17 +39,10 @@ Here, we get Claude Code to deduplicate 3,000 sentences from the PAWS paraphrase
 | Time               | 28.2 minutes |
 | Cost               | $13.27       |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 The dataset is 3,000 sentences extracted from the [PAWS](https://huggingface.co/datasets/google-research-datasets/paws) paraphrase dataset, where many sentence pairs convey the same fact with different word order. With the CSV in your working directory, tell Claude:

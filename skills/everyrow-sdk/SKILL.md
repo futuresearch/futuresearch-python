@@ -55,11 +55,16 @@ Config file locations:
 
 ## Configuration
 
-Before writing any everyrow code or using the MCP tools, check if `EVERYROW_API_KEY` is set. If not, prompt the user:
+First, check if everyrow is already connected via remote MCP. Run `\mcp` and look for `everyrow` in the list. If it's there, no API key is needed, the remote MCP server authenticates via OAuth with Google sign-in only.
+
+If the user cannot use MCP for some reason, you may fall back to asking them to fetch an EVERYROW_API_KEY.
+
+Prompt the user:
 
 > everyrow requires an API key. Do you have one?
+>
 > - If yes, paste it here
-> - If no, get one at https://everyrow.io/api-key ($20 free credit) and paste it back
+> - If no, get one at https://everyrow.io/api-key and paste it back
 
 Once the user provides the key, set it:
 

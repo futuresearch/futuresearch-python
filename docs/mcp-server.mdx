@@ -1,13 +1,15 @@
 ---
 title: MCP Server
-description: Reference for all everyrow MCP server tools — async operations with progress polling and result retrieval.
+description: Reference for all everyrow MCP server tools, async operations with progress polling and result retrieval.
 ---
 
 # MCP Server Reference
 
-The everyrow MCP server exposes 18 tools for AI-powered data processing. These tools are called directly by Claude, Codex CLI, and other MCP clients — no Python code is needed.
+> Quick setup: Most users should use the hosted remote server. Add it to [Claude.ai](/docs/claude-ai), [Claude Cowork](/docs/claude-cowork), or [Claude Code](/docs/claude-code), authentication is via OAuth. The reference below applies to both the remote and local MCP servers.
 
-All operations use an async pattern: submit the task, poll for progress, then retrieve results. This allows long-running operations (1–10+ minutes) to work reliably with MCP clients.
+The everyrow MCP server enables deployment of a team of researchers to forecast, score, rank, or gather data. These tools are called directly by Claude Code, Claude.ai, and other MCP clients, no Python code is needed.
+
+All operations use an async pattern: submit the task, poll for progress, then retrieve results. This allows long-running operations (1-10+ minutes) to work reliably with MCP clients.
 
 ## Setup
 
@@ -362,8 +364,7 @@ The Claude Code plugin (`.claude-plugin/plugin.json`) bundles:
 
 Install with:
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 See [Progress Monitoring](/docs/progress-monitoring) for status line setup and hook details.

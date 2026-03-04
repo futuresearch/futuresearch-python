@@ -1,92 +1,44 @@
-# SDK Skills vs MCP
+---
+title: EveryRow Skill
+description: A guidance file that teaches AI agents how to use everyrow for research, scoring, classification, and forecasting.
+---
 
-everyrow integrates with your agent through SDK Skills or MCP server. Here's how they compare:
+# EveryRow Skill
 
-### SDK
+The skill is a guidance file (`SKILL.md`) that teaches AI agents how to use everyrow effectively. It works with any MCP server backend, whether the remote OAuth server or a local API-key-based server.
 
-The SDK exposes the Python methods to build on, and the Skill gives your agent guided workflows with best practices built in:
+## Install manually
 
-1. Your agent reads your skill instructions
-2. Your agent writes Python code using the everyrow SDK following everyrow patterns
-3. The code runs in your local environment
-4. Results save to your filesystem
+The skill file lives at [`skills/everyrow-sdk/SKILL.md`](https://github.com/futuresearch/everyrow-sdk/blob/main/skills/everyrow-sdk/SKILL.md). You can point any agent to it directly.
 
-This gives you full control, and lets you build with the SDK. But the streaming experience is not as nice as the agent-native UIs using the MCP server.
+## Install into Claude Code via plugin
 
-<svg width="420" height="320" viewBox="0 0 420 320" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <marker id="arrowhead-skills" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#868e96"/>
-    </marker>
-  </defs>
-  <rect x="20" y="30" width="120" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="80" y="55" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>Claude Code</text>
-  <rect x="260" y="30" width="140" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="330" y="55" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>Skill Prompts</text>
-  <path d="M140 50 L250 50" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-skills)"/>
-  <text x="195" y="42" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>reads</text>
-  <rect x="20" y="130" width="120" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="80" y="155" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>Python Code</text>
-  <path d="M80 70 L80 120" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-skills)"/>
-  <text x="95" y="100" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>writes</text>
-  <rect x="260" y="130" width="140" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="330" y="155" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>everyrow API</text>
-  <path d="M140 150 L250 150" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-skills)"/>
-  <text x="195" y="142" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>calls</text>
-  <rect x="20" y="230" width="120" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="80" y="255" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>Your CSV</text>
-  <path d="M80 170 L80 220" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-skills)"/>
-  <text x="95" y="200" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>saves</text>
-</svg>
+```bash
+claude plugin marketplace add futuresearch/everyrow-sdk
+claude plugin install everyrow@futuresearch
+```
 
-### MCP Server
+The plugin bundles the skill, MCP server, and hooks (stop guard, results notification, session cleanup) into a single install.
 
-MCP provides direct tool calls without code generation. Your agent calls everyrow MCP tools directly, with results saved to your filesystem and returned in the conversation. No intermediate Python code needed.
+If you already have the [remote MCP server](/docs/claude-code) set up, the plugin adds the skill file and hooks on top.
 
-<svg width="420" height="220" viewBox="0 0 420 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <marker id="arrowhead-mcp" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#868e96"/>
-    </marker>
-  </defs>
-  <rect x="20" y="30" width="120" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="80" y="55" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>Claude Code</text>
-  <rect x="260" y="30" width="140" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="330" y="55" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>MCP Server</text>
-  <path d="M140 50 L250 50" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-mcp)"/>
-  <text x="195" y="42" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>tool call</text>
-  <rect x="260" y="130" width="140" height="40" rx="6" fill="#f8f9fa" stroke="#343a40" strokeWidth="1.5"/>
-  <text x="330" y="155" textAnchor="middle" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '13px', fill: '#343a40'}}>everyrow API</text>
-  <path d="M330 70 L330 120" stroke="#868e96" strokeWidth="1.5" fill="none" markerEnd="url(#arrowhead-mcp)"/>
-  <text x="345" y="100" style={{fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '11px', fill: '#868e96'}}>calls</text>
-</svg>
+If you do not have the remote MCP server, the plugin sets up a local MCP server instead. This requires an [API key](https://everyrow.io/api-key):
 
-### Comparison Table
+```bash
+export EVERYROW_API_KEY=sk-cho-...
+```
 
-| Feature | SDK Skills | MCP Server |
-|---------|--------|------------|
-| Setup complexity | Requires Python environment | Requires MCP client (e.g. Claude Code, Codex) |
-| Code visibility | Full Python code shown | Tool calls only |
-| Customization | High (edit generated code) | Limited |
-| Multi-step workflows | Excellent (in-memory chaining) | Basic (CSV round-trips) |
-| Progress visibility | Customizable progress callback | Conversational updates every few seconds + status bar |
-| Preview mode | Yes (`preview=True`) | Not available |
-| Custom response models | Full Pydantic BaseModel | JSON schema only |
-| Effort/LLM control | `effort_level`, `llm`, `iteration_budget` | Not available |
-| Works in Claude Desktop | Cowork mode only | Yes (all modes) |
-| Debugging | Requires some Python knowledge | Not needed |
+## What the skill provides
 
-### Which Should I Start With?
+1. **Skill file** guides the agent to write Python SDK code when you need full control (custom Pydantic models, `preview=True`, effort levels, multi-step pipelines chained in memory).
+2. **Hooks** a stop guard that prevents the agent from ending its turn while an operation is running, a results notification (macOS), and session cleanup on exit.
 
-Start with MCP. Install the plugin, set your API key, and ask your AI assistant to process your data. No Python needed, and you get automatic progress tracking with a status bar.
+## Related
 
-When you need `preview=True` to test cheaply, full Pydantic response models with validators, custom effort levels, or multi-step pipelines that chain operations in memory — ask your AI assistant to "write a Python script instead." The SDK Skill kicks in automatically.
+[Claude Code setup](/docs/claude-code) remote MCP setup
 
-They're the same product at different abstraction levels. The plugin ships both. A user who starts with MCP tools and later needs more control just switches to the SDK path within the same session.
+[Python SDK](/docs/getting-started) full SDK documentation for developers
 
-## Related Reading
+[MCP Server Reference](/docs/mcp-server) all MCP tool parameters
 
-- [Installation Guide](/docs) - Full setup instructions
-- [Progress Monitoring](/docs/progress-monitoring) - Status bar, stop guard, and session URLs
-- [API Reference](/docs/reference/RESEARCH) - Detailed function documentation
-- [Case Studies](/docs/case-studies/dedupe-crm-company-records) - Real-world examples
+[Progress Monitoring](/docs/progress-monitoring) status bar, stop guard, and hooks

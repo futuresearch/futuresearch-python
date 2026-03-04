@@ -121,25 +121,30 @@ export function getNavigation(): NavSection[] {
 
   return [
     {
-      title: "Overview",
+      title: "Installation",
       items: [
-        { slug: "installation", title: "Installation", href: "/" },
-        { slug: "getting-started", title: "Getting Started" },
-        { slug: "api-key", title: "API Key", href: "https://everyrow.io/api-key" },
+        { slug: "installation", title: "All install methods", href: "/" },
+        { slug: "claude-ai", title: "Claude.ai" },
+        { slug: "claude-cowork", title: "Claude Cowork" },
+        { slug: "claude-code", title: "Claude Code" },
+        { slug: "app", title: "Web App", href: "https://everyrow.io/app" },
+        { slug: "getting-started", title: "Python SDK" },
+        { slug: "skills-vs-mcp", title: "Skill" },
         { slug: "mcp-server", title: "MCP Server" },
-        { slug: "skills-vs-mcp", title: "Skills vs MCP" },
-        { slug: "progress-monitoring", title: "Progress Monitoring" },
-        { slug: "chaining-operations", title: "Chaining Operations" },
-        { slug: "github", title: "GitHub", href: "https://github.com/futuresearch/everyrow-sdk" },
       ],
     },
     {
-      title: "API Reference",
+      title: "Reference",
       href: "/api",
-      items: reference.map((d) => ({
-        slug: d.slug,
-        title: d.title.replace(/^reference\//, ""),
-      })),
+      items: [
+        { slug: "api-key", title: "API Key", href: "https://everyrow.io/api-key" },
+        ...reference.map((d) => ({
+          slug: d.slug,
+          title: d.title.replace(/^reference\//, ""),
+        })),
+        { slug: "progress-monitoring", title: "Progress Monitoring" },
+        { slug: "chaining-operations", title: "Chaining Operations" },
+      ],
     },
     {
       title: "Guides",
@@ -152,6 +157,9 @@ export function getNavigation(): NavSection[] {
           "progress-monitoring",
           "mcp-server",
           "skills-vs-mcp",
+          "claude-ai",
+          "claude-cowork",
+          "claude-code",
           "guides",
           "notebooks",
           "api",

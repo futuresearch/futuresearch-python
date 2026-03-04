@@ -53,9 +53,31 @@ a:hover {
 
 .docs-sidebar-logo {
   margin-bottom: 2rem;
+}
+
+.docs-sidebar-logo-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.docs-sidebar-tagline {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.docs-sidebar-github {
+  color: var(--text-muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.docs-sidebar-github:hover {
+  color: var(--text-primary);
 }
 
 .docs-sidebar-logo-text {

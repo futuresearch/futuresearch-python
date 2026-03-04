@@ -7,6 +7,24 @@ description: Aggregate structured data from dozens of independent websites into 
 # Research and Rank Web Data
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload a CSV of 30 Texas cities, and enter:
+
+> Research and rank these 30 Texas cities by residential building permit processing time in business days. Look up each city's actual permit processing data.
+
+30 cities researched in about 2.5 minutes. Fastest: San Antonio (3 days). Slowest: Denton (31 days). Average: 10.3 days.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload a CSV of 30 Texas cities and ask Claude:
+
+> Research and rank these 30 Texas cities by residential building permit processing time in business days. Look up each city's actual permit processing data.
+
+30 cities researched in about 2.5 minutes. Fastest: San Antonio (3 days). Slowest: Denton (31 days). Average: 10.3 days.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Ask Claude Code to find the permit processing time for San Antonio and it will find the city's website and give you an answer. Doing that for 30 cities, each with a different government website that publishes permit data in a different format, needs 30 independent research agents.
@@ -19,17 +37,10 @@ Here, we get Claude Code to research and rank 30 Texas cities by residential bui
 | Cost           | $0.88       |
 | Time           | 2.5 minutes |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 With the Texas cities CSV in your working directory, tell Claude:

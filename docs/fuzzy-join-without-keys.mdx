@@ -7,6 +7,24 @@ description: Semantic matching for tables with different naming conventions, abb
 # Join Tables Without Shared Keys
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv), and enter:
+
+> Merge company_info.csv with valuations.csv. The first table has company names, the second has stock tickers. Match companies to their stock tickers.
+
+437 of 438 companies matched (99.8%). Results take about 11 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv) and ask Claude:
+
+> Merge company_info.csv with valuations.csv. The first table has company names, the second has stock tickers. Match companies to their stock tickers.
+
+437 of 438 companies matched (99.8%). Results take about 11 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Claude Code can merge two CSVs when they share a key column. But what if one table has company names and the other has stock tickers, and there's no shared column to join on?
@@ -20,17 +38,10 @@ Here, we get Claude Code to join two S&P 500 tables (438 rows) where one has com
 | Cost           | $0.82       |
 | Time           | ~10.9 minutes |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download [company_info.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/company_info.csv) (company names, price, market cap) and [valuations.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/valuations.csv) (tickers, fair value). With both files in your working directory, tell Claude:

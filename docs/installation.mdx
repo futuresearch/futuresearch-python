@@ -1,74 +1,86 @@
 ---
-title: "Install EveryRow: Python SDK, Claude Code Plugin, and MCP Server"
-description: Get started with everyrow. Install the Python SDK via pip, add the coding agent plugin for Claude Code, Gemini CLI, Codex, or Cursor, or configure the MCP server.
+title: Get your team of EveryRow researchers
+description: Use everyrow in Claude.ai, Claude Code, Claude Cowork, the Python SDK, and more.
 ---
 
-# Installation
-
-Get an API key at [everyrow.io/api-key](https://everyrow.io/api-key) ($20 free credit included).
-
-Select your platform and integration method below.
+# All Installation Methods
 
 <InstallationTabs>
 
+<TabContent agent="claude-ai" type="mcp">
+
+1. Go to **Settings → Connectors → Add custom connector**
+2. Enter the URL: `https://mcp.everyrow.io/mcp`
+3. Go to **Settings → Capabilities → Code execution and file creation → Additional allowed domains** and add `mcp.everyrow.io` (this lets Claude upload your CSVs for the researchers to process)
+
+Sign in with Google to authenticate. No API key or credit card needed.
+
+Try asking Claude:
+
+> Which US companies are most pro-AI?
+
+[Full guide →](/docs/claude-ai)
+
+</TabContent>
+
+<TabContent agent="claude-code" type="mcp">
+
+```bash
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
+```
+
+Then launch Claude Code and authenticate with Google:
+
+```
+claude
+\mcp → select everyrow → Authenticate
+```
+
+No API key needed. Try asking:
+
+> Which AI models had the biggest safety implications when released?
+
+[Full guide →](/docs/claude-code)
+
+</TabContent>
+
 <TabContent agent="claude-code" type="plugin">
 
-Install the everyrow plugin from the marketplace:
+> **Note:** The plugin method requires an [API key](https://everyrow.io/api-key). Consider using **MCP** instead, which authenticates with Google and requires no API key or credit card.
 
 ```bash
 claude plugin marketplace add futuresearch/everyrow-sdk
 claude plugin install everyrow@futuresearch
 ```
 
-This installs both the skill and MCP server together. You can toggle each on/off in Claude Code settings.
-
-**Important:** be sure to supply your API key when launching Claude Code:
+Set your API key:
 
 ```bash
-export EVERYROW_API_KEY=sk-cho...
-claude
+export EVERYROW_API_KEY=sk-cho-...
 ```
 
-You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
+Get a key at [everyrow.io/api-key](https://everyrow.io/api-key).
 
-[Official Claude Code Plugin Docs](https://code.claude.com/docs/en/discover-plugins#add-from-github)
+The plugin bundles an MCP server, hooks (stop guard, results notification, session cleanup), and a skill that guides Claude to write Python SDK code for advanced pipelines.
+
+[Full guide →](/docs/skills-vs-mcp)
 
 </TabContent>
 
-<TabContent agent="claude-code" type="mcp">
+<TabContent agent="claude-cowork" type="mcp">
 
-Add everyrow to your MCP config (requires [uv](https://docs.astral.sh/uv/)):
+Cowork is a tab in Claude Desktop for autonomous multi-step tasks.
 
-```json
-{
-  "mcpServers": {
-    "everyrow": {
-      "command": "uvx",
-      "args": ["everyrow-mcp"],
-      "env": {
-        "EVERYROW_API_KEY": "${EVERYROW_API_KEY}"
-      }
-    }
-  }
-}
-```
+1. Open Claude Desktop ([download](https://claude.ai/download) if needed)
+2. Go to **Settings → Connectors → Add custom connector**
+3. Enter the URL: `https://mcp.everyrow.io/mcp`
+4. Go to **Settings → Capabilities → Code execution and file creation → Additional allowed domains** and add `mcp.everyrow.io` (this lets Claude upload your CSVs for the researchers to process)
 
-Or install with pip and use `"command": "everyrow-mcp"` instead of uvx.
+Sign in with Google to authenticate. Switch to the Cowork tab and try:
 
-Config file location:
-- **User scope:** `~/.claude.json` (in the `mcpServers` field)
-- **Project scope:** `.mcp.json` in your project root
+> Which S&P 500 companies are most exposed to China-Taiwan risk?
 
-[Choosing the right scope](https://code.claude.com/docs/en/mcp#choosing-the-right-scope)
-
-**Important:** either insert your API key when creating the JSON file, or supply the key when launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=sk-cho...
-claude
-```
-
-You can optionally configure Claude Code to show a [progress bar](/docs/progress-monitoring#progress-bar) for long-running tasks.
+[Full guide →](/docs/claude-cowork)
 
 </TabContent>
 
@@ -78,40 +90,15 @@ You can optionally configure Claude Code to show a [progress bar](/docs/progress
 pip install everyrow
 ```
 
-Requires Python 3.12+.
-
-**Important:** be sure to supply your API key when running scripts:
+Requires an [API key](https://everyrow.io/api-key):
 
 ```bash
-export EVERYROW_API_KEY=sk-cho...
-python3 example_script.py
+export EVERYROW_API_KEY=sk-cho-...
 ```
 
-**Quick example:**
+[Getting Started →](/docs/getting-started) | [API Reference →](/docs/api)
 
-```python
-import asyncio
-import pandas as pd
-from everyrow.ops import screen
-from pydantic import BaseModel, Field
-
-companies = pd.DataFrame([
-    {"company": "Airtable",}, {"company": "Vercel",}, {"company": "Notion",}
-])
-
-class JobScreenResult(BaseModel):
-    qualifies: bool = Field(description="True if company lists jobs with all criteria")
-
-async def main():
-    result = await screen(
-        task="""Qualifies if: 1. Remote-friendly, 2. Senior, and 3. Discloses salary""",
-        input=companies,
-        response_model=JobScreenResult,
-    )
-    print(result.data.head())
-
-asyncio.run(main())
-```
+**Dependencies:** Python 3.12+ and [pip](https://pip.pypa.io/en/stable/). For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar).
 
 </TabContent>
 
@@ -121,45 +108,15 @@ asyncio.run(main())
 uv add everyrow
 ```
 
-Requires Python 3.12+.
+Requires an [API key](https://everyrow.io/api-key):
 
-**Quick example:**
-
-```python
-import asyncio
-import pandas as pd
-from everyrow.ops import screen
-from pydantic import BaseModel, Field
-
-companies = pd.DataFrame([
-    {"company": "Airtable",}, {"company": "Vercel",}, {"company": "Notion",}
-])
-
-class JobScreenResult(BaseModel):
-    qualifies: bool = Field(description="True if company lists jobs with all criteria")
-
-async def main():
-    result = await screen(
-        task="""Qualifies if: 1. Remote-friendly, 2. Senior, and 3. Discloses salary""",
-        input=companies,
-        response_model=JobScreenResult,
-    )
-    print(result.data.head())
-
-asyncio.run(main())
+```bash
+export EVERYROW_API_KEY=sk-cho-...
 ```
 
-See the [API Reference](/docs/api) for full documentation.
+[Getting Started →](/docs/getting-started) | [API Reference →](/docs/api)
 
-</TabContent>
-
-<TabContent agent="claude-desktop" type="mcp">
-
-First, make sure you have [uv installed](https://docs.astral.sh/uv/).
-
-Then, download the latest `.mcpb` bundle from [GitHub Releases](https://github.com/futuresearch/everyrow-sdk/releases) and double-click to install. You'll be prompted for your API key during setup.
-
-After installing the bundle, you can use everyrow from Chat, Cowork and Code within Claude Desktop.
+**Dependencies:** Python 3.12+ and [uv](https://docs.astral.sh/uv/). For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar).
 
 </TabContent>
 
@@ -345,9 +302,3 @@ Config file location:
 </TabContent>
 
 </InstallationTabs>
-
-## Dependencies
-
-The MCP server requires [**uv**](https://docs.astral.sh/uv/) (if using `uvx`) or [**pip**](https://pip.pypa.io/en/stable/) (if installed directly). The Python SDK requires **Python 3.12+**.
-
-For the optional terminal progress bar, see the [jq dependency](/docs/progress-monitoring#status-line-progress-bar) in the progress monitoring guide.

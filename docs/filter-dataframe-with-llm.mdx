@@ -7,6 +7,24 @@ description: Screen rows by nuanced, subjective rules applied in parallel across
 # Filter a Dataset Intelligently
 
 <GuideTabs>
+<GuideTabContent tab="app">
+
+Go to [everyrow.io/app](https://everyrow.io/app), upload [hn_jobs_screen.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv), and enter:
+
+> Screen to find job postings that meet ALL THREE criteria: 1. Remote-friendly: explicitly allows remote work, hybrid, WFH, distributed teams, or "work from anywhere". 2. Senior-level: title contains Senior/Staff/Lead/Principal/Architect, OR requires 5+ years experience, OR mentions "founding engineer". 3. Salary disclosed: specific compensation numbers are mentioned. "$150K-200K" qualifies. "Competitive" or "DOE" does not.
+
+Of 3,616 postings, about 230 pass the filter (6.4%). Results take about 8 minutes.
+
+</GuideTabContent>
+<GuideTabContent tab="claude-ai">
+
+[Add the everyrow connector if you haven't already.](/docs/claude-ai) Then upload [hn_jobs_screen.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) and ask Claude:
+
+> Screen to find job postings that meet ALL THREE criteria: 1. Remote-friendly: explicitly allows remote work, hybrid, WFH, distributed teams, or "work from anywhere". 2. Senior-level: title contains Senior/Staff/Lead/Principal/Architect, OR requires 5+ years experience, OR mentions "founding engineer". 3. Salary disclosed: specific compensation numbers are mentioned. "$150K-200K" qualifies. "Competitive" or "DOE" does not.
+
+Of 3,616 postings, about 230 pass the filter (6.4%). Results take about 8 minutes.
+
+</GuideTabContent>
 <GuideTabContent tab="claude-code">
 
 Ask Claude Code to filter job postings for remote, senior roles and it will write solid Python with keyword matching. But "remote-friendly" is not always a keyword. A posting might say "team distributed across three time zones" or "occasional office visits in SF." Screening 3,616 rows with that level of judgment needs per-row LLM evaluation.
@@ -20,17 +38,10 @@ Here, we get Claude Code to screen 3,616 job postings for "remote-friendly, seni
 | Total cost          | $11.02       |
 | Time                | 8.0 minutes  |
 
-First, install the [everyrow](https://github.com/futuresearch/everyrow-sdk) plugin for Claude Code:
+[Add everyrow to Claude Code](/docs/claude-code) if you haven't already:
 
 ```bash
-claude plugin marketplace add futuresearch/everyrow-sdk
-claude plugin install everyrow@futuresearch
-```
-
-Set your API key before launching Claude Code:
-
-```bash
-export EVERYROW_API_KEY=your_key_here  # Get one at everyrow.io/api-key
+claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
 ```
 
 Download the dataset: [hn_jobs_screen.csv](https://media.githubusercontent.com/media/futuresearch/everyrow-sdk/refs/heads/main/docs/data/hn_jobs_screen.csv) (3,616 Hacker News "Who's Hiring" posts, March 2020 through January 2026). With the CSV in your working directory, tell Claude:
