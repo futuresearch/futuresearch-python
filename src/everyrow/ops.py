@@ -24,6 +24,7 @@ from everyrow.generated.models import (
     AgentMapOperationResponseSchemaType0,
     ClassifyOperation,
     ClassifyOperationInputType1Item,
+    CreateArtifactResponse,
     DedupeOperation,
     DedupeOperationInputType1Item,
     DedupeOperationStrategy,
@@ -130,8 +131,13 @@ async def create_scalar_artifact(input: BaseModel, session: Session) -> UUID:
     return response.artifact_id
 
 
-async def create_table_artifact(input: DataFrame, session: Session) -> UUID:
-    """Create a table artifact by uploading a list of records."""
+async def create_table_artifact(
+    input: DataFrame, session: Session
+) -> CreateArtifactResponse:
+    """Create a table artifact by uploading a list of records.
+
+    Returns the full CreateArtifactResponse (artifact_id, session_id, task_id).
+    """
     records = _df_to_records(input)
     body = UploadDataArtifactsUploadPostJsonBody(
         data=[
@@ -143,8 +149,7 @@ async def create_table_artifact(input: DataFrame, session: Session) -> UUID:
     response = await upload_data_artifacts_upload_post.asyncio(
         client=session.client, body=body
     )
-    response = handle_response(response)
-    return response.artifact_id
+    return handle_response(response)
 
 
 # --- Single Agent ---

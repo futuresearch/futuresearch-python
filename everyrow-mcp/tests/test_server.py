@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 from everyrow.constants import EveryrowError
 from everyrow.generated.client import AuthenticatedClient
+from everyrow.generated.models.create_artifact_response import CreateArtifactResponse
 from everyrow.generated.models.public_task_type import PublicTaskType
 from everyrow.generated.models.task_progress_info import TaskProgressInfo
 from everyrow.generated.models.task_result_response import TaskResultResponse
@@ -1228,6 +1229,12 @@ class TestUploadData:
         artifact_uuid = uuid4()
 
         mock_df = pd.DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+        task_uuid = uuid4()
+        upload_response = CreateArtifactResponse(
+            artifact_id=artifact_uuid,
+            session_id=mock_session.session_id,
+            task_id=task_uuid,
+        )
 
         with (
             patch(
@@ -1242,7 +1249,7 @@ class TestUploadData:
             patch(
                 "everyrow_mcp.tools.create_table_artifact",
                 new_callable=AsyncMock,
-                return_value=artifact_uuid,
+                return_value=upload_response,
             ) as mock_create,
         ):
             params = UploadDataInput(source="https://example.com/data.csv")
@@ -1251,6 +1258,7 @@ class TestUploadData:
         assert len(result) == 1
         data = json.loads(result[0].text)
         assert data["artifact_id"] == str(artifact_uuid)
+        assert data["task_id"] == str(task_uuid)
         assert data["rows"] == 2
         assert data["columns"] == ["a", "b"]
         mock_create.assert_called_once()
@@ -1265,6 +1273,11 @@ class TestUploadData:
         mock_session = _make_mock_session()
         ctx = make_test_context(mock_client)
         artifact_uuid = uuid4()
+        upload_response = CreateArtifactResponse(
+            artifact_id=artifact_uuid,
+            session_id=mock_session.session_id,
+            task_id=uuid4(),
+        )
 
         with (
             patch(
@@ -1274,7 +1287,7 @@ class TestUploadData:
             patch(
                 "everyrow_mcp.tools.create_table_artifact",
                 new_callable=AsyncMock,
-                return_value=artifact_uuid,
+                return_value=upload_response,
             ),
         ):
             params = UploadDataInput(source=str(csv_file))
@@ -1879,6 +1892,11 @@ class TestSessionParams:
         ctx = make_test_context(mock_client)
         artifact_uuid = uuid4()
         sid = str(uuid4())
+        upload_response = CreateArtifactResponse(
+            artifact_id=artifact_uuid,
+            session_id=mock_session.session_id,
+            task_id=uuid4(),
+        )
 
         mock_df = pd.DataFrame([{"a": 1}])
 
@@ -1892,7 +1910,7 @@ class TestSessionParams:
             patch(
                 "everyrow_mcp.tools.create_table_artifact",
                 new_callable=AsyncMock,
-                return_value=artifact_uuid,
+                return_value=upload_response,
             ),
         ):
             mock_cs.return_value = _make_async_context_manager(mock_session)

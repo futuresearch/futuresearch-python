@@ -975,19 +975,21 @@ async def everyrow_upload_data(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
-        artifact_id = await create_table_artifact(df, session)
+        upload_response = await create_table_artifact(df, session)
+
+    result: dict[str, Any] = {
+        "artifact_id": str(upload_response.artifact_id),
+        "session_id": session_id_str,
+        "rows": len(df),
+        "columns": list(df.columns),
+    }
+    if isinstance(upload_response.task_id, UUID):
+        result["task_id"] = str(upload_response.task_id)
 
     return [
         TextContent(
             type="text",
-            text=json.dumps(
-                {
-                    "artifact_id": str(artifact_id),
-                    "session_id": session_id_str,
-                    "rows": len(df),
-                    "columns": list(df.columns),
-                }
-            ),
+            text=json.dumps(result),
         )
     ]
 
