@@ -650,8 +650,8 @@ class TestApiDownload:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_download_token_consumed_after_use(self, client: httpx.AsyncClient):
-        """A download token can only be used once — second request returns 403."""
+    async def test_download_token_reusable(self, client: httpx.AsyncClient):
+        """A download token can be used multiple times until it expires."""
         task_id = str(uuid4())
         download_token = secrets.token_urlsafe(32)
         json_text = json.dumps([{"a": 1, "b": 2}])
@@ -667,10 +667,10 @@ class TestApiDownload:
         resp2 = await client.get(
             f"/api/results/{task_id}/download", params={"token": download_token}
         )
-        assert resp2.status_code == 403
+        assert resp2.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_task_id_mismatch_restores_token(self, client: httpx.AsyncClient):
+    async def test_task_id_mismatch_rejected(self, client: httpx.AsyncClient):
         """Token for task A used on task B's URL → 403, token still valid for A."""
         task_a = str(uuid4())
         task_b = str(uuid4())
@@ -687,7 +687,7 @@ class TestApiDownload:
         )
         assert resp.status_code == 403
 
-        # Token should have been restored — still works for task_a
+        # Token is not consumed — still works for task_a
         resp2 = await client.get(
             f"/api/results/{task_a}/download", params={"token": download_token}
         )

@@ -202,12 +202,11 @@ def _build_result_response(
 async def _get_csv_url(
     task_id: str, mcp_server_url: str
 ) -> tuple[str, str] | tuple[None, None]:
-    """Build a CSV download URL with a fresh single-use download token.
+    """Build a CSV download URL with a fresh download token.
 
     Returns ``(csv_url, poll_token)`` on success, or ``(None, None)``
     if the poll token has expired (used as a proxy for "task is still
-    valid").  The download token is short-lived (5 min) and consumed on
-    use, so a leaked URL cannot be replayed.
+    valid").  The download token is reusable until it expires (1 hour).
     """
     poll_token = await redis_store.get_poll_token(task_id)
     if poll_token is None:

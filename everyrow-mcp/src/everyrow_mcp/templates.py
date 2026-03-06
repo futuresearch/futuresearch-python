@@ -679,7 +679,7 @@ document.getElementById("exportLink")?.addEventListener("click",async()=>{
   if(!csvUrl&&!downloadTokenUrl){showToast("No download link yet");return;}
   const url=await getFreshDownloadUrl();
   if(!url){showToast("No download link yet");return;}
-  copyToClipboard(url).then(ok=>{if(ok)showToast("Link copied (valid 5 min, single use)");});
+  copyToClipboard(url).then(ok=>{if(ok)showToast("Link copied (valid 1 hour)");});
 });
 
 /* --- row resize (drag bottom border) --- */

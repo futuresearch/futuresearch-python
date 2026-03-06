@@ -249,9 +249,9 @@ async def api_download_token(request: Request) -> Response:
 async def api_download(request: Request) -> Response:  # noqa: PLR0911
     """REST endpoint to download task results as CSV or JSON.
 
-    Authenticates via a short-lived, single-use download token (not the
-    long-lived poll token).  The token is consumed atomically on use so
-    a leaked download URL cannot be replayed.
+    Authenticates via a short-lived download token (not the long-lived poll
+    token).  Tokens are reusable until they expire — the unguessable 32-byte
+    token provides sufficient protection without single-use semantics.
     """
     cors = _cors_headers()
     if request.method == "OPTIONS":
@@ -267,10 +267,8 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
 
     provided = request.query_params.get("token", "")
 
-    # Atomically consume the download token (empty string yields None)
-    token_task_id, remaining_ttl = (
-        await redis_store.pop_download_token(provided) if provided else (None, 0)
-    )
+    # Validate the download token (reusable — not consumed on use)
+    token_task_id = await redis_store.get_download_token(provided) if provided else None
     if token_task_id is None:
         logger.warning("Invalid or expired download token for task %s", task_id)
         return JSONResponse({"error": "Unauthorized"}, status_code=403, headers=cors)
@@ -281,9 +279,6 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             "Download token task_id mismatch: token for %s used on %s",
             token_task_id,
             task_id,
-        )
-        await redis_store.restore_download_token(
-            provided, token_task_id, ttl=remaining_ttl
         )
         return JSONResponse({"error": "Unauthorized"}, status_code=403, headers=cors)
 

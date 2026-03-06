@@ -27,7 +27,7 @@ TASK_STATE_FILE = Path.home() / ".everyrow" / "task.json"
 RESULT_CACHE_TTL = 600
 RESULT_DATA_TTL = 3600  # 1 hour — full result data stored in Redis for download
 TOKEN_TTL = 86400  # 24 hours — must outlive the longest possible task
-DOWNLOAD_TOKEN_TTL = 300  # 5 minutes — short-lived, single-use download tokens
+DOWNLOAD_TOKEN_TTL = 3600  # 1 hour — single-use download tokens (match RESULT_DATA_TTL)
 
 
 class Transport(StrEnum):
@@ -297,14 +297,14 @@ async def get_task_owner(task_id: str) -> str | None:
     return await get_redis_client().get(build_key("task_owner", task_id))
 
 
-# ── Download tokens (short-lived, single-use) ────────────────
+# ── Download tokens (reusable, TTL-limited) ──────────────────
 
 
 async def store_download_token(download_token: str, task_id: str) -> None:
-    """Store a single-use download token that maps back to a task_id.
+    """Store a download token that maps back to a task_id.
 
     Keyed by token (reverse-lookup) so multiple concurrent download tokens
-    can exist for the same task, and GETDEL provides natural consume semantics.
+    can exist for the same task. Tokens are reusable until they expire.
     """
     await get_redis_client().setex(
         name=build_key("dl_token", download_token),
@@ -313,30 +313,12 @@ async def store_download_token(download_token: str, task_id: str) -> None:
     )
 
 
-async def pop_download_token(download_token: str) -> tuple[str, int] | tuple[None, int]:
-    """Atomically consume a download token, returning ``(task_id, remaining_ttl)``
-    or ``(None, 0)`` if the token does not exist.
+async def get_download_token(download_token: str) -> str | None:
+    """Look up a download token without consuming it.
 
-    The remaining TTL is captured *before* the GETDEL so that callers can
-    re-store the token with its original expiry on a task_id mismatch
-    (instead of granting a fresh 5-min window).
+    Returns the task_id or None if the token does not exist / has expired.
     """
-    key = build_key("dl_token", download_token)
-    r = get_redis_client()
-    remaining = await r.ttl(key)  # -2 = missing, -1 = no expiry
-    encrypted = await r.getdel(key)
+    encrypted = await get_redis_client().get(build_key("dl_token", download_token))
     if encrypted is None:
-        return None, 0
-    ttl = max(remaining, 1)  # clamp to at least 1s
-    return decrypt_value(encrypted), ttl
-
-
-async def restore_download_token(
-    download_token: str, task_id: str, ttl: int = DOWNLOAD_TOKEN_TTL
-) -> None:
-    """Re-store a download token (e.g. after a task_id mismatch)."""
-    await get_redis_client().setex(
-        name=build_key("dl_token", download_token),
-        time=ttl,
-        value=encrypt_value(task_id),
-    )
+        return None
+    return decrypt_value(encrypted)

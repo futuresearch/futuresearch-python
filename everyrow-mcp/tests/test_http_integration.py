@@ -396,8 +396,8 @@ class TestDownloadTokenEndpoint:
         assert url1 != url2
 
     @pytest.mark.asyncio
-    async def test_minted_token_is_single_use(self, client: httpx.AsyncClient):
-        """Mint → download (200) → download again with same token (403)."""
+    async def test_minted_token_is_reusable(self, client: httpx.AsyncClient):
+        """Mint → download (200) → download again with same token (200)."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         json_text = json.dumps([{"x": 1, "y": 2}])
@@ -419,14 +419,14 @@ class TestDownloadTokenEndpoint:
         )
         assert resp1.status_code == 200
 
-        # Second download with same token fails
+        # Second download with same token also succeeds
         resp2 = await client.get(
             f"/api/results/{task_id}/download", params={"token": dl_token}
         )
-        assert resp2.status_code == 403
+        assert resp2.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_wrong_task_id_restores_minted_token(self, client: httpx.AsyncClient):
+    async def test_wrong_task_id_rejected(self, client: httpx.AsyncClient):
         """Token minted for task A, used on task B's URL → 403; still works for A."""
         task_a = str(uuid4())
         task_b = str(uuid4())
@@ -445,13 +445,13 @@ class TestDownloadTokenEndpoint:
         )
         dl_token = mint_resp.json()["download_url"].split("token=")[1]
 
-        # Try on task B → 403, token restored
+        # Try on task B → 403
         resp_b = await client.get(
             f"/api/results/{task_b}/download", params={"token": dl_token}
         )
         assert resp_b.status_code == 403
 
-        # Use on task A → 200
+        # Token not consumed — still works for task A
         resp_a = await client.get(
             f"/api/results/{task_a}/download", params={"token": dl_token}
         )
@@ -520,11 +520,10 @@ class TestDownloadTokenLifecycle:
         assert len(downloaded_df) == 2
 
     @pytest.mark.asyncio
-    async def test_original_baked_token_expired_then_mint_fresh(
+    async def test_baked_token_reusable_and_mint_also_works(
         self, client: httpx.AsyncClient
     ):
-        """Simulates the bug: baked-in download token is consumed/expired,
-        but minting a fresh one via the endpoint still works."""
+        """Baked-in download token is reusable; minting a fresh one also works."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
         df = pd.DataFrame({"col": [1, 2, 3]})
@@ -539,20 +538,20 @@ class TestDownloadTokenLifecycle:
         widget = result.structuredContent
         assert widget is not None
 
-        # Extract and consume the baked-in download token (simulates first click)
+        # First download with baked-in token
         baked_token = widget["csv_url"].split("token=")[1]
         resp1 = await client.get(
             f"/api/results/{task_id}/download", params={"token": baked_token}
         )
         assert resp1.status_code == 200
 
-        # Baked-in token is now consumed — second use fails
+        # Second download with same baked-in token also succeeds
         resp2 = await client.get(
             f"/api/results/{task_id}/download", params={"token": baked_token}
         )
-        assert resp2.status_code == 403
+        assert resp2.status_code == 200
 
-        # Mint a fresh token via the endpoint — this is the fix
+        # Minting a fresh token via the endpoint also works
         mint_resp = await client.get(
             widget["download_token_url"],
             headers={"Authorization": f"Bearer {widget['poll_token']}"},
@@ -561,7 +560,6 @@ class TestDownloadTokenLifecycle:
         fresh_url = mint_resp.json()["download_url"]
         fresh_token = fresh_url.split("token=")[1]
 
-        # Download with fresh token succeeds
         resp3 = await client.get(
             f"/api/results/{task_id}/download", params={"token": fresh_token}
         )
