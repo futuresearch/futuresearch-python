@@ -239,6 +239,7 @@ async def everyrow_use_list(
             type="text",
             text=(
                 f"Imported built-in list into your session.\n\n"
+                f"Task ID: {result.task_id}\n"
                 f"Artifact ID: {result.artifact_id}\n"
                 f"{csv_line}"
                 f"Rows: {len(df)}\n"
