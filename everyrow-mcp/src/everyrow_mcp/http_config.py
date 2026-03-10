@@ -77,7 +77,12 @@ def configure_http_mode(
         lifespan = no_auth_http_lifespan
     else:
         lifespan = http_lifespan
-        verifier = SupabaseTokenVerifier(settings.supabase_url, redis=redis_client)
+        verifier = SupabaseTokenVerifier(
+            settings.supabase_url,
+            redis=redis_client,
+            everyrow_api_key=settings.everyrow_api_key,
+            supabase_anon_key=settings.supabase_anon_key,
+        )
         auth_provider = EveryRowAuthProvider(
             redis=redis_client,
             token_verifier=verifier,

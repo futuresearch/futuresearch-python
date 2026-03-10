@@ -126,7 +126,7 @@ class Settings(BaseSettings):
             return v
         parsed = urlparse(v)
         host = (parsed.hostname or "").lower()
-        is_local = host in ("localhost", "127.0.0.1", "::1")
+        is_local = host in ("localhost", "127.0.0.1", "::1", "host.docker.internal")
         if not is_local and parsed.scheme != "https":
             raise ValueError(
                 f"Non-localhost URLs must use https:// (got {parsed.scheme}://)"

@@ -38,7 +38,18 @@ logger = logging.getLogger(__name__)
 
 
 class SupabaseTokenVerifier(TokenVerifier):
-    """Verify Supabase-issued JWTs using the project's JWKS endpoint."""
+    """Verify tokens for the everyrow MCP server.
+
+    Three verification paths, tried in order:
+
+    1. **API key** (``sk-cho-…``): accepted if it matches the configured
+       ``EVERYROW_API_KEY``.  Used by the everyrow-cc agent at warmup.
+    2. **JWKS** (production): verify Supabase JWTs using the project's JWKS
+       endpoint.  Works with hosted Supabase (RS256 asymmetric keys).
+    3. **Supabase /auth/v1/user** (local dev fallback): when JWKS returns
+       empty keys (local Supabase uses HS256), validate the JWT by calling
+       Supabase directly — it knows its own signing secret.
+    """
 
     def __init__(
         self,
@@ -47,11 +58,15 @@ class SupabaseTokenVerifier(TokenVerifier):
         audience: str = "authenticated",
         redis: Redis,
         revocation_ttl: int = 3600,
+        everyrow_api_key: str | None = None,
+        supabase_anon_key: str = "",
     ) -> None:
-        self._issuer = supabase_url.rstrip("/") + "/auth/v1"
+        self._supabase_base_url = supabase_url.rstrip("/")
+        self._issuer = self._supabase_base_url + "/auth/v1"
         self._audience = audience
+        jwks_issuer = self._issuer
         self._jwks_client = PyJWKClient(
-            f"{self._issuer}/.well-known/jwks.json",
+            f"{jwks_issuer}/.well-known/jwks.json",
             cache_keys=True,
             lifespan=300,
             max_cached_keys=16,
@@ -59,6 +74,12 @@ class SupabaseTokenVerifier(TokenVerifier):
         self._redis = redis
         self._revocation_ttl = revocation_ttl
         self._jwks_lock = asyncio.Lock()
+        self._everyrow_api_key = everyrow_api_key
+        self._supabase_anon_key = supabase_anon_key
+        self._http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(5.0),
+            limits=httpx.Limits(max_connections=5, max_keepalive_connections=2),
+        )
 
     @property
     def revocation_ttl(self) -> int:
@@ -67,6 +88,9 @@ class SupabaseTokenVerifier(TokenVerifier):
     @staticmethod
     def _token_fingerprint(token: str) -> str:
         return hashlib.sha256(token.encode()).hexdigest()
+
+    async def aclose(self) -> None:
+        await self._http_client.aclose()
 
     async def _is_revoked(self, token: str) -> bool:
         key = build_key("revoked", self._token_fingerprint(token))
@@ -97,6 +121,38 @@ class SupabaseTokenVerifier(TokenVerifier):
         )
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        # API key — accept the configured EVERYROW_API_KEY directly.
+        if token.startswith("sk-cho-"):
+            return self._verify_api_key(token)
+
+        # JWKS verification (production path — asymmetric keys).
+        result = await self._verify_jwt_via_jwks(token)
+        if result is not None:
+            return result
+
+        # Fallback: verify JWT via Supabase /auth/v1/user endpoint.
+        # Needed for local development where Supabase uses HS256 and the
+        # JWKS endpoint returns empty keys.
+        return await self._verify_jwt_via_supabase(token)
+
+    def _verify_api_key(self, token: str) -> AccessToken | None:
+        """Accept the configured EVERYROW_API_KEY as a valid bearer token."""
+        if self._everyrow_api_key and secrets.compare_digest(
+            token, self._everyrow_api_key
+        ):
+            return AccessToken(
+                token=token,
+                client_id="api-key",
+                scopes=["everyrow"],
+                expires_at=None,
+            )
+        logger.warning(
+            "API key presented but does not match configured EVERYROW_API_KEY"
+        )
+        return None
+
+    async def _verify_jwt_via_jwks(self, token: str) -> AccessToken | None:
+        """Verify a Supabase JWT using the project's JWKS endpoint."""
         try:
             signing_key = await self._get_signing_key(token)
             payload = self._decode_jwt(token, signing_key)
@@ -120,6 +176,49 @@ class SupabaseTokenVerifier(TokenVerifier):
             return None
         except pyjwt.PyJWTError:
             logger.warning("JWT verification failed")
+            return None
+
+    async def _verify_jwt_via_supabase(self, token: str) -> AccessToken | None:
+        """Verify a JWT by calling Supabase's /auth/v1/user endpoint.
+
+        Supabase validates the JWT internally (it knows its own signing secret)
+        and returns the user if valid.  This is a fallback for local dev where
+        Supabase uses HS256 and JWKS returns empty keys.
+        """
+        if not self._supabase_base_url or not self._supabase_anon_key:
+            return None
+        try:
+            resp = await self._http_client.get(
+                f"{self._supabase_base_url}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": self._supabase_anon_key,
+                },
+            )
+            if resp.status_code != 200:
+                return None
+            user_data = resp.json()
+            user_id = user_data.get("id")
+            if not user_id:
+                return None
+
+            # Extract exp without re-verifying — Supabase already confirmed it.
+            claims = pyjwt.decode(
+                token,
+                options={"verify_signature": False},
+                algorithms=["HS256", "RS256"],
+            )
+            logger.info(
+                "JWT verified via Supabase /auth/v1/user fallback user=%s", user_id
+            )
+            return AccessToken(
+                token=token,
+                client_id=user_id,
+                scopes=["everyrow"],
+                expires_at=claims.get("exp"),
+            )
+        except Exception as exc:
+            logger.warning("Supabase /auth/v1/user fallback failed: %s", exc)
             return None
 
 
@@ -194,6 +293,7 @@ class EveryRowAuthProvider(
 
     async def aclose(self) -> None:
         await self._http_client.aclose()
+        await self._token_verifier.aclose()
 
     @staticmethod
     def _client_ip(request: Request) -> str:
