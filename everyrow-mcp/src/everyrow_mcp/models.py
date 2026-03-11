@@ -601,11 +601,11 @@ class BrowseListsInput(BaseModel):
 
     search: str | None = Field(
         default=None,
-        description="Search term to match against list names (case-insensitive).",
+        description="Search term to match against list names (case-insensitive). Requires knowing what's there, prefer browsing the full list by omitting this parameter.",
     )
     category: str | None = Field(
         default=None,
-        description="Filter by category (e.g. 'Finance', 'Geography').",
+        description="Filter by category. Requires knowing the categories, prefer browsing the full list by omitting this parameter.",
     )
 
 

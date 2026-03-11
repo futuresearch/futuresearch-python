@@ -155,8 +155,8 @@ async def everyrow_browse_lists(
     already have a list for. Returns names, fields, and artifact_ids to pass to
     everyrow_use_list.
 
-    Call with no parameters to see all available lists, or use search/category
-    to narrow results.
+    Call with no parameters to see all available lists. Prefer browsing the
+    full list (~60 lists) over using search or category filters, which require advanced knowledge of what is there.
     """
     logger.info(
         "everyrow_browse_lists: search=%s category=%s",
