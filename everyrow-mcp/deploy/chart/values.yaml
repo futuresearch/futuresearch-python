@@ -30,6 +30,7 @@ env:
   SUPABASE_URL: "https://iliivszxpymuffgrwsws.supabase.co"
   REDIS_SENTINEL_ENDPOINTS: "redis.utils.svc.cluster.local:26379"
   REDIS_SENTINEL_MASTER_NAME: "mymaster"
+  SENTRY_ENVIRONMENT: "production"
 
 httproute:
   host: mcp.everyrow.io

@@ -66,6 +66,8 @@ spec:
             timeoutSeconds: 10
             failureThreshold: 5
           env:
+            - name: SENTRY_RELEASE
+              value: {{ .Values.releaseId | quote }}
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

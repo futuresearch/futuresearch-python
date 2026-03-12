@@ -9,6 +9,7 @@ import os
 import sys
 from textwrap import dedent
 
+import sentry_sdk
 from pydantic import BaseModel
 
 import everyrow_mcp.tools  # noqa: F401  — registers @mcp.tool() decorators
@@ -77,6 +78,17 @@ def parse_args() -> InputArgs:
 def main():
     """Run the MCP server."""
     input_args = parse_args()
+
+    sentry_dsn = os.environ.get("SENTRY_DSN", "")
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            send_default_pii=True,
+            traces_sample_rate=0.1,
+            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            release=os.environ.get("SENTRY_RELEASE"),
+        )
+
     # Signal to the SDK that we're inside the MCP server (suppresses plugin hints)
     os.environ["EVERYROW_MCP_SERVER"] = "1"
     transport = Transport.HTTP if input_args.http else Transport.STDIO
