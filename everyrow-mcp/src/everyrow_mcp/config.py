@@ -52,6 +52,11 @@ class Settings(BaseSettings):
 
     # HTTP-only settings — unused in stdio mode
     mcp_server_url: str = Field(default="")
+    mcp_sandbox_url: str = Field(
+        default="",
+        description="URL reachable from the agent sandbox for curl commands. "
+        "Falls back to mcp_server_url if empty.",
+    )
     supabase_url: str = Field(default="")
     supabase_anon_key: str = Field(default="", repr=False)
 
@@ -132,6 +137,28 @@ class Settings(BaseSettings):
                 f"Non-localhost URLs must use https:// (got {parsed.scheme}://)"
             )
         return v
+
+    @model_validator(mode="after")
+    def _warn_sandbox_url_fallback(self) -> Settings:
+        """Warn when mcp_sandbox_url falls back to a localhost mcp_server_url.
+
+        In HTTP mode, if mcp_server_url is localhost (needed for the OAuth
+        HTTPS exemption) and mcp_sandbox_url is empty, presigned upload URLs
+        will point to localhost — unreachable from a separate agent container.
+        """
+        if not self.is_http or self.mcp_sandbox_url:
+            return self
+        parsed = urlparse(self.mcp_server_url)
+        host = (parsed.hostname or "").lower()
+        if host in ("localhost", "127.0.0.1", "::1"):
+            logger.warning(
+                "MCP_SANDBOX_URL is empty and MCP_SERVER_URL is %s. "
+                "Upload curl commands will use localhost, which is unreachable "
+                "from a separate agent container. Set MCP_SANDBOX_URL to a "
+                "host-reachable URL (e.g. http://host.docker.internal:8100).",
+                self.mcp_server_url,
+            )
+        return self
 
     @model_validator(mode="after")
     def _require_redis_ssl_for_remote(self) -> Settings:

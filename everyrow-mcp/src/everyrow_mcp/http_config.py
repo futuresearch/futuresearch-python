@@ -109,14 +109,19 @@ def configure_http_mode(
             "REDIS_PASSWORD is not set — acceptable for local development only."
         )
 
-    _register_widgets(mcp, mcp_server_url)
+    _register_widgets(mcp, mcp_server_url, settings.mcp_sandbox_url)
     _register_routes(mcp, redis_client, auth_provider if not no_auth else None)
     _add_middleware(mcp, redis_client)
 
 
-def _register_widgets(mcp: FastMCP, mcp_server_url: str) -> None:
+def _register_widgets(
+    mcp: FastMCP, mcp_server_url: str, mcp_sandbox_url: str = ""
+) -> None:
     """Register MCP App widget resources for HTTP mode."""
-    widget_csp = _ui_csp([mcp_server_url])
+    connect_domains = [mcp_server_url]
+    if mcp_sandbox_url and mcp_sandbox_url != mcp_server_url:
+        connect_domains.append(mcp_sandbox_url)
+    widget_csp = _ui_csp(connect_domains)
 
     @mcp.resource(
         "ui://everyrow/session.html",

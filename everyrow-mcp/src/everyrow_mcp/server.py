@@ -114,7 +114,8 @@ def main():
         else:
             mcp_server_url = settings.mcp_server_url
 
-        register_upload_tool(mcp, mcp_server_url)
+        sandbox_url = settings.mcp_sandbox_url or mcp_server_url
+        register_upload_tool(mcp, sandbox_url)
 
         configure_http_mode(
             mcp=mcp,

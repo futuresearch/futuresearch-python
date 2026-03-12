@@ -65,7 +65,7 @@ async def http_lifespan(_server: FastMCP):
 
     yield SessionContext(
         client_factory=_http_client_factory,
-        mcp_server_url=settings.mcp_server_url,
+        mcp_server_url=settings.mcp_sandbox_url or settings.mcp_server_url,
     )
 
 
@@ -81,7 +81,7 @@ async def no_auth_http_lifespan(_server: FastMCP):
             raise RuntimeError("Failed to authenticate with everyrow API")
         yield SessionContext(
             client_factory=lambda: client,
-            mcp_server_url=settings.mcp_server_url,
+            mcp_server_url=settings.mcp_sandbox_url or settings.mcp_server_url,
         )
 
 
