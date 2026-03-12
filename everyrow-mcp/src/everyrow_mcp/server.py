@@ -1,4 +1,7 @@
-"""MCP server for everyrow SDK operations."""
+"""MCP server for everyrow SDK operations.
+
+Supports both stdio and HTTP transport modes.
+"""
 
 import argparse
 import logging
