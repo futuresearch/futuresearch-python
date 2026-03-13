@@ -125,7 +125,12 @@ class SupabaseTokenVerifier(TokenVerifier):
         # Fallback: verify JWT via Supabase /auth/v1/user endpoint.
         # Needed for local development where Supabase uses HS256 and the
         # JWKS endpoint returns empty keys.
-        return await self._verify_jwt_via_supabase(token)
+        result = await self._verify_jwt_via_supabase(token)
+        if result is None:
+            logger.warning(
+                "Token verification failed: both JWKS and Supabase fallback returned None"
+            )
+        return result
 
     async def _verify_jwt_via_jwks(self, token: str) -> AccessToken | None:
         """Verify a Supabase JWT using the project's JWKS endpoint."""
@@ -162,6 +167,11 @@ class SupabaseTokenVerifier(TokenVerifier):
         Supabase uses HS256 and JWKS returns empty keys.
         """
         if not self._supabase_base_url or not self._supabase_anon_key:
+            logger.warning(
+                "Supabase fallback skipped: supabase_base_url set=%s, anon_key set=%s",
+                bool(self._supabase_base_url),
+                bool(self._supabase_anon_key),
+            )
             return None
         try:
             resp = await self._http_client.get(
@@ -172,10 +182,18 @@ class SupabaseTokenVerifier(TokenVerifier):
                 },
             )
             if resp.status_code != 200:
+                logger.warning(
+                    "Supabase /auth/v1/user returned %d: %s",
+                    resp.status_code,
+                    resp.text[:200],
+                )
                 return None
             user_data = resp.json()
             user_id = user_data.get("id")
             if not user_id:
+                logger.warning(
+                    "Supabase /auth/v1/user returned 200 but no 'id' in response"
+                )
                 return None
 
             # Extract exp without re-verifying — Supabase already confirmed it.
