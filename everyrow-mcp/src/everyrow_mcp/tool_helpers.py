@@ -466,9 +466,14 @@ class TaskState(BaseModel):
                         next_call = dedent(f"""\
                             Call everyrow_results(task_id='{task_id}', page_size={max(self.total, 1)}) to load all rows.""")
                     else:
+                        widget_note = (
+                            " You will have access to all of them via the widget."
+                            if is_internal_client()
+                            else ""
+                        )
                         next_call = dedent(f"""\
                             IMPORTANT: Do NOT call everyrow_results yet.\
-                             First, ask the user: "The task produced {self.total} rows. How many would you like me to load into my context so I can read them? (default: {settings.auto_page_size_threshold}). You will have access to all of them via the widget.".\
+                             First, ask the user: "The task produced {self.total} rows. How many would you like me to load into my context so I can read them? (default: {settings.auto_page_size_threshold}).{widget_note}".\
                              The answer the user provides will correspond to the `page_size`.\
                              After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
                 else:
