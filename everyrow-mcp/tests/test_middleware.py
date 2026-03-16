@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -162,24 +161,28 @@ class TestRateLimitMiddleware:
     def test_counter_resets_after_window(self):
         """Requests in a new time window should not be blocked."""
         redis_mock = _make_redis_mock()
-        # Use 1-second window so the window_id changes with time.time()
-        app = _make_app(redis_mock, max_requests=2, window_seconds=1)
+        app = _make_app(redis_mock, max_requests=2, window_seconds=60)
         client = TestClient(app)
 
-        resp1 = client.get("/")
-        resp2 = client.get("/")
-        assert resp1.status_code == 200
-        assert resp2.status_code == 200
+        # Pin time to the middle of a window to avoid boundary flakiness
+        fake_time = 1000.0
+        with patch("everyrow_mcp.middleware.time") as mock_time:
+            mock_time.time.return_value = fake_time
 
-        resp3 = client.get("/")
-        assert resp3.status_code == 429
+            resp1 = client.get("/")
+            resp2 = client.get("/")
+            assert resp1.status_code == 200
+            assert resp2.status_code == 200
 
-        # Wait for the window to roll over
-        time.sleep(1.1)
+            resp3 = client.get("/")
+            assert resp3.status_code == 429
 
-        # New window — counter resets (new key)
-        resp4 = client.get("/")
-        assert resp4.status_code == 200
+            # Jump to the next window (60s later)
+            mock_time.time.return_value = fake_time + 61
+
+            # New window — counter resets (new key)
+            resp4 = client.get("/")
+            assert resp4.status_code == 200
 
 
 # ── BodySizeLimitMiddleware tests ────────────────────────────────
