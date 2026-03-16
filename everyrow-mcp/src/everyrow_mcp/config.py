@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _require_redis_ssl_for_remote(self) -> Settings:
         host = (self.redis_host or "").lower()
-        is_local = host in ("localhost", "127.0.0.1", "::1", "")
+        is_local = host in ("localhost", "127.0.0.1", "::1", "", "redis")
         if not is_local and not self.redis_ssl:
             if self.is_http:
                 raise ValueError(

@@ -400,7 +400,11 @@ async def everyrow_single_agent(
     ) as session:
         session_url = session.get_url()
         session_id_str = str(session.session_id)
-        kwargs: dict[str, Any] = {"task": params.task, "session": session}
+        kwargs: dict[str, Any] = {
+            "task": params.task,
+            "session": session,
+            "return_table": params.return_table,
+        }
         if input_model is not None:
             kwargs["input"] = input_model
         if response_model is not None:

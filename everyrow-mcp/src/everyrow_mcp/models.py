@@ -621,6 +621,10 @@ class SingleAgentInput(BaseModel):
         default=None,
         description="Include reasoning notes in output. Only used when effort_level is null.",
     )
+    return_table: bool = Field(
+        default=False,
+        description="If true, return results as a multi-row table (one row per item). Use when the task produces a list of items (e.g. 'list all X'). If false (default), return a single result row.",
+    )
     session_id: str | None = Field(
         default=None,
         description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
