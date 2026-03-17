@@ -4,7 +4,7 @@
 
 MCP (Model Context Protocol) server for [everyrow](https://everyrow.io): agent ops at spreadsheet scale.
 
-This server exposes everyrow's core operations as MCP tools, allowing LLM applications to classify, screen, rank, dedupe, merge, forecast, and run agents on CSV files.
+This server exposes everyrow's core operations as MCP tools, allowing LLM applications to classify, rank, dedupe, merge, forecast, and run agents on CSV files.
 
 **All tools operate on local CSV files.** Provide absolute file paths as input, and transformed results are written to new CSV files at your specified output path.
 
@@ -59,19 +59,6 @@ All operations follow an async pattern:
 3. **Retrieve** - Once complete, call `everyrow_results(task_id, output_path)` to save results to CSV.
 
 ## Available Tools
-
-### everyrow_screen
-
-Filter CSV rows based on criteria that require judgment.
-
-```
-Parameters:
-- task: Natural language description of screening criteria
-- input_csv: Absolute path to input CSV
-- response_schema: (optional) JSON schema for custom response fields
-```
-
-Example: Filter job postings for "remote-friendly AND senior-level AND salary disclosed"
 
 ### everyrow_rank
 

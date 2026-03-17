@@ -82,7 +82,7 @@ every row in a dataset.
 ## Workflow
 1. **Ingest data** — pass `data` (inline list of dicts) or an `artifact_id` \
 (from `everyrow_upload_data` or `everyrow_request_upload_url`) to any processing tool.
-2. **Submit** — call a processing tool (everyrow_agent, everyrow_screen, \
+2. **Submit** — call a processing tool (everyrow_agent, everyrow_classify, \
 everyrow_rank, everyrow_dedupe, everyrow_merge, everyrow_forecast). \
 It returns a task_id immediately.
 3. **Poll** — call `everyrow_progress(task_id)` repeatedly until the task completes. \

@@ -78,25 +78,6 @@ def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] |
     return schema
 
 
-def _validate_screen_response_schema(
-    schema: dict[str, Any] | None,
-) -> dict[str, Any] | None:
-    """Validate screen response_schema includes at least one boolean property."""
-    validated_schema = _validate_response_schema(schema)
-    if validated_schema is None:
-        return None
-
-    properties = validated_schema["properties"]
-    has_boolean_property = any(
-        isinstance(field_def, dict) and field_def.get("type") == "boolean"
-        for field_def in properties.values()
-    )
-    if not has_boolean_property:
-        raise ValueError("response_schema must include at least one boolean property")
-
-    return validated_schema
-
-
 def _schema_to_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
     """Convert a JSON schema dict to a dynamic Pydantic model.
 
@@ -312,28 +293,6 @@ class RankInput(_SingleSourceInput):
         cls, v: dict[str, Any] | None
     ) -> dict[str, Any] | None:
         return _validate_response_schema(v)
-
-
-class ScreenInput(_SingleSourceInput):
-    """Input for the screen operation."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    task: str = Field(
-        ..., description="Natural language screening criteria.", min_length=1
-    )
-    response_schema: dict[str, Any] | None = Field(
-        default=None,
-        description="Optional JSON schema for the response model. "
-        "Must include at least one boolean property — screen uses the boolean field to filter rows into pass/fail.",
-    )
-
-    @field_validator("response_schema")
-    @classmethod
-    def validate_response_schema(
-        cls, v: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
-        return _validate_screen_response_schema(v)
 
 
 class DedupeInput(_SingleSourceInput):

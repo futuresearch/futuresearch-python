@@ -17,7 +17,6 @@ Run with: pytest tests/test_http_real.py -v -s
 from __future__ import annotations
 
 import asyncio
-import csv
 import io
 import json
 import os
@@ -34,13 +33,12 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 
 from everyrow_mcp import redis_store
-from everyrow_mcp.models import AgentInput, HttpResultsInput, ProgressInput, ScreenInput
+from everyrow_mcp.models import AgentInput, HttpResultsInput, ProgressInput
 from everyrow_mcp.routes import api_download, api_progress
 from everyrow_mcp.tools import (
     everyrow_agent,
     everyrow_progress,
     everyrow_results_http,
-    everyrow_screen,
 )
 from tests.conftest import make_test_context, override_settings
 
@@ -184,75 +182,6 @@ async def poll_via_rest(
 # ── Tests ──────────────────────────────────────────────────────
 
 
-class TestHttpScreenPipeline:
-    """Full HTTP pipeline: submit → poll via REST → results via MCP tool."""
-
-    @pytest.mark.asyncio
-    async def test_screen_end_to_end(
-        self,
-        client: httpx.AsyncClient,
-        everyrow_client,
-        jobs_data: list[dict[str, Any]],
-    ):
-        """Submit a screen task, poll via REST, fetch results via MCP tool."""
-        # 1. Submit via MCP tool (in HTTP mode)
-        ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
-        result = await everyrow_screen(
-            ScreenInput(
-                task="Filter for remote positions with salary > $100k",
-                data=jobs_data,
-            ),
-            ctx,
-        )
-
-        # HTTP mode: widget JSON + human text
-        assert len(result) == 2
-        widget_json = result[0].text
-        human_text = result[1].text
-        print(f"\nSubmit: {human_text}")
-
-        widget = json.loads(widget_json)
-        assert widget["status"] == "submitted"
-        assert "progress_url" in widget
-
-        task_id = widget["task_id"]
-        poll_token = extract_poll_token(widget_json)
-
-        # 2. Poll progress via REST endpoint
-        progress = await poll_via_rest(client, task_id, poll_token)
-        assert progress["status"] == "completed"
-        # Screen tasks don't report row-level totals
-        assert "session_url" in progress
-        print(f"  Session: {progress['session_url']}")
-
-        # 3. After completion, task token is cleaned up — next poll returns 404
-        resp = await client.get(
-            f"/api/progress/{task_id}", params={"token": poll_token}
-        )
-        assert resp.status_code == 404
-
-        # 4. Fetch results via MCP tool — real Redis flow
-        results = await everyrow_results_http(HttpResultsInput(task_id=task_id), ctx)
-
-        assert results.structuredContent is not None
-        result_data = results.structuredContent
-        assert "csv_url" in result_data
-        assert "preview" in result_data
-        assert result_data["total"] > 0
-        print(f"  Results: {_text(results)}")
-
-        # 5. Download CSV via the csv_url
-        csv_url = result_data["csv_url"]
-        assert csv_url.startswith("http://testserver/api/results/")
-        download_resp = await client.get(csv_url)
-        assert download_resp.status_code == 200
-        assert download_resp.headers["content-type"].startswith("text/csv")
-        reader = csv.reader(io.StringIO(download_resp.text))
-        rows = list(reader)
-        assert len(rows) >= 2  # header + at least one data row
-        print(f"  CSV download: {len(rows) - 1} data rows")
-
-
 class TestHttpAgentPipeline:
     """Full HTTP pipeline with agent tool: submit → poll → results."""
 
@@ -324,43 +253,3 @@ class TestHttpAgentPipeline:
         assert len(result_df) == 2
         assert "headquarters" in result_df.columns
         print(f"  CSV: {len(result_df)} rows, columns={list(result_df.columns)}")
-
-
-class TestProgressPollingModes:
-    """Verify that both REST and MCP tool polling work for the same task."""
-
-    @pytest.mark.asyncio
-    async def test_dual_polling(
-        self,
-        client: httpx.AsyncClient,
-        everyrow_client,
-        jobs_data: list[dict[str, Any]],
-    ):
-        """Submit a task and poll using both REST endpoint and MCP tool."""
-        ctx = make_test_context(everyrow_client, mcp_server_url="http://testserver")
-        result = await everyrow_screen(
-            ScreenInput(
-                task="Filter for engineering roles",
-                data=jobs_data,
-            ),
-            ctx,
-        )
-
-        widget = json.loads(result[0].text)
-        task_id = widget["task_id"]
-        poll_token = extract_poll_token(result[0].text)
-
-        # Poll once via REST to verify it works
-        rest_resp = await client.get(
-            f"/api/progress/{task_id}", params={"token": poll_token}
-        )
-        assert rest_resp.status_code == 200
-        rest_progress = rest_resp.json()
-        print(
-            f"\n  REST: {rest_progress['status']} — {rest_progress['completed']}/{rest_progress['total']}"
-        )
-
-        # Continue polling via MCP tool until complete
-        final_text = await poll_via_tool(task_id, ctx)
-
-        assert "everyrow_results" in final_text or "Completed:" in final_text

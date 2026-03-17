@@ -433,7 +433,7 @@ def resolve_output_path(output_path: str, input_path: str, prefix: str) -> Path:
     Args:
         output_path: The output path (directory or full file path)
         input_path: The input file path (used to generate output filename)
-        prefix: Prefix to add to the generated filename (e.g., 'screened', 'ranked')
+        prefix: Prefix to add to the generated filename (e.g., 'classified', 'ranked')
 
     Returns:
         Full path to the output file

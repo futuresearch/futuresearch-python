@@ -23,7 +23,6 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
     UploadDataInput,
@@ -36,7 +35,6 @@ from everyrow_mcp.tools import (
     everyrow_progress,
     everyrow_rank,
     everyrow_results_stdio,
-    everyrow_screen,
     everyrow_single_agent,
     everyrow_upload_data,
 )
@@ -89,39 +87,6 @@ def extract_task_id(submit_text: str) -> str:
 
 # ── Inline data fixtures ──────────────────────────────────────
 
-JOBS_DATA = [
-    {
-        "company": "Airtable",
-        "title": "Senior Engineer",
-        "salary": "$185000",
-        "location": "Remote",
-    },
-    {
-        "company": "Vercel",
-        "title": "Lead Engineer",
-        "salary": "Competitive",
-        "location": "NYC",
-    },
-    {
-        "company": "Notion",
-        "title": "Staff Engineer",
-        "salary": "$200000",
-        "location": "San Francisco",
-    },
-    {
-        "company": "Descript",
-        "title": "Principal Engineer",
-        "salary": "$210000",
-        "location": "Remote",
-    },
-    {
-        "company": "Linear",
-        "title": "Software Engineer",
-        "salary": "$160000",
-        "location": "Remote",
-    },
-]
-
 COMPANIES_DATA = [
     {"name": "TechStart", "industry": "Software", "size": 50},
     {"name": "AILabs", "industry": "AI/ML", "size": 30},
@@ -149,57 +114,6 @@ SUPPLIERS_DATA = [
     {"company_name": "Microsoft Corporation", "approved": True},
     {"company_name": "Salesforce Inc", "approved": True},
 ]
-
-
-class TestScreenIntegration:
-    """Integration tests for the screen tool."""
-
-    @pytest.mark.asyncio
-    async def test_screen_jobs(
-        self,
-        real_ctx,
-        tmp_path: Path,
-    ):
-        """Test screening jobs for remote senior roles."""
-        # 1. Submit the task
-        params = ScreenInput(
-            task="""
-                Filter for positions that meet ALL criteria:
-                1. Remote-friendly (location says Remote)
-                2. Senior-level (title includes Senior, Staff, Principal, or Lead)
-                3. Salary disclosed (specific dollar amount, not "Competitive")
-            """,
-            data=JOBS_DATA,
-        )
-
-        result = await everyrow_screen(params, real_ctx)
-        assert_stdio_clean(result, tool_name="everyrow_screen")
-        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
-        submit_text = result[0].text
-        print(f"\nSubmit result: {submit_text}")
-
-        task_id = extract_task_id(submit_text)
-
-        # 2. Poll until complete
-        await poll_until_complete(task_id, real_ctx)
-
-        # 3. Retrieve results
-        output_file = tmp_path / "screened_jobs.csv"
-        results = await everyrow_results_stdio(
-            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
-        )
-        assert_stdio_clean(results, tool_name="everyrow_results")
-        print(f"Results: {results[0].text}")
-
-        # 4. Verify output
-        assert output_file.exists()
-        output_df = pd.read_csv(output_file)
-        print(f"\nScreen result: {len(output_df)} rows")
-        print(output_df)
-
-        # We expect Airtable and Descript to pass (remote, senior, salary disclosed)
-        # Vercel fails (salary not disclosed), Notion fails (not remote), Linear fails (not senior)
-        assert len(output_df) <= 3  # At most 3 should pass
 
 
 class TestRankIntegration:
@@ -513,79 +427,16 @@ class TestSingleAgentIntegration:
         assert len(output_df) == 1
 
 
-class TestUploadThenProcessIntegration:
-    """Integration tests for the two-step upload_data → artifact_id flow."""
-
-    @pytest.mark.asyncio
-    async def test_upload_then_screen(
-        self,
-        real_ctx,
-        tmp_path: Path,
-    ):
-        """Test uploading a CSV via upload_data, then screening with the artifact_id."""
-        # 1. Write CSV to disk and upload via upload_data
-        csv_file = tmp_path / "jobs.csv"
-        pd.DataFrame(JOBS_DATA).to_csv(csv_file, index=False)
-
-        upload_result = await everyrow_upload_data(
-            UploadDataInput(source=str(csv_file)), real_ctx
-        )
-        assert_stdio_clean(upload_result, tool_name="everyrow_upload_data")
-        upload_response = json.loads(upload_result[0].text)
-        artifact_id = upload_response["artifact_id"]
-        print(f"\nUpload result: {upload_response}")
-        assert upload_response["rows"] == 5
-
-        # 2. Screen using the artifact_id
-        params = ScreenInput(
-            task="""
-                Filter for positions that meet ALL criteria:
-                1. Remote-friendly (location says Remote)
-                2. Senior-level (title includes Senior, Staff, Principal, or Lead)
-                3. Salary disclosed (specific dollar amount, not "Competitive")
-            """,
-            artifact_id=artifact_id,
-        )
-
-        result = await everyrow_screen(params, real_ctx)
-        assert_stdio_clean(result, tool_name="everyrow_screen")
-        submit_text = result[0].text
-        print(f"\nSubmit result: {submit_text}")
-        assert "artifact" in submit_text.lower()  # artifact path label
-
-        task_id = extract_task_id(submit_text)
-
-        # 3. Poll until complete
-        await poll_until_complete(task_id, real_ctx)
-
-        # 4. Retrieve results
-        output_file = tmp_path / "screened_via_artifact.csv"
-        results = await everyrow_results_stdio(
-            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
-        )
-        assert_stdio_clean(results, tool_name="everyrow_results")
-        print(f"Results: {results[0].text}")
-
-        # 5. Verify output
-        assert output_file.exists()
-        output_df = pd.read_csv(output_file)
-        print(f"\nScreen via artifact result: {len(output_df)} rows")
-        print(output_df)
-
-        # Same assertion as inline test — Airtable and Descript should pass
-        assert len(output_df) <= 3
-
-
 class TestArtifactReuseIntegration:
-    """Test that a single artifact_id can be used across multiple tools."""
+    """Test that artifact_id from upload_data can be reused by tools."""
 
     @pytest.mark.asyncio
-    async def test_upload_once_use_twice(
+    async def test_upload_then_rank_with_artifact(
         self,
         real_ctx,
         tmp_path: Path,
     ):
-        """Upload data once, then use the artifact_id in both screen and rank."""
+        """Upload data once, then use the artifact_id in rank."""
         # 1. Upload
         csv_file = tmp_path / "companies.csv"
         pd.DataFrame(COMPANIES_DATA).to_csv(csv_file, index=False)
@@ -596,27 +447,7 @@ class TestArtifactReuseIntegration:
         artifact_id = json.loads(upload_result[0].text)["artifact_id"]
         print(f"\nUploaded artifact: {artifact_id}")
 
-        # 2. Screen with the artifact
-        screen_result = await everyrow_screen(
-            ScreenInput(
-                task="Filter for companies with more than 50 employees.",
-                artifact_id=artifact_id,
-            ),
-            real_ctx,
-        )
-        screen_task_id = extract_task_id(screen_result[0].text)
-        await poll_until_complete(screen_task_id, real_ctx)
-
-        screen_output = tmp_path / "screened.csv"
-        await everyrow_results_stdio(
-            StdioResultsInput(task_id=screen_task_id, output_path=str(screen_output)),
-            real_ctx,
-        )
-        screen_df = pd.read_csv(screen_output)
-        print(f"Screen result: {len(screen_df)} rows")
-        assert len(screen_df) > 0
-
-        # 3. Rank with the same artifact
+        # 2. Rank with the artifact
         rank_result = await everyrow_rank(
             RankInput(
                 task="Score 0-10 by AI/ML focus.",
@@ -715,30 +546,6 @@ class TestCancelIntegration:
 
 class TestErrorPathsIntegration:
     """Test that invalid inputs produce clear errors, not 500s."""
-
-    def test_bad_artifact_id_rejected(self):
-        """Non-UUID artifact_id is rejected at validation time."""
-        with pytest.raises(ValidationError, match="artifact_id must be a valid UUID"):
-            ScreenInput(task="test", artifact_id="not-a-uuid")
-
-    def test_empty_data_rejected(self):
-        """Empty inline data list is rejected at validation time."""
-        with pytest.raises(ValidationError, match="must not be empty"):
-            ScreenInput(task="test", data=[])
-
-    def test_both_inputs_rejected(self):
-        """Providing both artifact_id and data is rejected."""
-        with pytest.raises(ValidationError):
-            ScreenInput(
-                task="test",
-                artifact_id="00000000-0000-0000-0000-000000000000",
-                data=[{"a": 1}],
-            )
-
-    def test_no_input_rejected(self):
-        """Providing neither artifact_id nor data is rejected."""
-        with pytest.raises(ValidationError):
-            ScreenInput(task="test")
 
     def test_merge_mismatched_inputs_rejected(self):
         """Merge with only one side provided is rejected."""

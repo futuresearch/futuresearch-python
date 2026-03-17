@@ -217,7 +217,6 @@ class TestMcpHttpBasics:
                     "everyrow_classify",
                     "everyrow_single_agent",
                     "everyrow_rank",
-                    "everyrow_screen",
                     "everyrow_dedupe",
                     "everyrow_merge",
                     "everyrow_progress",

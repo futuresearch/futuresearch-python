@@ -23,7 +23,6 @@ from everyrow.ops import (
     forecast_async,
     merge_async,
     rank_async,
-    screen_async,
     single_agent_async,
 )
 from everyrow.session import create_session, get_session_url, list_sessions
@@ -48,7 +47,6 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
     UploadDataInput,
@@ -510,88 +508,6 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
 
 
 @mcp.tool(
-    name="everyrow_screen",
-    structured_output=False,
-    annotations=ToolAnnotations(
-        title="Filter Rows by Criteria",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=True,
-    ),
-)
-async def everyrow_screen(
-    params: ScreenInput, ctx: EveryRowContext
-) -> list[TextContent]:
-    """Filter rows in a CSV file based on any criteria.
-
-    Dispatches web agents to research the criteria to filter the entities in the
-    table. Conducts research, and can also apply judgment to the results if the
-    criteria are qualitative.
-
-    Screen produces a boolean pass/fail verdict per row. If you provide a custom
-    response_schema, it MUST include at least one boolean property (e.g.
-    ``{"passes": {"type": "boolean"}}``). If the screening criteria need more than
-    a yes/no answer (e.g. a three-way classification), use everyrow_agent instead.
-
-    Examples:
-    - "Is this job posting remote-friendly AND senior-level AND salary disclosed?"
-    - "Is this vendor financially stable AND does it have good security practices?"
-    - "Is this lead likely to need our product based on company description?"
-
-    This function submits the task and returns immediately with a task_id and session_url.
-
-    Then immediately call everyrow_progress(task_id) to monitor.
-    Once the task is completed, call everyrow_results to save the output.
-
-    Args:
-        params: ScreenInput
-
-    Returns:
-        Success message containing task_id for monitoring progress
-    """
-    logger.info(
-        "everyrow_screen: task=%.80s rows=%s",
-        params.task,
-        len(params.data) if params.data else "artifact",
-    )
-    log_client_info(ctx, "everyrow_screen")
-    client = _get_client(ctx)
-
-    input_data = params._aid_or_dataframe
-
-    response_model: type[BaseModel] | None = None
-    if params.response_schema:
-        response_model = _schema_to_model("ScreenResult", params.response_schema)
-
-    async with create_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_url = session.get_url()
-        session_id_str = str(session.session_id)
-        cohort_task = await screen_async(
-            task=params.task,
-            session=session,
-            input=input_data,
-            response_model=response_model,
-        )
-        task_id = str(cohort_task.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
-
-    return await create_tool_response(
-        task_id=task_id,
-        session_url=session_url,
-        label=f"Submitted: {total} rows for screening."
-        if total
-        else "Submitted: artifact for screening.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
-
-
-@mcp.tool(
     name="everyrow_dedupe",
     structured_output=False,
     annotations=ToolAnnotations(
@@ -922,7 +838,7 @@ async def everyrow_upload_data(
 ) -> list[TextContent]:
     """Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
 
-    Use this tool to ingest data before calling everyrow_agent, everyrow_screen,
+    Use this tool to ingest data before calling everyrow_agent,
     everyrow_rank, everyrow_dedupe, everyrow_merge, everyrow_classify, or everyrow_forecast.
 
     Supported sources:
@@ -1090,7 +1006,7 @@ async def everyrow_progress(
     summaries: list[dict[str, Any]] | None = None
     cursor: str | None = params.cursor
 
-    if not ts.is_terminal and not ts.is_screen:
+    if not ts.is_terminal:
         if ts.completed > 0:
             (
                 (partial_rows, rows_cursor),

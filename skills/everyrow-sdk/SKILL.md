@@ -16,7 +16,6 @@ everyrow gives Claude a research team for your data. Use this skill when writing
 - Rank/score rows based on qualitative criteria
 - Deduplicate data using semantic understanding
 - Merge tables using AI-powered matching
-- Screen/filter rows based on research-intensive criteria
 - Forecast probabilities for binary questions
 - Run AI agents over dataframe rows
 
@@ -30,7 +29,7 @@ pip install everyrow
 
 ### MCP Server (for Claude Code, Claude Desktop, Cursor, etc.)
 
-If an MCP server is available (`everyrow_classify`, `everyrow_screen`, `everyrow_rank`, etc. tools), you can use it directly without writing Python code. The MCP server operates on uploaded data (via artifact IDs or inline JSON).
+If an MCP server is available (`everyrow_classify`, `everyrow_rank`, etc. tools), you can use it directly without writing Python code. The MCP server operates on uploaded data (via artifact IDs or inline JSON).
 
 To install the MCP server, add to your MCP config:
 
@@ -127,17 +126,6 @@ Parameters:
 - field_type: (optional) "float" (default), "int", "str", or "bool"
 - ascending_order: (optional) Sort ascending (default: true)
 - response_schema: (optional) JSON schema for the response model
-- session_id / session_name: (optional)
-```
-
-### everyrow_screen
-Filter rows based on criteria that require judgment.
-```
-Parameters:
-- task: (required) Natural language screening criteria
-- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
-- data: Inline data as a list of row objects
-- response_schema: (optional) JSON schema; must include at least one boolean property for pass/fail
 - session_id / session_name: (optional)
 ```
 
@@ -420,46 +408,6 @@ result = await classify(
 
 Parameters: `task`, `categories`, `input`, `classification_field` (default: "classification"), `include_reasoning` (default: False), `session`
 
-### screen - Evaluate and filter rows
-
-Filter rows based on criteria that require research:
-
-```python
-from everyrow.ops import screen
-from pydantic import BaseModel, Field
-
-class ScreenResult(BaseModel):
-    passes: bool = Field(description="True if company meets the criteria")
-
-result = await screen(
-    task="""
-        Find companies with >75% recurring revenue that would benefit from
-        Taiwan tensions - CHIPS Act beneficiaries, defense contractors,
-        cybersecurity firms. Exclude companies dependent on Taiwan manufacturing.
-    """,
-    input=sp500_companies,
-    response_model=ScreenResult,
-)
-print(result.data.head())
-```
-
-**Richer output** - add fields to understand why something passed:
-
-```python
-class VendorRisk(BaseModel):
-    approved: bool = Field(description="True if vendor is acceptable")
-    risk_level: str = Field(description="low / medium / high")
-    security_issues: str = Field(description="Any breaches or incidents")
-
-result = await screen(
-    task="Assess each vendor for enterprise use based on security incidents and financial stability",
-    input=vendors,
-    response_model=VendorRisk,
-)
-```
-
-Parameters: `task`, `input`, `response_model`, `session`
-
 ### forecast - Predict probabilities
 
 Produce calibrated probability estimates for binary questions:
@@ -606,7 +554,7 @@ df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
 
 ## Everyrow Long-Running Operations (MCP)
 
-Everyrow operations (classify, screen, rank, dedupe, merge, forecast, agent) take 1-10+ minutes.
+Everyrow operations (classify, rank, dedupe, merge, forecast, agent) take 1-10+ minutes.
 All MCP tools use an async pattern:
 
 1. Call the operation tool (e.g., `everyrow_agent(...)`) to get task_id and session_url
@@ -621,21 +569,21 @@ Operations can be chained to build complete workflows. Each step's output feeds 
 
 ```python
 from everyrow import create_session
-from everyrow.ops import screen, dedupe, rank
+from everyrow.ops import classify, dedupe, rank
 
 async with create_session(name="Lead Pipeline") as session:
     # 1. Filter to qualified leads
-    screened = await screen(
+    classified = await classify(
         session=session,
-        task="Has a company email domain (not gmail, yahoo, etc.)",
+        task="Does this lead have a company email domain (not gmail, yahoo, etc.)?",
+        categories=["qualified", "unqualified"],
         input=leads,
-        response_model=ScreenResult,
     )
 
     # 2. Dedupe across sources
     deduped = await dedupe(
         session=session,
-        input=screened.data,
+        input=classified.data[classified.data["classification"] == "qualified"],
         equivalence_relation="Same company, accounting for Inc/LLC variations",
     )
 
@@ -655,4 +603,4 @@ Everyrow operations have associated costs. To avoid re-running them unnecessaril
 - **Separate data processing from analysis**: Save everyrow results to a file (CSV, Parquet, etc.), then do analysis in a separate script. This way, if analysis code has bugs, you don't re-trigger the everyrow step.
 - **Use intermediate checkpoints**: For multi-step pipelines, consider saving results after each everyrow operation.
     - You are able to chain multiple operations together without needing to download and re-upload intermediate results via the SDK. However for most control, implement each step as a dedicated job, possibly orchestrated by tools such as Apache Airflow or Prefect.
-- **Test with `preview=True`**: Operations like `rank`, `screen`, and `merge` support `preview=True` to process only a few rows first.
+- **Test with `preview=True`**: Operations like `rank`, `classify`, and `merge` support `preview=True` to process only a few rows first.

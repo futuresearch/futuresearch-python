@@ -15,7 +15,6 @@ from everyrow.generated.api.operations import (
     forecast_operations_forecast_post,
     merge_operations_merge_post,
     rank_operations_rank_post,
-    screen_operations_screen_post,
     single_agent_operations_single_agent_post,
 )
 from everyrow.generated.models import (
@@ -38,9 +37,6 @@ from everyrow.generated.models import (
     RankOperation,
     RankOperationInputType1Item,
     RankOperationResponseSchemaType0,
-    ScreenOperation,
-    ScreenOperationInputType1Item,
-    ScreenOperationResponseSchemaType0,
     SingleAgentOperation,
     SingleAgentOperationInputType1Item,
     SingleAgentOperationInputType2,
@@ -63,10 +59,6 @@ DEFAULT_EFFORT_LEVEL = EffortLevel.MEDIUM
 
 class DefaultAgentResponse(BaseModel):
     answer: str
-
-
-class DefaultScreenResult(BaseModel):
-    passes: bool
 
 
 def _df_to_records(df: DataFrame) -> list[dict[str, Any]]:
@@ -389,82 +381,6 @@ async def agent_map_async(
 
     cohort_task = EveryrowTask(
         response_model=response_model, is_map=True, is_expand=False
-    )
-    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
-    return cohort_task
-
-
-# --- Screen ---
-
-
-async def screen[T: BaseModel](
-    task: str,
-    session: Session | None = None,
-    input: DataFrame | UUID | TableResult | None = None,
-    response_model: type[T] | None = None,
-) -> TableResult:
-    """Screen rows in a table using AI.
-
-    Args:
-        task: The task description for screening
-        session: Optional session. If not provided, one will be created automatically.
-        input: The input table (DataFrame, UUID, or TableResult)
-        response_model: Optional Pydantic model for the response schema.
-
-    Returns:
-        TableResult containing the screened table
-    """
-    if input is None:
-        raise EveryrowError("input is required for screen")
-    if session is None:
-        async with create_session() as internal_session:
-            cohort_task = await screen_async(
-                task=task,
-                session=internal_session,
-                input=input,
-                response_model=response_model,
-            )
-            result = await cohort_task.await_result()
-            if isinstance(result, TableResult):
-                return result
-            raise EveryrowError("Screen task did not return a table result")
-    cohort_task = await screen_async(
-        task=task, session=session, input=input, response_model=response_model
-    )
-    result = await cohort_task.await_result()
-    if isinstance(result, TableResult):
-        return result
-    raise EveryrowError("Screen task did not return a table result")
-
-
-async def screen_async[T: BaseModel](
-    task: str,
-    session: Session,
-    input: DataFrame | UUID | TableResult,
-    response_model: type[T] | None = None,
-) -> EveryrowTask[T]:
-    """Submit a screen task asynchronously."""
-    input_data = _prepare_table_input(input, ScreenOperationInputType1Item)
-    actual_response_model = response_model or DefaultScreenResult
-
-    body = ScreenOperation(
-        input_=input_data,  # type: ignore
-        task=task,
-        session_id=session.session_id,
-        response_schema=ScreenOperationResponseSchemaType0.from_dict(
-            actual_response_model.model_json_schema()
-        ),
-    )
-
-    response = await screen_operations_screen_post.asyncio(
-        client=session.client, body=body
-    )
-    response = handle_response(response)
-
-    cohort_task: EveryrowTask[T] = EveryrowTask(
-        response_model=actual_response_model,  # type: ignore[arg-type]
-        is_map=True,
-        is_expand=False,
     )
     cohort_task.set_submitted(response.task_id, response.session_id, session.client)
     return cohort_task

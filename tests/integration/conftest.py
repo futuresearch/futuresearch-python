@@ -21,7 +21,7 @@ def require_api_key():
 
 @pytest.fixture
 def companies_df():
-    """Small company dataset for screen/rank tests."""
+    """Small company dataset for rank tests."""
     return pd.DataFrame(
         [
             {"company": "Apple", "industry": "Technology", "website": "apple.com"},
@@ -93,13 +93,6 @@ def pharma_df():
 # ============================================================================
 # Common Response Models
 # ============================================================================
-
-
-class RiskAssessment(BaseModel):
-    """Response model for screen tests."""
-
-    passes: bool = Field(description="Whether the company passes risk assessment")
-    risk_level: str = Field(description="Risk level: Low, Medium, or High")
 
 
 class RevenueScore(BaseModel):

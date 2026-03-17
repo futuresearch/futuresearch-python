@@ -185,59 +185,12 @@ class TestMcpProtocol:
                     "everyrow_progress",
                     "everyrow_rank",
                     "everyrow_results",
-                    "everyrow_screen",
                     "everyrow_single_agent",
                     "everyrow_upload_data",
                     "everyrow_use_list",
                 ]
             )
             assert tool_names == expected
-
-    @pytest.mark.asyncio
-    async def test_call_screen_tool(self, _http_state):
-        """Submit a screen task via MCP protocol and verify the response."""
-        task_id = str(uuid4())
-        mock_task = _mock_task(task_id)
-        _, fake_create_session = _mock_session()
-
-        async with mcp_client() as session:
-            with (
-                patch(
-                    "everyrow_mcp.tools._get_client",
-                    return_value=MagicMock(token="fake-token"),
-                ),
-                patch(
-                    "everyrow_mcp.tools.screen_async",
-                    new_callable=AsyncMock,
-                    return_value=mock_task,
-                ),
-                patch(
-                    "everyrow_mcp.tools.create_session",
-                    side_effect=fake_create_session,
-                ),
-            ):
-                result = await session.call_tool(
-                    "everyrow_screen",
-                    {
-                        "params": {
-                            "task": "Filter for engineering roles",
-                            "data": [
-                                {"company": "Acme", "role": "Engineer"},
-                            ],
-                        }
-                    },
-                )
-
-            assert not result.isError
-            # HTTP mode returns 2 content items: widget JSON + human text
-            assert len(result.content) == 2
-            assert isinstance(result.content[0], TextContent)
-            widget = json.loads(result.content[0].text)
-            assert widget["task_id"] == task_id
-            assert widget["status"] == "submitted"
-            assert "progress_url" in widget
-            assert isinstance(result.content[1], TextContent)
-            assert task_id in result.content[1].text
 
     @pytest.mark.asyncio
     async def test_call_progress_tool(self, _http_state):
@@ -283,18 +236,6 @@ class TestMcpProtocol:
         """Calling a non-existent tool returns an error."""
         async with mcp_client() as session:
             result = await session.call_tool("nonexistent_tool", {})
-            assert result.isError
-
-    @pytest.mark.asyncio
-    async def test_missing_required_params(self, _http_state):
-        """Calling a tool without required params returns a validation error."""
-        async with mcp_client() as session:
-            with patch(
-                "everyrow_mcp.tools._get_client",
-                return_value=MagicMock(token="fake-token"),
-            ):
-                result = await session.call_tool("everyrow_screen", {"params": {}})
-
             assert result.isError
 
     @pytest.mark.asyncio
@@ -445,89 +386,6 @@ class TestMcpE2ERealApi:
         """Provide a real everyrow SDK client."""
         with create_client() as sdk_client:
             yield sdk_client
-
-    @pytest.mark.asyncio
-    async def test_screen_pipeline(self, _real_client, jobs_csv):  # noqa: ARG002
-        """Submit → poll → results via MCP protocol with real API."""
-        async with mcp_client() as session:
-            with patch(
-                "everyrow_mcp.tools._get_client",
-                return_value=_real_client,
-            ):
-                submit_result = await session.call_tool(
-                    "everyrow_screen",
-                    {
-                        "params": {
-                            "task": "Filter for remote positions",
-                            "data": [
-                                {
-                                    "company": "Airtable",
-                                    "title": "Senior Engineer",
-                                    "location": "Remote",
-                                },
-                                {
-                                    "company": "Vercel",
-                                    "title": "Lead Engineer",
-                                    "location": "NYC",
-                                },
-                            ],
-                        }
-                    },
-                )
-
-            assert not submit_result.isError
-            assert isinstance(submit_result.content[0], TextContent)
-            task_id = _extract_task_id(submit_result.content[0].text)
-            print(f"\nSubmitted screen task: {task_id}")
-
-            # Poll until complete
-            for _ in range(30):
-                with patch(
-                    "everyrow_mcp.tools._get_client",
-                    return_value=_real_client,
-                ):
-                    progress_result = await session.call_tool(
-                        "everyrow_progress",
-                        {"params": {"task_id": task_id}},
-                    )
-
-                assert not progress_result.isError
-                assert isinstance(progress_result.content[-1], TextContent)
-                text = progress_result.content[-1].text
-                print(f"  Progress: {text.splitlines()[0]}")
-
-                if "everyrow_results" in text:
-                    break
-                if "failed" in text.lower() or "revoked" in text.lower():
-                    pytest.fail(f"Task failed: {text}")
-            else:
-                pytest.fail("Task did not complete within 30 polls")
-
-            # Fetch results
-            with (
-                patch(
-                    "everyrow_mcp.tools._get_client",
-                    return_value=_real_client,
-                ),
-                patch(
-                    "everyrow_mcp.tools.try_cached_result",
-                    new_callable=AsyncMock,
-                    return_value=None,
-                ),
-                patch(
-                    "everyrow_mcp.tools.try_store_result",
-                    new_callable=AsyncMock,
-                    return_value=None,
-                ),
-            ):
-                results = await session.call_tool(
-                    "everyrow_results",
-                    {"params": {"task_id": task_id}},
-                )
-
-            assert not results.isError
-            assert isinstance(results.content[-1], TextContent)
-            print(f"  Results: {results.content[-1].text}")
 
     @pytest.mark.asyncio
     async def test_agent_pipeline(self, _real_client, tmp_path):  # noqa: ARG002

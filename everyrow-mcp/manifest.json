@@ -30,10 +30,6 @@
   },
   "tools": [
     {
-      "name": "everyrow_screen",
-      "description": "Filter rows in a CSV file based on any criteria."
-    },
-    {
       "name": "everyrow_rank",
       "description": "Score and sort rows in a CSV file based on any criteria."
     },
@@ -113,7 +109,7 @@
       "python": ">=3.12"
     }
   },
-  "keywords": ["everyrow", "dataframe", "csv", "ai", "data-processing", "classify", "dedupe", "merge", "rank", "screen", "forecast"],
+  "keywords": ["everyrow", "dataframe", "csv", "ai", "data-processing", "classify", "dedupe", "merge", "rank", "forecast"],
   "license": "MIT",
   "privacy_policies": ["https://futuresearch.ai/privacy/"]
 }

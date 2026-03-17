@@ -107,17 +107,19 @@ class TestResolveOutputPath:
     def test_full_csv_path(self, tmp_path: Path):
         """Test resolution with full CSV path."""
         output = str(tmp_path / "my_output.csv")
-        result = resolve_output_path(output, "/input/data.csv", "screened")
+        result = resolve_output_path(output, "/input/data.csv", "classified")
         assert result == Path(output)
 
     def test_directory_generates_filename(self, tmp_path: Path):
         """Test resolution with directory generates filename."""
-        result = resolve_output_path(str(tmp_path), "/input/companies.csv", "screened")
-        assert result == tmp_path / "screened_companies.csv"
+        result = resolve_output_path(
+            str(tmp_path), "/input/companies.csv", "classified"
+        )
+        assert result == tmp_path / "classified_companies.csv"
 
     def test_different_prefixes(self, tmp_path: Path):
         """Test different prefixes generate correct filenames."""
-        for prefix in ["screened", "ranked", "deduped", "merged", "agent"]:
+        for prefix in ["classified", "ranked", "deduped", "merged", "agent"]:
             result = resolve_output_path(str(tmp_path), "/data/test.csv", prefix)
             assert result == tmp_path / f"{prefix}_test.csv"
 

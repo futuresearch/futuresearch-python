@@ -48,7 +48,6 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
 )
@@ -61,7 +60,6 @@ from everyrow_mcp.tools import (
     everyrow_progress,
     everyrow_rank,
     everyrow_results_stdio,
-    everyrow_screen,
     everyrow_single_agent,
 )
 from tests.conftest import make_test_context
@@ -273,22 +271,6 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="everyrow_rank")
 
     @pytest.mark.asyncio
-    async def test_screen_content(self):
-        _task, _session, _client, ctx, *patches = _submit_patches(
-            "everyrow_mcp.tools.screen_async"
-        )
-        with patches[0], patches[1]:
-            result = await everyrow_screen(
-                ScreenInput(
-                    task="Is this a tech company?", data=[{"name": "TechStart"}]
-                ),
-                ctx,
-            )
-
-        assert len(result) == 1
-        assert_stdio_clean(result, tool_name="everyrow_screen")
-
-    @pytest.mark.asyncio
     async def test_dedupe_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
             "everyrow_mcp.tools.dedupe_async"
@@ -378,60 +360,6 @@ class TestStdioProgressContent:
         assert "everyrow_results" in text
         # Stdio completion message should instruct model to provide output_path
         assert "output_path" in text
-
-    @pytest.mark.asyncio
-    async def test_completed_screen_status(self):
-        """Screen tasks have a different completion message."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-        status_resp = _make_status_response(
-            status="completed",
-            task_type=PublicTaskType.SCREEN,
-            completed=5,
-            total=5,
-        )
-
-        with (
-            patch(
-                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_resp,
-            ),
-            patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
-        ):
-            result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
-
-        assert len(result) == 1
-        assert_stdio_clean(result, tool_name="everyrow_progress (screen completed)")
-        assert "Screening complete" in result[0].text
-
-    @pytest.mark.asyncio
-    async def test_running_screen_status(self):
-        """Screen running uses simpler message (no completed/total counts)."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-        status_resp = _make_status_response(
-            status="running",
-            task_type=PublicTaskType.SCREEN,
-            completed=0,
-            total=5,
-        )
-
-        with (
-            patch(
-                "everyrow_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_resp,
-            ),
-            patch("everyrow_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
-        ):
-            result = await everyrow_progress(ProgressInput(task_id=task_id), ctx)
-
-        assert len(result) == 1
-        assert_stdio_clean(result, tool_name="everyrow_progress (screen running)")
-        assert "Screen running" in result[0].text
 
     @pytest.mark.asyncio
     async def test_error_status(self):
@@ -579,7 +507,6 @@ class TestToolSchemas:
         [
             ("everyrow_agent", "AgentInput"),
             ("everyrow_rank", "RankInput"),
-            ("everyrow_screen", "ScreenInput"),
             ("everyrow_dedupe", "DedupeInput"),
         ],
     )
@@ -754,82 +681,6 @@ class TestStdioMcpIntegration:
         assert settings.transport == "stdio", "Settings should default to stdio"
         with create_client() as sdk_client:
             yield sdk_client
-
-    @pytest.mark.asyncio
-    async def test_screen_pipeline_stdio_clean(self, _real_stdio_client, tmp_path):
-        """Screen: submit → poll → results. Every response must be stdio-clean."""
-        async with _stdio_mcp_client(_real_stdio_client) as session:
-            # ── Submit ──
-            submit = await session.call_tool(
-                "everyrow_screen",
-                {
-                    "params": {
-                        "task": "Filter for remote positions",
-                        "data": [
-                            {"company": "Airtable", "role": "Engineer", "remote": True},
-                            {"company": "Notion", "role": "Designer", "remote": False},
-                        ],
-                    }
-                },
-            )
-
-            assert not submit.isError
-            _assert_mcp_result_clean(submit, tool_name="screen submit")
-            assert len(submit.content) == 1, (
-                f"Stdio submit should return 1 item, got {len(submit.content)}"
-            )
-            assert isinstance(submit.content[0], TextContent)
-            task_id = _extract_task_id(submit.content[0].text)
-            print(f"\n  Submitted screen: {task_id}")
-
-            # ── Poll until terminal ──
-            for poll_num in range(30):
-                progress = await session.call_tool(
-                    "everyrow_progress",
-                    {"params": {"task_id": task_id}},
-                )
-
-                assert not progress.isError
-                _assert_mcp_result_clean(
-                    progress, tool_name=f"screen progress (poll {poll_num})"
-                )
-                assert len(progress.content) == 1
-
-                assert isinstance(progress.content[0], TextContent)
-                text = progress.content[0].text
-                print(f"  Progress: {text.splitlines()[0]}")
-
-                if "everyrow_results" in text:
-                    break
-                if "failed" in text.lower() or "revoked" in text.lower():
-                    pytest.fail(f"Task failed: {text}")
-            else:
-                pytest.fail("Screen task did not complete within 30 polls")
-
-            # ── Results ──
-            output_file = tmp_path / "screened.csv"
-            results = await session.call_tool(
-                "everyrow_results",
-                {
-                    "params": {
-                        "task_id": task_id,
-                        "output_path": str(output_file),
-                    }
-                },
-            )
-
-            assert not results.isError
-            _assert_mcp_result_clean(results, tool_name="screen results")
-            assert len(results.content) == 1
-            assert isinstance(results.content[0], TextContent)
-            assert "Saved" in results.content[0].text
-            assert output_file.exists()
-            print(f"  Results: {results.content[0].text}")
-
-            # Verify actual CSV output
-            df = pd.read_csv(output_file)
-            assert len(df) > 0
-            print(f"  Output: {len(df)} rows, columns: {list(df.columns)}")
 
     @pytest.mark.asyncio
     async def test_agent_pipeline_stdio_clean(self, _real_stdio_client, tmp_path):

@@ -45,7 +45,6 @@ from everyrow_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    ScreenInput,
     SingleAgentInput,
     StdioResultsInput,
     UploadDataInput,
@@ -128,20 +127,6 @@ class TestSchemaToModel:
 class TestInputValidation:
     """Tests for input validation."""
 
-    def test_screen_input_rejects_invalid_artifact_id(self):
-        """Test ScreenInput rejects an invalid artifact_id."""
-        with pytest.raises(ValidationError, match="artifact_id must be a valid UUID"):
-            ScreenInput(
-                task="test",
-                artifact_id="not-a-uuid",
-            )
-
-    def test_screen_input_accepts_valid_artifact_id(self):
-        """Test ScreenInput accepts a valid UUID artifact_id."""
-        uid = str(uuid4())
-        params = ScreenInput(task="test", artifact_id=uid)
-        assert params.artifact_id == uid
-
     def test_rank_input_validates_field_type(self):
         """Test RankInput validates field_type."""
         with pytest.raises(ValidationError, match="Input should be"):
@@ -185,18 +170,6 @@ class TestInputValidation:
     def test_tool_inputs_accept_example_schemas(self):
         uid = str(uuid4())
 
-        ScreenInput(
-            task="test",
-            artifact_id=uid,
-            response_schema={
-                "type": "object",
-                "properties": {
-                    "passes": {
-                        "type": "boolean",
-                    },
-                },
-            },
-        )
         AgentInput(
             task="test",
             artifact_id=uid,
@@ -225,29 +198,6 @@ class TestInputValidation:
                     },
                 },
                 "required": ["annual_revenue"],
-            },
-        )
-
-    def test_screen_input_requires_boolean_property(self):
-        """Screen schemas must include at least one boolean property."""
-        uid = str(uuid4())
-
-        with pytest.raises(ValidationError, match="must include at least one boolean"):
-            ScreenInput(
-                task="test",
-                artifact_id=uid,
-                response_schema={
-                    "type": "object",
-                    "properties": {"reason": {"type": "string"}},
-                },
-            )
-
-        ScreenInput(
-            task="test",
-            artifact_id=uid,
-            response_schema={
-                "type": "object",
-                "properties": {"pass": {"type": "boolean"}},
             },
         )
 
@@ -1524,26 +1474,6 @@ class TestInputModelsUnchanged:
             RankInput(
                 task="test",
                 field_name="score",
-                artifact_id=str(uuid4()),
-                data=[{"col": "val"}],
-            )
-
-    def test_screen_requires_input_source(self):
-        """ScreenInput requires either artifact_id or data."""
-        with pytest.raises(ValidationError):
-            ScreenInput(task="test")
-
-    def test_screen_accepts_data(self):
-        """ScreenInput accepts data as alternative to artifact_id."""
-        params = ScreenInput(task="test", data=[{"col": "val"}])
-        assert params.data == [{"col": "val"}]
-        assert params.artifact_id is None
-
-    def test_screen_rejects_both_inputs(self):
-        """ScreenInput rejects both artifact_id and data."""
-        with pytest.raises(ValidationError):
-            ScreenInput(
-                task="test",
                 artifact_id=str(uuid4()),
                 data=[{"col": "val"}],
             )

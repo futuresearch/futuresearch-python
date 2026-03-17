@@ -321,7 +321,7 @@ async def create_tool_response(
     return [main_content]
 
 
-_UI_EXCLUDE: set[str] = {"is_terminal", "is_screen", "task_type", "error", "started_at"}
+_UI_EXCLUDE: set[str] = {"is_terminal", "task_type", "error", "started_at"}
 
 
 class TaskState(BaseModel):
@@ -348,11 +348,6 @@ class TaskState(BaseModel):
             TaskStatus.FAILED,
             TaskStatus.REVOKED,
         )
-
-    @computed_field
-    @property
-    def is_screen(self) -> bool:
-        return self._response.task_type == PublicTaskType.SCREEN
 
     @computed_field
     @property
@@ -441,10 +436,7 @@ class TaskState(BaseModel):
             if self.error:
                 return f"Task {self.status.value}: {self.error}"
             if self.status == TaskStatus.COMPLETED:
-                if self.is_screen:
-                    completed_msg = f"Screening complete ({self.elapsed_s}s)."
-                else:
-                    completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
+                completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
                 if settings.is_http:
                     if self.total <= settings.auto_page_size_threshold:
                         next_call = dedent(f"""\
@@ -466,11 +458,6 @@ class TaskState(BaseModel):
                     completed_msg += f"\nOutput artifact_id: {self.artifact_id}"
                 return f"{completed_msg}\n{next_call}"
             return f"Task {self.status.value}. Report the error to the user."
-
-        if self.is_screen:
-            return dedent(f"""\
-                Screen running ({self.elapsed_s}s elapsed).
-                Immediately call everyrow_progress(task_id='{task_id}').""")
 
         fail_part = f", {self.failed} failed" if self.failed else ""
         cursor_arg = f", cursor='{cursor}'" if cursor else ""
