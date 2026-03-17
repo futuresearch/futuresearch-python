@@ -448,9 +448,9 @@ async def everyrow_rank(params: RankInput, ctx: EveryRowContext) -> list[TextCon
     criteria are qualitative.
 
     Examples:
-    - "Score this lead from 0 to 10 by likelihood to need data integration solutions"
-    - "Score this company out of 100 by AI/ML adoption maturity"
-    - "Score this candidate by fit for a senior engineering role, with 100 being the best"
+    - "Estimate this drug's peak annual sales in billions of dollars"
+    - "What is this country's 5-year GDP growth rate as a percentage?"
+    - "Score this candidate from 0 to 100 by fit for a senior engineering role"
 
     This function submits the task and returns immediately with a task_id and session_url.
 
