@@ -57,18 +57,31 @@ def _estimate_tokens(text: str) -> int:
     return litellm.token_counter(model=_TOKEN_MODEL, text=text)
 
 
+# Fields stripped from LLM-facing data (user sees them in the viz pane).
+_LLM_STRIP_FIELDS = {"_source_bank", "research", "provenance_and_notes"}
+
+
+def _strip_for_llm(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove heavy fields that the user can see in the viz pane."""
+    return [
+        {k: v for k, v in row.items() if k not in _LLM_STRIP_FIELDS} for row in records
+    ]
+
+
 def clamp_page_to_budget(
     preview_records: list[dict[str, Any]],
     page_size: int,
 ) -> tuple[list[dict[str, Any]], int]:
-    estimated = _estimate_tokens(json.dumps(preview_records))
+    # Estimate tokens on stripped records (what the LLM actually sees).
+    stripped = _strip_for_llm(preview_records)
+    estimated = _estimate_tokens(json.dumps(stripped))
     if estimated <= settings.token_budget:
         return preview_records, page_size
 
     # Pre-compute per-row token sizes and build a prefix sum so the binary
     # search doesn't need to re-serialize on every iteration.
     # Overhead per-row is ~2 tokens for the JSON array wrapper/commas.
-    row_sizes = [_estimate_tokens(json.dumps(r)) + 2 for r in preview_records]
+    row_sizes = [_estimate_tokens(json.dumps(r)) + 2 for r in stripped]
     prefix = [0] * (len(row_sizes) + 1)
     for i, s in enumerate(row_sizes):
         prefix[i + 1] = prefix[i] + s
@@ -188,8 +201,9 @@ def _build_result_response(
     if artifact_id:
         summary += f"\nOutput artifact_id (use to chain into next tool): {artifact_id}"
 
-    # Append the actual data rows so the LLM can reason about them.
-    data_text = json.dumps(preview_records)
+    # Append data rows for the LLM, stripping heavy fields that the user
+    # can already see in the viz pane (source_bank, research notes).
+    data_text = json.dumps(_strip_for_llm(preview_records))
     summary += f"\n\nData:\n{data_text}"
 
     return CallToolResult(

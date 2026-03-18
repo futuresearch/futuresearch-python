@@ -859,7 +859,7 @@ class TestTokenBudgetIntegration:
         return pd.DataFrame(
             {
                 "id": range(10),
-                "research": [f"Long research text {'x' * 2000}" for _ in range(10)],
+                "details": [f"Long details text {'x' * 2000}" for _ in range(10)],
                 "summary": [f"Summary {'y' * 500}" for _ in range(10)],
             }
         )
