@@ -9,13 +9,13 @@
     "subfolder": "everyrow-mcp"
   },
   "websiteUrl": "https://github.com/futuresearch/everyrow-sdk/tree/main/everyrow-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "everyrow-mcp",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

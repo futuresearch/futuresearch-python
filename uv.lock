@@ -462,7 +462,7 @@ wheels = [
 
 [[package]]
 name = "everyrow"
-version = "0.4.1"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },
@@ -519,7 +519,7 @@ dev = [
 
 [[package]]
 name = "everyrow-mcp"
-version = "0.4.1"
+version = "0.5.0"
 source = { editable = "everyrow-mcp" }
 dependencies = [
     { name = "everyrow" },
