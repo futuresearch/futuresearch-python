@@ -1,7 +1,7 @@
 {
   "name": "futuresearch",
   "description": "Gemini extension for the futuresearch SDK - AI-powered data processing utilities for transforming, deduping, merging, ranking, and classifying dataframes",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "mcpServers": {
     "futuresearch": {
       "command": "uvx",
