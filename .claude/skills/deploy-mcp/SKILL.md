@@ -1,6 +1,6 @@
 ---
 name: deploy-mcp
-description: Deploy the everyrow MCP server to staging or production on GKE. Use when the user wants to deploy, redeploy, roll back, scale replicas, or check deployment status. Triggers on deploy, redeploy, staging, production, rollout, scale, replicas.
+description: Deploy the FutureSearch MCP server to staging or production on GKE. Use when the user wants to deploy, redeploy, roll back, scale replicas, or check deployment status. Triggers on deploy, redeploy, staging, production, rollout, scale, replicas.
 ---
 
 # Deploying the MCP Server
@@ -39,10 +39,10 @@ gh run list --workflow="Deploy MCP Server" --limit 3
 gh run watch <run-id>
 
 # Check pod rollout
-kubectl rollout status deploy/everyrow-mcp-staging -n everyrow-mcp-staging --timeout=5m
+kubectl rollout status deploy/futuresearch-mcp-staging -n futuresearch-mcp-staging --timeout=5m
 
 # Verify pods are running
-kubectl get pods -n everyrow-mcp-staging -o wide
+kubectl get pods -n futuresearch-mcp-staging -o wide
 ```
 
 ## How It Works
@@ -62,7 +62,7 @@ The deploy uses `--atomic` so it auto-rolls back on failure.
 
 ### Via Helm values (persistent)
 
-Edit `everyrow-mcp/deploy/chart/values.staging.yaml`:
+Edit `futuresearch-mcp/deploy/chart/values.staging.yaml`:
 ```yaml
 replicaCount: 2  # Change this
 ```
@@ -72,29 +72,29 @@ Commit, push, and redeploy.
 
 ```bash
 # Staging
-kubectl scale deploy everyrow-mcp-staging -n everyrow-mcp-staging --replicas=3
+kubectl scale deploy futuresearch-mcp-staging -n futuresearch-mcp-staging --replicas=3
 
 # Take offline
-kubectl scale deploy everyrow-mcp-staging -n everyrow-mcp-staging --replicas=0
+kubectl scale deploy futuresearch-mcp-staging -n futuresearch-mcp-staging --replicas=0
 ```
 
 ## Environments
 
 | Environment | Namespace | Host | Redis DB |
 |---|---|---|---|
-| Staging | `everyrow-mcp-staging` | `mcp-staging.everyrow.io` | 14 |
-| Production | `everyrow-mcp` | `mcp.everyrow.io` | (default in values.yaml) |
+| Staging | `futuresearch-mcp-staging` | `mcp-staging.everyrow.io` | 14 |
+| Production | `futuresearch-mcp` | `mcp.everyrow.io` | (default in values.yaml) |
 
-Both environments hit the **same production EveryRow API** — there is no staging API.
+Both environments hit the **same production FutureSearch API** — there is no staging API.
 
 ## Updating Secrets
 
 ```bash
 # View current secrets
-sops -d everyrow-mcp/deploy/chart/secrets.staging.enc.yaml
+sops -d futuresearch-mcp/deploy/chart/secrets.staging.enc.yaml
 
 # Update a value
-sops --set '["secrets"]["data"]["KEY_NAME"] "new-value"' everyrow-mcp/deploy/chart/secrets.staging.enc.yaml
+sops --set '["secrets"]["data"]["KEY_NAME"] "new-value"' futuresearch-mcp/deploy/chart/secrets.staging.enc.yaml
 ```
 
 Commit the encrypted file and redeploy.
@@ -104,11 +104,11 @@ Commit the encrypted file and redeploy.
 | File | Purpose |
 |------|---------|
 | `.github/workflows/deploy-mcp.yaml` | CI/CD workflow (checks → build → deploy) |
-| `everyrow-mcp/deploy/chart/values.yaml` | Base Helm values |
-| `everyrow-mcp/deploy/chart/values.staging.yaml` | Staging overrides |
-| `everyrow-mcp/deploy/chart/secrets.enc.yaml` | Production secrets (SOPS) |
-| `everyrow-mcp/deploy/chart/secrets.staging.enc.yaml` | Staging secrets (SOPS) |
-| `everyrow-mcp/deploy/Dockerfile` | Server container image |
+| `futuresearch-mcp/deploy/chart/values.yaml` | Base Helm values |
+| `futuresearch-mcp/deploy/chart/values.staging.yaml` | Staging overrides |
+| `futuresearch-mcp/deploy/chart/secrets.enc.yaml` | Production secrets (SOPS) |
+| `futuresearch-mcp/deploy/chart/secrets.staging.enc.yaml` | Staging secrets (SOPS) |
+| `futuresearch-mcp/deploy/Dockerfile` | Server container image |
 
 ## Gotchas
 

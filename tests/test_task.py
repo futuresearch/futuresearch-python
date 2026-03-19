@@ -1,4 +1,4 @@
-"""Unit tests for everyrow.task — progress polling, callbacks, ETA, JSONL logging."""
+"""Unit tests for futuresearch.task — progress polling, callbacks, ETA, JSONL logging."""
 
 import uuid
 from datetime import datetime
@@ -6,14 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from everyrow.constants import EveryrowError
-from everyrow.generated.models import (
+from futuresearch.constants import EveryrowError
+from futuresearch.generated.models import (
     PublicTaskType,
     TaskProgressInfo,
     TaskStatus,
     TaskStatusResponse,
 )
-from everyrow.task import await_task_completion, print_progress
+from futuresearch.task import await_task_completion, print_progress
 
 
 def _make_status(
@@ -36,7 +36,7 @@ def _make_status(
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
     """Replace asyncio.sleep with a no-op to avoid real waits."""
-    monkeypatch.setattr("everyrow.task.asyncio.sleep", AsyncMock())
+    monkeypatch.setattr("futuresearch.task.asyncio.sleep", AsyncMock())
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ async def test_immediate_completion(
 ):
     """Task already completed on first poll — no progress output."""
     mock_status = mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status(TaskStatus.COMPLETED)
@@ -90,7 +90,7 @@ async def test_progress_callback_fires_on_change(
     ]
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -135,7 +135,7 @@ async def test_callback_skips_duplicate_snapshot(
     ]
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -168,7 +168,7 @@ async def test_print_progress_output_format(
     ]
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -189,7 +189,7 @@ async def test_failed_task_raises(
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.FAILED, error="Something went wrong"),
     )
@@ -207,7 +207,7 @@ async def test_revoked_task_raises(
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.REVOKED),
     )
@@ -234,7 +234,7 @@ async def test_retries_on_transient_error(
         return _make_status(TaskStatus.COMPLETED)
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         side_effect=status_with_error,
     )
 
@@ -252,7 +252,7 @@ async def test_retries_exhausted_raises(
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         side_effect=ConnectionError("persistent failure"),
     )
 
@@ -281,7 +281,7 @@ async def test_no_output_without_callback(
     ]
 
     mocker.patch(
-        "everyrow.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
         side_effect=statuses,
     )

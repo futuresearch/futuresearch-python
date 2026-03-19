@@ -2,7 +2,7 @@ name: Docs Sync Check
 
 # LLM AGENTS: Installation instructions must stay in sync across:
 # - README.md (main SDK readme)
-# - everyrow-mcp/README.md (MCP server readme)
+# - futuresearch-mcp/README.md (MCP server readme)
 # - docs/installation.md (consolidated installation guide)
 
 on:
@@ -58,7 +58,7 @@ jobs:
             Files that must stay in sync:
 
             1. README.md - "Coding agent plugins" section (Claude Code, Gemini CLI, Codex CLI, Cursor)
-            2. everyrow-mcp/README.md - "Installation" section (Claude Desktop, Manual Config)
+            2. futuresearch-mcp/README.md - "Installation" section (Claude Desktop, Manual Config)
             3. docs/installation.md - Contains both SDK and MCP installation instructions
 
             What must be consistent:
@@ -66,7 +66,7 @@ jobs:
             - Gemini CLI commands and settings must match
             - Codex CLI commands must match
             - Cursor setup steps must match
-            - MCP server config (uvx/everyrow-mcp) must match
+            - MCP server config (uvx/futuresearch-mcp) must match
             - Claude Desktop .mcpb installation instructions must match
             - API key setup instructions must match
 

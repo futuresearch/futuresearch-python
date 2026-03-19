@@ -1,17 +1,17 @@
 ---
 name: run-mcp-local
-description: Run the everyrow HTTP MCP server locally with Docker Compose and optionally expose it via Cloudflare tunnel. Use when starting/stopping the local MCP server, debugging startup issues, connecting Claude.ai or Claude Desktop to a local instance, or checking server logs. Triggers on mcp local, mcp server, run mcp, mcp docker, mcp tunnel, cloudflare tunnel, mcp logs.
+description: Run the FutureSearch HTTP MCP server locally with Docker Compose and optionally expose it via Cloudflare tunnel. Use when starting/stopping the local MCP server, debugging startup issues, connecting Claude.ai or Claude Desktop to a local instance, or checking server logs. Triggers on mcp local, mcp server, run mcp, mcp docker, mcp tunnel, cloudflare tunnel, mcp logs.
 ---
 
-# Running the everyrow MCP Server Locally
+# Running the FutureSearch MCP Server Locally
 
-Two-container stack: **mcp-server** (FastAPI on :8000) and **redis** (on :6379), orchestrated by `everyrow-mcp/deploy/docker-compose.yaml` with local overrides.
+Two-container stack: **mcp-server** (FastAPI on :8000) and **redis** (on :6379), orchestrated by `futuresearch-mcp/deploy/docker-compose.yaml` with local overrides.
 
 ## Pre-flight Checks
 
 **CRITICAL: Always check for stale processes on port 8000 before starting.**
 
-A leftover `everyrow-mcp --no-auth` or similar process on the host will shadow the Docker container's port binding. All requests hit the stale process instead of the container — this can look like auth routes are broken, sheets tools are missing, etc.
+A leftover `futuresearch-mcp --no-auth` or similar process on the host will shadow the Docker container's port binding. All requests hit the stale process instead of the container — this can look like auth routes are broken, sheets tools are missing, etc.
 
 ```bash
 # Check for anything on port 8000
@@ -29,7 +29,7 @@ docker info --format '{{.ServerVersion}}' || colima start
 ## Quick Start
 
 ```bash
-cd everyrow-mcp/deploy
+cd futuresearch-mcp/deploy
 
 REDIS_PASSWORD=testpass \
 MCP_SERVER_URL=http://localhost:8000 \
@@ -55,7 +55,7 @@ These are templated in `docker-compose.local.yaml` as `${VAR:-default}` — the 
 
 ## Secrets
 
-The `.env` file at `everyrow-mcp/deploy/.env` contains production secrets (Supabase, API keys, upload secret). It is already present and should NOT be committed or overwritten.
+The `.env` file at `futuresearch-mcp/deploy/.env` contains production secrets (Supabase, API keys, upload secret). It is already present and should NOT be committed or overwritten.
 
 `REDIS_PASSWORD` is intentionally NOT in `.env` — always pass it as an env var (`testpass` for local dev).
 
@@ -64,8 +64,8 @@ The `.env` file at `everyrow-mcp/deploy/.env` contains production secrets (Supab
 The `.env` file is gitignored and won't exist in worktrees. Symlink it:
 
 ```bash
-ln -s /Users/rafaelpoyiadzi/Documents/git/everyrow-sdk/everyrow-mcp/deploy/.env \
-      <worktree-path>/everyrow-mcp/deploy/.env
+ln -s /Users/rafaelpoyiadzi/Documents/git/futuresearch-python/futuresearch-mcp/deploy/.env \
+      <worktree-path>/futuresearch-mcp/deploy/.env
 ```
 
 ## Exposing via Cloudflare Tunnel
@@ -95,7 +95,7 @@ This prints a URL like `https://something-something.trycloudflare.com`.
 The server must know its public URL for OAuth redirects to work:
 
 ```bash
-cd everyrow-mcp/deploy
+cd futuresearch-mcp/deploy
 
 REDIS_PASSWORD=testpass \
 MCP_SERVER_URL=https://something-something.trycloudflare.com \
@@ -128,10 +128,10 @@ Both should return JSON with `issuer`, `authorization_endpoint`, etc. If local r
 **Claude Code**: Add a project-scoped MCP server (writes to `.claude/settings.local.json` in the current dir, not the global config):
 
 ```bash
-claude mcp add everyrow --scope project --transport http <TUNNEL_URL>/mcp
+claude mcp add futuresearch --scope project --transport http <TUNNEL_URL>/mcp
 ```
 
-Then restart Claude Code. Remove with `claude mcp remove everyrow --scope project`.
+Then restart Claude Code. Remove with `claude mcp remove futuresearch --scope project`.
 
 ## Logs
 
@@ -149,7 +149,7 @@ docker logs deploy-mcp-server-1 2>&1 | grep "User-Agent"
 ## Teardown
 
 ```bash
-cd everyrow-mcp/deploy
+cd futuresearch-mcp/deploy
 
 REDIS_PASSWORD=testpass MCP_SERVER_URL=http://localhost:8000 \
   docker compose -f docker-compose.yaml -f docker-compose.local.yaml down
@@ -166,12 +166,12 @@ Run the server directly with `uv run` — no Docker needed. Useful for quick loc
 ### Prerequisites
 
 - Redis running on localhost:6379 (e.g. `docker run -d --name test-redis -p 6379:6379 redis:7-alpine`)
-- `EVERYROW_API_KEY` in `~/.claude/secrets/remote.env`
+- `FUTURESEARCH_API_KEY` (or legacy `FUTURESEARCH_API_KEY`) in `~/.claude/secrets/remote.env`
 
 ### Start the server
 
 ```bash
-cd everyrow-mcp
+cd futuresearch-mcp
 ALLOW_NO_AUTH=1 \
 UPLOAD_SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(32))") \
 EXTRA_ALLOWED_HOSTS="host.docker.internal,localhost" \
@@ -195,8 +195,8 @@ Note: Direct mode won't work (CORS). Auth mode won't work (Inspector v0.21.0 doe
 
 ```bash
 uv run python scripts/mcp_call.py list
-uv run python scripts/mcp_call.py call everyrow_balance
-uv run python scripts/mcp_call.py call everyrow_agent '{"params": {"task": "...", "data": [...]}}'
+uv run python scripts/mcp_call.py call futuresearch_balance
+uv run python scripts/mcp_call.py call futuresearch_agent '{"params": {"task": "...", "data": [...]}}'
 ```
 
 Note: `mcp_call.py` only works against `--no-auth` servers. It doesn't do OAuth, so authenticated servers will show a subset of tools or fail.
@@ -214,7 +214,7 @@ Note: `mcp_call.py` only works against `--no-auth` servers. It doesn't do OAuth,
 | cloudflared output is empty | It writes to stderr: use `2>/tmp/cf-tunnel.log` redirect |
 | Container doesn't pick up code changes | Add `--build` to the `docker compose up` command |
 | Container doesn't pick up env var changes | Must recreate: `docker compose ... down && docker compose ... up -d` |
-| `.env` not found in worktree | Symlink from main repo: `ln -s <main>/everyrow-mcp/deploy/.env <worktree>/everyrow-mcp/deploy/.env` |
+| `.env` not found in worktree | Symlink from main repo: `ln -s <main>/futuresearch-mcp/deploy/.env <worktree>/futuresearch-mcp/deploy/.env` |
 | Sheets tools not showing in tool list | Pass `ENABLE_SHEETS_TOOLS=true` and recreate the container |
 | `mcp_call.py` shows fewer tools than expected | It connects without auth — authenticated servers may filter tools |
 | Docker daemon not running | `colima start` (may need `colima stop && colima start` if socket is stale) |
@@ -223,7 +223,7 @@ Note: `mcp_call.py` only works against `--no-auth` servers. It doesn't do OAuth,
 
 | File | Purpose |
 |------|---------|
-| `everyrow-mcp/deploy/docker-compose.yaml` | Base compose (server + redis) |
-| `everyrow-mcp/deploy/docker-compose.local.yaml` | Local overrides (ports, env passthrough) |
-| `everyrow-mcp/deploy/.env` | Production secrets (DO NOT commit changes) |
-| `everyrow-mcp/deploy/Dockerfile` | Server container build |
+| `futuresearch-mcp/deploy/docker-compose.yaml` | Base compose (server + redis) |
+| `futuresearch-mcp/deploy/docker-compose.local.yaml` | Local overrides (ports, env passthrough) |
+| `futuresearch-mcp/deploy/.env` | Production secrets (DO NOT commit changes) |
+| `futuresearch-mcp/deploy/Dockerfile` | Server container build |

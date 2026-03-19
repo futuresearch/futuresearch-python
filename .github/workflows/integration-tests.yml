@@ -26,7 +26,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          EVERYROW_API_KEY: ${{ secrets.EVERYROW_API_KEY }}
+          FUTURESEARCH_API_KEY: ${{ secrets.FUTURESEARCH_API_KEY || secrets.EVERYROW_API_KEY }}
         run: |
           uv run pip install pytest-xdist
           uv run pytest -n 8 tests/integration/ -v -m integration --tb=short

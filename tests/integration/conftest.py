@@ -9,9 +9,9 @@ from pydantic import BaseModel, Field
 
 @pytest.fixture(scope="session", autouse=True)
 def require_api_key():
-    """Fail integration tests if EVERYROW_API_KEY is not set."""
-    if not os.environ.get("EVERYROW_API_KEY"):
-        pytest.fail("EVERYROW_API_KEY environment variable not set")
+    """Fail integration tests if FUTURESEARCH_API_KEY is not set."""
+    if not os.environ.get("FUTURESEARCH_API_KEY"):
+        pytest.fail("FUTURESEARCH_API_KEY environment variable not set")
 
 
 # ============================================================================

@@ -1,11 +1,11 @@
 [tool.uv.workspace]
-members = ["everyrow-mcp"]
+members = ["futuresearch-mcp"]
 
 [tool.uv.sources]
-everyrow = { workspace = true }
+futuresearch = { workspace = true }
 
 [project]
-name = "everyrow"
+name = "futuresearch"
 version = "0.5.1"
 description = "A researcher for every row. Forecast, score, classify, or research entire datasets."
 readme = "README.md"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/everyrow"]
+packages = ["src/futuresearch"]
 
 [build-system]
 requires = ["hatchling"]
@@ -47,12 +47,12 @@ dev = [
 venvPath = "."
 venv = ".venv"
 include = ["src", "tests"]
-exclude = ["src/everyrow/generated"]
+exclude = ["src/futuresearch/generated"]
 typeCheckingMode = "standard"
 
 [tool.ruff]
 include = ["src/**/*.py", "tests/**/*.py"]
-exclude = [".venv", "src/everyrow/generated/**"]
+exclude = [".venv", "src/futuresearch/generated/**"]
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -70,18 +70,18 @@ fixable = ["ALL"]
 unfixable = []
 extend-select = ["I"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?)|[a-zA-Z0-9_]+_)$"
-exclude = [".venv", "src/everyrow/generated/**"]
+exclude = [".venv", "src/futuresearch/generated/**"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
 [tool.ruff.format]
-exclude = ["src/everyrow/generated/**"]
+exclude = ["src/futuresearch/generated/**"]
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "-m", "not integration"]
 pythonpath = ["src"]
 markers = [
-    "integration: marks tests as integration tests (require EVERYROW_API_KEY)",
+    "integration: marks tests as integration tests (require FUTURESEARCH_API_KEY)",
 ]
 asyncio_mode = "auto"

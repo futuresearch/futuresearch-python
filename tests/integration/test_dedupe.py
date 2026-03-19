@@ -3,8 +3,8 @@
 import pandas as pd
 import pytest
 
-from everyrow.ops import dedupe
-from everyrow.result import TableResult
+from futuresearch.ops import dedupe
+from futuresearch.result import TableResult
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 

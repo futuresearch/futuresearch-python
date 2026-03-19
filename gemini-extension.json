@@ -1,13 +1,13 @@
 {
-  "name": "everyrow",
-  "description": "Gemini extension for the everyrow SDK - AI-powered data processing utilities for transforming, deduping, merging, ranking, and classifying dataframes",
+  "name": "futuresearch",
+  "description": "Gemini extension for the futuresearch SDK - AI-powered data processing utilities for transforming, deduping, merging, ranking, and classifying dataframes",
   "version": "0.5.1",
   "mcpServers": {
-    "everyrow": {
+    "futuresearch": {
       "command": "uvx",
-      "args": ["everyrow-mcp"],
+      "args": ["futuresearch-mcp"],
       "env": {
-        "EVERYROW_API_KEY": "$EVERYROW_API_KEY"
+        "FUTURESEARCH_API_KEY": "$FUTURESEARCH_API_KEY"
       }
     }
   }

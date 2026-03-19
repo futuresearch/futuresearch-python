@@ -4,22 +4,22 @@ on:
   push:
     branches: ["main"]
     paths:
-      - "src/everyrow/**"
+      - "src/futuresearch/**"
       - "tests/**"
       - "examples/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/ci.yaml"
-      - "everyrow-mcp/**"
+      - "futuresearch-mcp/**"
 
   pull_request:
     paths:
-      - "src/everyrow/**"
+      - "src/futuresearch/**"
       - "tests/**"
       - "examples/**"
       - "pyproject.toml"
       - "uv.lock"
-      - "everyrow-mcp/**"
+      - "futuresearch-mcp/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -59,7 +59,7 @@ jobs:
         run: uv run basedpyright
 
   mcp-checks:
-    name: everyrow-mcp
+    name: futuresearch-mcp
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,13 +79,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --directory everyrow-mcp
+        run: uv sync --directory futuresearch-mcp
 
       - name: Check formatting
-        run: uv run --directory everyrow-mcp ruff format --check
+        run: uv run --directory futuresearch-mcp ruff format --check
 
       - name: Run ruff
-        run: uv run --directory everyrow-mcp ruff check
+        run: uv run --directory futuresearch-mcp ruff check
 
       - name: Run tests
-        run: uv run --directory everyrow-mcp pytest tests
+        run: uv run --directory futuresearch-mcp pytest tests

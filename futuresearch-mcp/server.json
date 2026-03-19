@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.futuresearch/futuresearch-mcp",
+  "title": "FutureSearch MCP Server",
+  "description": "Give your AI a research team. Forecast, score, classify, or research every row of a dataset.",
+  "repository": {
+    "url": "https://github.com/futuresearch/everyrow-sdk",
+    "source": "github",
+    "subfolder": "futuresearch-mcp"
+  },
+  "websiteUrl": "https://github.com/futuresearch/everyrow-sdk/tree/main/futuresearch-mcp",
+  "version": "0.5.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "futuresearch-mcp",
+      "version": "0.5.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "API key for the FutureSearch service, found at https://cohort.futuresearch.ai/app",
+          "isRequired": true,
+          "isSecret": true,
+          "name": "FUTURESEARCH_API_KEY"
+        }
+      ]
+    }
+  ]
+}

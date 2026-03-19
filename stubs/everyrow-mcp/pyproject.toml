@@ -1,0 +1,14 @@
+[project]
+name = "everyrow-mcp"
+version = "0.5.1"
+description = "Renamed to futuresearch-mcp. This package is a compatibility shim."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["futuresearch-mcp>=0.5.1"]
+
+[project.scripts]
+everyrow-mcp = "futuresearch_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

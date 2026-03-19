@@ -25,7 +25,9 @@ jobs:
       - name: Build packages
         run: |
           uv build
-          uv build --directory everyrow-mcp --out-dir $GITHUB_WORKSPACE/dist
+          uv build --directory futuresearch-mcp --out-dir $GITHUB_WORKSPACE/dist
+          uv build --directory stubs/everyrow --out-dir $GITHUB_WORKSPACE/dist
+          uv build --directory stubs/everyrow-mcp --out-dir $GITHUB_WORKSPACE/dist
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -48,16 +50,16 @@ jobs:
 
       - name: Read version from manifest
         id: version
-        run: echo "version=$(jq -r .version everyrow-mcp/manifest.json)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(jq -r .version futuresearch-mcp/manifest.json)" >> "$GITHUB_OUTPUT"
 
       - name: Build MCPB bundle
-        working-directory: everyrow-mcp
-        run: npx -y @anthropic-ai/mcpb pack . everyrow-mcp-${{ steps.version.outputs.version }}.mcpb
+        working-directory: futuresearch-mcp
+        run: npx -y @anthropic-ai/mcpb pack . futuresearch-mcp-${{ steps.version.outputs.version }}.mcpb
 
       - name: Upload MCPB to release
         uses: softprops/action-gh-release@v2
         with:
-          files: everyrow-mcp/everyrow-mcp-${{ steps.version.outputs.version }}.mcpb
+          files: futuresearch-mcp/futuresearch-mcp-${{ steps.version.outputs.version }}.mcpb
 
   publish-mcp-registry:
     name: Publish to MCP Registry
@@ -80,5 +82,5 @@ jobs:
         run: sleep 30
 
       - name: Publish to MCP Registry
-        working-directory: everyrow-mcp
+        working-directory: futuresearch-mcp
         run: ../mcp-publisher publish

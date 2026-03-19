@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 from pydantic import BaseModel, Field
 
-from everyrow.ops import single_agent
-from everyrow.result import ScalarResult, TableResult
+from futuresearch.ops import single_agent
+from futuresearch.result import ScalarResult, TableResult
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 

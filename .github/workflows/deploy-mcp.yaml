@@ -22,7 +22,7 @@ on:
 env:
   GKE_ZONE: ${{ vars.BETA_CLUSTER_REGION }}
   GKE_NAME: ${{ vars.BETA_CLUSTER_NAME }}
-  MCP_IMAGE_NAME: ${{ vars.GCP_REGISTRY_NAME }}/${{ vars.GCP_PROJECT_NAME }}/delphos/everyrow-mcp
+  MCP_IMAGE_NAME: ${{ vars.GCP_REGISTRY_NAME }}/${{ vars.GCP_PROJECT_NAME }}/delphos/futuresearch-mcp
 
 permissions:
   contents: read
@@ -65,11 +65,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install deps
-        run: uv sync --directory everyrow-mcp
+        run: uv sync --directory futuresearch-mcp
       - name: Run ruff
-        run: uv run --directory everyrow-mcp ruff check
+        run: uv run --directory futuresearch-mcp ruff check
       - name: Run tests
-        run: uv run --directory everyrow-mcp pytest tests
+        run: uv run --directory futuresearch-mcp pytest tests
 
   build-and-push:
     needs: [setup, checks]
@@ -105,7 +105,7 @@ jobs:
         uses: useblacksmith/build-push-action@v2
         with:
           context: .
-          file: everyrow-mcp/deploy/Dockerfile
+          file: futuresearch-mcp/deploy/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           platforms: linux/amd64
@@ -145,18 +145,18 @@ jobs:
 
       - name: Decrypt production secrets
         if: inputs.deploy_production == true
-        run: sops -d everyrow-mcp/deploy/chart/secrets.enc.yaml > everyrow-mcp/deploy/chart/values.secrets.yaml
+        run: sops -d futuresearch-mcp/deploy/chart/secrets.enc.yaml > futuresearch-mcp/deploy/chart/values.secrets.yaml
 
       - name: Decrypt staging secrets
         if: inputs.deploy_staging == true
-        run: sops -d everyrow-mcp/deploy/chart/secrets.staging.enc.yaml > everyrow-mcp/deploy/chart/values.secrets.staging.yaml
+        run: sops -d futuresearch-mcp/deploy/chart/secrets.staging.enc.yaml > futuresearch-mcp/deploy/chart/values.secrets.staging.yaml
 
       - name: Deploy to production
         if: inputs.deploy_production == true
-        working-directory: everyrow-mcp/deploy/chart
+        working-directory: futuresearch-mcp/deploy/chart
         run: |
-          helm upgrade --install everyrow-mcp . \
-            -n everyrow-mcp \
+          helm upgrade --install futuresearch-mcp . \
+            -n futuresearch-mcp \
             -f values.yaml \
             -f values.secrets.yaml \
             --set-string releaseId="${{ needs.setup.outputs.sha_short }}" \
@@ -167,10 +167,10 @@ jobs:
 
       - name: Deploy to staging
         if: inputs.deploy_staging == true
-        working-directory: everyrow-mcp/deploy/chart
+        working-directory: futuresearch-mcp/deploy/chart
         run: |
-          helm upgrade --install everyrow-mcp-staging . \
-            -n everyrow-mcp-staging \
+          helm upgrade --install futuresearch-mcp-staging . \
+            -n futuresearch-mcp-staging \
             -f values.yaml \
             -f values.staging.yaml \
             -f values.secrets.staging.yaml \

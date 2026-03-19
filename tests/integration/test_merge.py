@@ -3,8 +3,8 @@
 import pandas as pd
 import pytest
 
-from everyrow.ops import merge
-from everyrow.result import MergeResult
+from futuresearch.ops import merge
+from futuresearch.result import MergeResult
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 

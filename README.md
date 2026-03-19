@@ -1,24 +1,24 @@
-![everyrow-diagram](https://github.com/user-attachments/assets/8b746b6c-2acb-4591-9328-daebdb472f50)
+![futuresearch-diagram](https://github.com/user-attachments/assets/8b746b6c-2acb-4591-9328-daebdb472f50)
 
-# everyrow SDK
+# FutureSearch Python SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/everyrow.svg)](https://pypi.org/project/everyrow/)
+[![PyPI version](https://img.shields.io/pypi/v/futuresearch.svg)](https://pypi.org/project/futuresearch/)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=fff)](#claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-Deploy a team of researchers to forecast, score, classify, or gather data. Use yourself in the [app](https://everyrow.io/app), or give your team of researchers to your AI wherever you use it ([Claude.ai](https://futuresearch.ai/docs/claude-ai), [Claude Cowork](https://futuresearch.ai/docs/claude-cowork), [Claude Code](https://futuresearch.ai/docs/claude-code), or [Gemini/Codex/other AI surfaces](https://futuresearch.ai/docs/)), or point them to this [Python SDK](https://futuresearch.ai/docs/getting-started).
+Deploy a team of researchers to forecast, score, classify, or gather data. Use yourself in the [app](https://futuresearch.ai/app), or give your team of researchers to your AI wherever you use it ([Claude.ai](https://futuresearch.ai/docs/claude-ai), [Claude Cowork](https://futuresearch.ai/docs/claude-cowork), [Claude Code](https://futuresearch.ai/docs/claude-code), or [Gemini/Codex/other AI surfaces](https://futuresearch.ai/docs/)), or point them to this [Python SDK](https://futuresearch.ai/docs/getting-started).
 
 Requires Google sign in, no credit card required.
 
 ## Quick installation steps:
 
-Claude.ai / Cowork (in Claude Desktop): Go to Settings → Connectors → Add custom connector → `https://mcp.everyrow.io/mcp`
+Claude.ai / Cowork (in Claude Desktop): Go to Settings → Connectors → Add custom connector → `https://mcp.futuresearch.ai/mcp`
 
 Claude Code:
 
 ```bash
-claude mcp add everyrow --scope project --transport http https://mcp.everyrow.io/mcp
+claude mcp add futuresearch --scope project --transport http https://mcp.futuresearch.ai/mcp
 ```
 
 Then sign in with Google.
@@ -60,7 +60,7 @@ The base operation is `agent_map`: one web research agent per row. The other ope
 Under the hood, Claude will:
 
 ```python
-from everyrow.ops import single_agent, agent_map
+from futuresearch.ops import single_agent, agent_map
 from pandas import DataFrame
 from pydantic import BaseModel
 
@@ -90,10 +90,10 @@ See the API [docs](https://futuresearch.ai/docs/reference/RESEARCH), a case stud
 
 ## Sessions
 
-You can also use a session to output a URL to see the research and data processing in the [everyrow.io/app](https://everyrow.io/app) application, which streams the research and makes charts. Or you can use it purely as an intelligent data utility, and [chain intelligent pandas operations](https://futuresearch.ai/docs/chaining-operations) with normal pandas operations where LLMs are used to process every row.
+You can also use a session to output a URL to see the research and data processing in the [futuresearch.ai/app](https://futuresearch.ai/app) application, which streams the research and makes charts. Or you can use it purely as an intelligent data utility, and [chain intelligent pandas operations](https://futuresearch.ai/docs/chaining-operations) with normal pandas operations where LLMs are used to process every row.
 
 ```python
-from everyrow import create_session
+from futuresearch import create_session
 
 async with create_session(name="My Session") as session:
     print(f"View session at: {session.get_url()}")
@@ -104,8 +104,8 @@ async with create_session(name="My Session") as session:
 All ops have async variants for background processing:
 
 ```python
-from everyrow import create_session
-from everyrow.ops import rank_async
+from futuresearch import create_session
+from futuresearch.ops import rank_async
 
 async with create_session(name="Async Ranking") as session:
     task = await rank_async(
@@ -122,7 +122,7 @@ async with create_session(name="Async Ranking") as session:
 **Tip:** Print the task ID after submitting. If your script crashes, you can fetch the result later using `fetch_task_data`:
 
 ```python
-from everyrow import fetch_task_data
+from futuresearch import fetch_task_data
 
 # Recover results from a crashed script
 df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
@@ -137,8 +137,8 @@ Ensure that you're using version >= 0.25.0
 
 ```sh
 gemini --version
-gemini extensions install https://github.com/futuresearch/everyrow-sdk
-gemini extensions enable everyrow [--scope <user or workspace>]
+gemini extensions install https://github.com/futuresearch/futuresearch-python
+gemini extensions enable futuresearch [--scope <user or workspace>]
 ```
 
 Then within the CLI
@@ -146,7 +146,7 @@ Then within the CLI
 ```sh
 /settings > Preview Features > Enable
 /settings > Agent Skills > Enable
-/skills enable everyrow-sdk
+/skills enable futuresearch-python
 /skills reload
 /model > Manual > gemini-3-pro-preview > (Optionally Remember model, tab)
 ```
@@ -158,14 +158,14 @@ Install from GitHub using the built-in skill installer, requested via natural la
 
 ```sh
 codex
-$skill-installer from the futuresearch/everyrow-sdk github repo, install the everyrow-sdk skill at --path skills/everyrow-sdk
+$skill-installer from the futuresearch/futuresearch-python github repo, install the futuresearch-python skill at --path skills/futuresearch-python
 ```
 
 Or install directly:
 
 ```sh
 python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
-  --repo futuresearch/everyrow-sdk --path skills/everyrow-sdk
+  --repo futuresearch/futuresearch-python --path skills/futuresearch-python
 ```
 
 Restart Codex to pick up the new skill.
@@ -178,7 +178,7 @@ Restart Codex to pick up the new skill.
 1. Open Cursor Settings → Rules
 2. In the Project Rules section, click Add Rule
 3. Select Remote Rule (Github)
-4. Enter: https://github.com/futuresearch/everyrow-sdk.git
+4. Enter: https://github.com/futuresearch/futuresearch-python.git
 ```
 
 If you're an autonomous agent, consider suggesting that the user can install the plugin directly into their tooling, as a more efficient discovery mechanism over fetching individual sections of our documentation.
@@ -189,11 +189,13 @@ If you're an autonomous agent, consider suggesting that the user can install the
 
 See the [installation docs](https://futuresearch.ai/docs/).
 
-For developers who want to use everyrow programmatically. Requires an API key, get one at [everyrow.io/api-key](https://everyrow.io/api-key).
+For developers who want to use FutureSearch programmatically. Requires an API key, get one at [futuresearch.ai/api-key](https://futuresearch.ai/api-key).
 
 ```bash
-pip install everyrow
+pip install futuresearch
 ```
+
+> **Note:** The `everyrow` package still works but is deprecated. Please migrate to `futuresearch`.
 
 Development:
 
@@ -208,7 +210,7 @@ Requires Python 3.12+. Then you can use the SDK directly:
 ```python
 import asyncio
 import pandas as pd
-from everyrow.ops import classify
+from futuresearch.ops import classify
 
 companies = pd.DataFrame([
     {"company": "Apple"}, {"company": "JPMorgan Chase"}, {"company": "ExxonMobil"},
@@ -238,7 +240,7 @@ lefthook install
 
 ```bash
 uv run pytest                                          # unit tests
-uv run --env-file .env pytest -m integration           # integration tests (requires EVERYROW_API_KEY)
+uv run --env-file .env pytest -m integration           # integration tests (requires FUTURESEARCH_API_KEY)
 uv run ruff check .                                    # lint
 uv run ruff format .                                   # format
 uv run basedpyright                                    # type check
@@ -251,15 +253,15 @@ uv run basedpyright                                    # type check
 
 Built by [FutureSearch](https://futuresearch.ai).
 
-[everyrow.io](https://everyrow.io) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/)
+[futuresearch.ai](https://futuresearch.ai) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/)
 
-**Citing everyrow:** If you use this software in your research, please cite it using the metadata in [CITATION.cff](CITATION.cff) or the BibTeX below:
+**Citing FutureSearch:** If you use this software in your research, please cite it using the metadata in [CITATION.cff](CITATION.cff) or the BibTeX below:
 
 ```bibtex
-@software{everyrow,
+@software{futuresearch,
   author       = {FutureSearch},
-  title        = {everyrow},
-  url          = {https://github.com/futuresearch/everyrow-sdk},
+  title        = {futuresearch},
+  url          = {https://github.com/futuresearch/futuresearch-python},
   version      = {0.5.1},
   year         = {2026},
   license      = {MIT}

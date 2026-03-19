@@ -9,7 +9,7 @@ pre-commit:
           - name: format
             glob: "**/*.py"
             exclude:
-              - "src/everyrow/generated/**"
+              - "src/futuresearch/generated/**"
             run: uv run ruff format {staged_files}
             stage_fixed: true
 
@@ -19,7 +19,7 @@ pre-commit:
           - name: lint
             glob: "**/*.py"
             exclude:
-              - "src/everyrow/generated/**"
+              - "src/futuresearch/generated/**"
             run: uv run ruff check --fix {staged_files}
             stage_fixed: true
 
@@ -29,5 +29,5 @@ pre-commit:
           - name: typecheck
             glob: "**/*.py"
             exclude:
-              - "src/everyrow/generated/**"
+              - "src/futuresearch/generated/**"
             run: uv run basedpyright --project ./pyproject.toml

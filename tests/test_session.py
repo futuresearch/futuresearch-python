@@ -1,4 +1,4 @@
-"""Unit tests for everyrow.session — SessionInfo, list_sessions, create_session."""
+"""Unit tests for futuresearch.session — SessionInfo, list_sessions, create_session."""
 
 import uuid
 from datetime import UTC, datetime
@@ -7,9 +7,9 @@ from uuid import UUID
 
 import pytest
 
-from everyrow.generated.models.session_list_item import SessionListItem
-from everyrow.generated.models.session_list_response import SessionListResponse
-from everyrow.session import (
+from futuresearch.generated.models.session_list_item import SessionListItem
+from futuresearch.generated.models.session_list_response import SessionListResponse
+from futuresearch.session import (
     Session,
     SessionInfo,
     SessionListResult,
@@ -21,7 +21,7 @@ from everyrow.session import (
 
 @pytest.fixture(autouse=True)
 def mock_env(monkeypatch):
-    monkeypatch.setenv("EVERYROW_API_KEY", "test-key")
+    monkeypatch.setenv("FUTURESEARCH_API_KEY", "test-key")
     monkeypatch.setenv("EVERYROW_APP_URL", "https://futuresearch.ai")
 
 
@@ -148,7 +148,7 @@ class TestListSessions:
         )
 
         mock_api = mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=api_response,
         )
@@ -186,7 +186,7 @@ class TestListSessions:
         )
 
         mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=api_response,
         )
@@ -194,7 +194,7 @@ class TestListSessions:
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
-        mocker.patch("everyrow.session.create_client", return_value=mock_client)
+        mocker.patch("futuresearch.session.create_client", return_value=mock_client)
 
         result = await list_sessions()
 
@@ -208,7 +208,7 @@ class TestListSessions:
     async def test_empty_list(self, mocker):
         mock_client = MagicMock()
         mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=_make_api_response([]),
         )
@@ -232,7 +232,7 @@ class TestListSessions:
             for i in range(5)
         ]
         mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=_make_api_response(items, total=5),
         )
@@ -246,7 +246,7 @@ class TestListSessions:
     async def test_cleans_up_client_on_error(self, mocker):
         """Auto-created client is cleaned up even when the API call fails."""
         mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             side_effect=RuntimeError("API down"),
         )
@@ -254,7 +254,7 @@ class TestListSessions:
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
-        mocker.patch("everyrow.session.create_client", return_value=mock_client)
+        mocker.patch("futuresearch.session.create_client", return_value=mock_client)
 
         with pytest.raises(RuntimeError, match="API down"):
             await list_sessions()
@@ -266,7 +266,7 @@ class TestListSessions:
         """list_sessions(limit=10, offset=5) passes params to generated API."""
         mock_client = MagicMock()
         mock_api = mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=_make_api_response([], total=20, offset=5, limit=10),
         )
@@ -283,7 +283,7 @@ class TestListSessions:
         """Default call uses offset=0, limit=25."""
         mock_client = MagicMock()
         mock_api = mocker.patch(
-            "everyrow.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
             new_callable=AsyncMock,
             return_value=_make_api_response([], total=0, offset=0, limit=25),
         )
@@ -306,7 +306,7 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mock_api = mocker.patch(
-            "everyrow.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
             new_callable=AsyncMock,
         )
 
@@ -324,7 +324,7 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mocker.patch(
-            "everyrow.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
             new_callable=AsyncMock,
         )
 
@@ -349,14 +349,14 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mocker.patch(
-            "everyrow.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
             new_callable=AsyncMock,
         )
 
         mock_client = MagicMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
-        mocker.patch("everyrow.session.create_client", return_value=mock_client)
+        mocker.patch("futuresearch.session.create_client", return_value=mock_client)
 
         async with create_session(session_id=sid) as session:
             assert session.session_id == sid

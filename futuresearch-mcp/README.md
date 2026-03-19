@@ -1,0 +1,181 @@
+# FutureSearch MCP Server
+
+> Most users don't need to run the MCP server locally. Use the hosted remote server at `https://mcp.futuresearch.ai/mcp` — it authenticates via OAuth, no API key needed. See the [setup guide](https://futuresearch.ai/docs). The instructions below are for self-hosted or advanced use cases where an API key is required.
+
+MCP (Model Context Protocol) server for [FutureSearch](https://futuresearch.ai): agent ops at spreadsheet scale.
+
+This server exposes FutureSearch's core operations as MCP tools, allowing LLM applications to classify, rank, dedupe, merge, forecast, and run agents on CSV files.
+
+**All tools operate on local CSV files.** Provide absolute file paths as input, and transformed results are written to new CSV files at your specified output path.
+
+## Installation
+
+The server requires a FutureSearch API key. Get one at [futuresearch.ai/api-key](https://futuresearch.ai/api-key) ($20 free credit).
+
+### Claude Desktop
+
+Download the latest `.mcpb` bundle from the [GitHub Releases](https://github.com/futuresearch/futuresearch-python/releases) page and double-click to install in Claude Desktop. You'll be prompted to enter your FutureSearch API key during setup. After installing the bundle, you can use FutureSearch from Chat, Cowork and Code within Claude Desktop.
+
+### Cursor
+Set the environment variable in your terminal shell before opening cursor. You may need to re-open cursor from your shell after this. Alternatively, hardcode the api key within cursor settings instead of the hard-coded `${env:FUTURESEARCH_API_KEY}`
+```bash
+export FUTURESEARCH_API_KEY=your_key_here
+```
+
+### Manual Config
+
+Either set the API key in your shell environment as mentioned above, or hardcode it directly in the config below. Environment variable interpolation may differ between MCP clients.
+
+```bash
+export FUTURESEARCH_API_KEY=your_key_here
+```
+
+Add this to your MCP config. If you have [uv](https://docs.astral.sh/uv/) installed:
+
+```json
+{
+  "mcpServers": {
+    "futuresearch": {
+      "command": "uvx",
+      "args": ["futuresearch-mcp"],
+      "env": {
+        "FUTURESEARCH_API_KEY": "${FUTURESEARCH_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+Alternatively, install with pip (ideally in a venv) and use `"command": "futuresearch-mcp"` instead of uvx.
+
+## Workflow
+
+All operations follow an async pattern:
+
+1. **Start** - Call an operation tool (e.g., `futuresearch_agent`) to start a task. Returns immediately with a task ID and session URL.
+2. **Monitor** - Call `futuresearch_progress(task_id)` repeatedly to check status. The tool blocks ~12s to limit the polling rate.
+3. **Retrieve** - Once complete, call `futuresearch_results(task_id, output_path)` to save results to CSV.
+
+## Available Tools
+
+### futuresearch_rank
+
+Score and sort CSV rows based on qualitative criteria.
+
+```
+Parameters:
+- task: Natural language instructions for scoring a single row
+- input_csv: Absolute path to input CSV
+- field_name: Name of the score field to add
+- field_type: Type of the score field (float, int, str, bool)
+- ascending_order: Sort direction (default: true)
+- response_schema: (optional) JSON schema for custom response fields
+```
+
+Example: Rank leads by "likelihood to need data integration solutions"
+
+### futuresearch_dedupe
+
+Remove duplicate rows using semantic equivalence.
+
+```
+Parameters:
+- equivalence_relation: Natural language description of what makes rows duplicates
+- input_csv: Absolute path to input CSV
+```
+
+Example: Dedupe contacts where "same person even with name abbreviations or career changes"
+
+### futuresearch_merge
+
+Join two CSV files using intelligent entity matching (LEFT JOIN semantics).
+
+```
+Parameters:
+- task: Natural language description of how to match rows
+- left_csv: The table being enriched — all its rows are kept in the output
+- right_csv: The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls
+- merge_on_left: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
+- merge_on_right: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
+- use_web_search: (optional) "auto" (default), "yes", or "no"
+- relationship_type: (optional) "many_to_one" (default) if multiple left rows can match one right row, "one_to_one" matches must be unique, "one_to_many" one left row can match multiple right rows, "many_to_many" multiple left rows can match multiple right rows. For one_to_many and many_to_many, multiple matches are joined with " | " in each added column.
+```
+
+Example: Match software products (left, enriched) to parent companies (right, lookup): Photoshop -> Adobe
+
+### futuresearch_classify
+
+Classify each row into one of the provided categories.
+
+```
+Parameters:
+- task: Natural language classification instructions
+- categories: Allowed categories (minimum 2)
+- classification_field: (optional) Output column name (default: "classification")
+- include_reasoning: (optional) Include reasoning column (default: false)
+```
+
+Example: Classify companies by GICS sector with categories ["Energy", "Financials", "Information Technology", ...]
+
+### futuresearch_forecast
+
+Forecast the probability of binary questions.
+
+```
+Parameters:
+- context: (optional) Batch-level context for all questions
+```
+
+Example: "Will the US Federal Reserve cut rates before July 2027?"
+
+### futuresearch_agent
+
+Run web research agents on each row of a CSV.
+
+```
+Parameters:
+- task: Natural language description of research task
+- input_csv: Absolute path to input CSV
+- response_schema: (optional) JSON schema for custom response fields
+```
+
+Example: "Find this company's latest funding round and lead investors"
+
+### futuresearch_progress
+
+Check progress of a running task.
+
+```
+Parameters:
+- task_id: The task ID returned by an operation tool
+```
+
+Blocks ~12s before returning status. Call repeatedly until task completes.
+
+### futuresearch_results
+
+Retrieve and save results from a completed task.
+
+```
+Parameters:
+- task_id: The task ID of the completed task
+- output_path: Full absolute path to output CSV file (must end in .csv)
+```
+
+Only call after `futuresearch_progress` reports status "completed".
+
+## Development
+
+```bash
+cd futuresearch-mcp
+uv sync
+uv run pytest
+```
+For MCP [registry publishing](https://modelcontextprotocol.info/tools/registry/publishing/#package-deployment):
+
+mcp-name: io.github.futuresearch/futuresearch-mcp
+
+
+## License
+
+MIT - See [LICENSE.txt](../LICENSE.txt)

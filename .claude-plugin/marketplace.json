@@ -4,11 +4,11 @@
     "name": "FutureSearch"
   },
   "metadata": {
-    "description": "everyrow plugins from FutureSearch"
+    "description": "futuresearch plugins from FutureSearch"
   },
   "plugins": [
     {
-      "name": "everyrow",
+      "name": "futuresearch",
       "source": "./",
       "description": "Give Claude Code a research team. Forecast, score, classify, or research every row of a dataset.",
       "version": "0.5.1"
