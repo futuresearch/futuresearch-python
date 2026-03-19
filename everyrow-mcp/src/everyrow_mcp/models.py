@@ -658,6 +658,11 @@ class ProgressInput(BaseModel):
         "Pass this to only receive new rows and summaries since the last check. "
         "Omit on the first call to see all completed rows so far.",
     )
+    include_partial_rows: bool = Field(
+        default=False,
+        description="Include newly completed rows in the progress response. "
+        "Set to true to receive row data alongside status counts and agent summaries.",
+    )
 
     @field_validator("task_id")
     @classmethod

@@ -495,7 +495,7 @@ class TaskState(BaseModel):
         progress_call = f"everyrow_progress(task_id='{task_id}'{cursor_arg})"
 
         if partial_rows or summaries:
-            msg += f"\n\nBriefly comment on these updates for the user, then immediately call {progress_call}."
+            msg += f"\n\nProduce a concise, meaningful update: highlight any interesting findings, patterns, or notable values from the new rows and agent activity above. Then immediately call {progress_call}."
         else:
             msg += f"\nImmediately call {progress_call}."
 
