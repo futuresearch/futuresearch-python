@@ -98,7 +98,7 @@
     "api_key": {
       "type": "string",
       "title": "Everyrow API Key",
-      "description": "Your API key from https://futuresearch.ai/app ($20 free credit)",
+      "description": "Your API key from https://cohort.futuresearch.ai/app ($20 free credit)",
       "sensitive": true,
       "required": true
     }
