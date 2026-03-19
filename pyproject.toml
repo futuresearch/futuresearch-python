@@ -6,7 +6,7 @@ everyrow = { workspace = true }
 
 [project]
 name = "everyrow"
-version = "0.5.0"
+version = "0.5.1"
 description = "A researcher for every row. Forecast, score, classify, or research entire datasets."
 readme = "README.md"
 requires-python = ">=3.12"

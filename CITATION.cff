@@ -4,7 +4,7 @@ type: software
 title: "everyrow"
 abstract: "A researcher for every row. Run web research agents at scale to forecast, score, classify, deduplicate, merge, or enrich entire datasets."
 license: MIT
-version: 0.5.0
+version: 0.5.1
 date-released: 2026-02-24
 repository-code: "https://github.com/futuresearch/everyrow-sdk"
 url: "https://everyrow.io"

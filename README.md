@@ -260,7 +260,7 @@ Built by [FutureSearch](https://futuresearch.ai).
   author       = {FutureSearch},
   title        = {everyrow},
   url          = {https://github.com/futuresearch/everyrow-sdk},
-  version      = {0.5.0},
+  version      = {0.5.1},
   year         = {2026},
   license      = {MIT}
 }
