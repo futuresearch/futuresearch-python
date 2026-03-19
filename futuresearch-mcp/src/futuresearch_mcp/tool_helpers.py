@@ -487,10 +487,14 @@ class TaskState(BaseModel):
             msg += "\n\nAgent activity:" + _format_summary_lines(summaries)
 
         if partial_rows:
+            # Resolve citations first (needs _source_bank), then strip
+            # heavy internal fields to avoid blowing up context.
+            _STRIP = {"_source_bank", "research", "provenance_and_notes"}
             resolved = resolve_citations_in_records(partial_rows)
             msg += "\n\nNewly completed rows:"
             for row in resolved:
-                msg += f"\n- {json.dumps(row, default=str)}"
+                light = {k: v for k, v in row.items() if k not in _STRIP}
+                msg += f"\n- {json.dumps(light, default=str)}"
 
         progress_call = f"futuresearch_progress(task_id='{task_id}'{cursor_arg})"
 

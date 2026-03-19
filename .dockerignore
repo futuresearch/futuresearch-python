@@ -11,7 +11,7 @@
 !src/**
 
 # MCP server package
-!everyrow-mcp/pyproject.toml
-!everyrow-mcp/README.md
-!everyrow-mcp/src/
-!everyrow-mcp/src/**
+!futuresearch-mcp/pyproject.toml
+!futuresearch-mcp/README.md
+!futuresearch-mcp/src/
+!futuresearch-mcp/src/**
