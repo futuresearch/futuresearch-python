@@ -22,7 +22,7 @@ from everyrow.session import (
 @pytest.fixture(autouse=True)
 def mock_env(monkeypatch):
     monkeypatch.setenv("EVERYROW_API_KEY", "test-key")
-    monkeypatch.setenv("EVERYROW_APP_URL", "https://everyrow.io")
+    monkeypatch.setenv("EVERYROW_APP_URL", "https://futuresearch.ai")
 
 
 # --- SessionInfo ---

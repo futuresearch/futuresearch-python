@@ -9,6 +9,9 @@ spec:
     namespace: cert-manager
   hostnames:
   - {{ .Values.httproute.host }}
+  {{- range .Values.httproute.extraHosts }}
+  - {{ . | quote }}
+  {{- end }}
   rules:
   - backendRefs:
     - name: {{ .Release.Name }}

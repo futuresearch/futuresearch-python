@@ -38,7 +38,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_DB: "13"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      EVERYROW_API_URL: "https://everyrow.io/api/v0"
+      EVERYROW_API_URL: "https://futuresearch.ai/api/v0"
       TRUST_PROXY_HEADERS: "${TRUST_PROXY_HEADERS:-false}"
       TRUSTED_IP_HEADER: "${TRUSTED_IP_HEADER:-X-Forwarded-For}"
     deploy:

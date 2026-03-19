@@ -24,8 +24,8 @@ resources:
     memory: 512Mi
 
 env:
-  MCP_SERVER_URL: "https://mcp.everyrow.io"
-  EVERYROW_API_URL: "https://everyrow.io/api/v0"
+  MCP_SERVER_URL: "https://mcp.futuresearch.ai"
+  EVERYROW_API_URL: "https://futuresearch.ai/api/v0"
   REDIS_DB: "13"
   SUPABASE_URL: "https://iliivszxpymuffgrwsws.supabase.co"
   REDIS_SENTINEL_ENDPOINTS: "redis.utils.svc.cluster.local:26379"
@@ -33,7 +33,9 @@ env:
   SENTRY_ENVIRONMENT: "production"
 
 httproute:
-  host: mcp.everyrow.io
+  host: mcp.futuresearch.ai
+  extraHosts:
+    - mcp.everyrow.io
 
 # Session affinity — defense-in-depth for multi-replica deployments.
 # The server runs in stateless HTTP mode so affinity is NOT required,

@@ -7,14 +7,14 @@
   "long_description": "MCP server for everyrow: give your AI a research team. Each operation dispatches web research agents across a dataset to forecast, score, classify, deduplicate, merge, or research at scale.",
   "author": {
     "name": "FutureSearch",
-    "url": "https://everyrow.io"
+    "url": "https://futuresearch.ai"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/futuresearch/everyrow-sdk.git"
   },
-  "homepage": "https://everyrow.io",
-  "documentation": "https://everyrow.io/docs",
+  "homepage": "https://futuresearch.ai",
+  "documentation": "https://futuresearch.ai/docs",
   "support": "https://github.com/futuresearch/everyrow-sdk/issues",
   "icon": "images/future-search-logo-128.png",
   "server": {
@@ -98,7 +98,7 @@
     "api_key": {
       "type": "string",
       "title": "Everyrow API Key",
-      "description": "Your API key from https://everyrow.io/api-key ($20 free credit)",
+      "description": "Your API key from https://futuresearch.ai/app ($20 free credit)",
       "sensitive": true,
       "required": true
     }

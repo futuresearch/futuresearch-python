@@ -22,7 +22,7 @@
       },
       "environmentVariables": [
         {
-          "description": "API key for the everyrow service, found at https://everyrow.io/api-key",
+          "description": "API key for the everyrow service, found at https://futuresearch.ai/app",
           "isRequired": true,
           "isSecret": true,
           "name": "EVERYROW_API_KEY"

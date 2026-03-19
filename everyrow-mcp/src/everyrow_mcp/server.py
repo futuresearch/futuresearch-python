@@ -148,7 +148,7 @@ def main():
         # Validate EVERYROW_API_KEY is set (used by SDK client in lifespan)
         if not os.environ.get("EVERYROW_API_KEY"):
             logging.error("Configuration error: EVERYROW_API_KEY is required")
-            logging.error("Get an API key at https://everyrow.io/api-key")
+            logging.error("Get an API key at https://futuresearch.ai/app")
             sys.exit(1)
 
     mcp.run(transport=transport.value)

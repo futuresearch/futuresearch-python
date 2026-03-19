@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     transport: str = Field(default="stdio")
 
-    everyrow_api_url: str = Field(default="https://everyrow.io/api/v0")
+    everyrow_api_url: str = Field(default="https://futuresearch.ai/api/v0")
     preview_size: int = Field(default=1000)
     max_schema_properties: int = Field(
         default=50,
