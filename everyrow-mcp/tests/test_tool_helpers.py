@@ -11,7 +11,7 @@ from everyrow.generated.models.task_progress_info import TaskProgressInfo
 from everyrow.generated.models.task_status import TaskStatus
 from everyrow.generated.types import UNSET, Unset
 
-from everyrow_mcp.tool_helpers import TaskState
+from everyrow_mcp.tool_helpers import TaskState, _format_summary_lines
 from tests.conftest import override_settings
 
 
@@ -117,3 +117,46 @@ class TestProgressMessageArtifactId:
         ts = TaskState(resp)
         msg = ts.progress_message("task-err")
         assert "Output artifact_id" not in msg
+
+
+class TestFormatSummaryLines:
+    def test_deduplicates_identical_summaries(self):
+        summaries = [
+            {"summary": "Synthesizing data", "row_index": 17},
+            {"summary": "Synthesizing data", "row_index": 29},
+        ]
+        result = _format_summary_lines(summaries)
+        assert result.count("Synthesizing data") == 1
+        assert "[Rows 17, 29]" in result
+
+    def test_singular_row_label(self):
+        summaries = [{"summary": "Processing", "row_index": 5}]
+        result = _format_summary_lines(summaries)
+        assert "[Row 5]" in result
+        assert "[Rows" not in result
+
+    def test_preserves_order(self):
+        summaries = [
+            {"summary": "First task", "row_index": 1},
+            {"summary": "Second task", "row_index": 2},
+        ]
+        result = _format_summary_lines(summaries)
+        assert result.index("First task") < result.index("Second task")
+
+    def test_empty_list(self):
+        assert _format_summary_lines([]) == ""
+
+    def test_no_row_index(self):
+        summaries = [{"summary": "No index here"}]
+        result = _format_summary_lines(summaries)
+        assert "No index here" in result
+        assert "[Row" not in result
+
+    def test_mixed_with_and_without_row_index(self):
+        summaries = [
+            {"summary": "Has index", "row_index": 3},
+            {"summary": "No index"},
+        ]
+        result = _format_summary_lines(summaries)
+        assert "[Row 3] Has index" in result
+        assert "No index" in result

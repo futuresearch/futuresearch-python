@@ -324,6 +324,34 @@ async def create_tool_response(
 _UI_EXCLUDE: set[str] = {"is_terminal", "task_type", "error", "started_at"}
 
 
+def _format_summary_lines(summaries: list[dict[str, Any]]) -> str:
+    """Collapse duplicate summaries from batched agents into grouped lines.
+
+    One trace handling multiple rows produces the same text per row.
+    Groups by text and merges row indices: ``[Rows 29, 17] Summarizing...``
+    """
+    grouped: dict[str, list[int]] = {}
+    grouped_order: list[str] = []
+    for s in summaries:
+        text = s["summary"]
+        row_idx = s.get("row_index")
+        if text not in grouped:
+            grouped[text] = []
+            grouped_order.append(text)
+        if row_idx is not None:
+            grouped[text].append(row_idx)
+    lines = ""
+    for text in grouped_order:
+        rows = grouped[text]
+        if rows:
+            label = "Row" if len(rows) == 1 else "Rows"
+            prefix = f"[{label} {', '.join(str(r) for r in sorted(rows))}] "
+        else:
+            prefix = ""
+        lines += f"\n- {prefix}{text}"
+    return lines
+
+
 class TaskState(BaseModel):
     """Parsed progress snapshot from an API status response."""
 
@@ -465,11 +493,7 @@ class TaskState(BaseModel):
             Running: {self.completed}/{self.total} complete, {self.running} running{fail_part} ({self.elapsed_s}s elapsed)""")
 
         if summaries:
-            msg += "\n\nAgent activity:"
-            for s in summaries:
-                row_idx = s.get("row_index")
-                prefix = f"[Row {row_idx}] " if row_idx is not None else ""
-                msg += f"\n- {prefix}{s['summary']}"
+            msg += "\n\nAgent activity:" + _format_summary_lines(summaries)
 
         if partial_rows:
             msg += "\n\nNewly completed rows:"
