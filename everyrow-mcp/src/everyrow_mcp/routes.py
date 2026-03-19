@@ -17,6 +17,7 @@ from starlette.responses import JSONResponse, Response
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
+from everyrow_mcp.result_store import resolve_citations_in_records
 from everyrow_mcp.tool_helpers import _UI_EXCLUDE, TaskState
 
 logger = logging.getLogger(__name__)
@@ -295,11 +296,14 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             {"error": "Unsupported format"}, status_code=400, headers=cors
         )
 
-    # Return JSON array directly — no parsing needed since Redis stores JSON natively.
+    # Resolve citation codes and strip heavy internal fields for downloads.
+    records: list[dict] = json.loads(json_text)
+    records = resolve_citations_in_records(records)
+    safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
+
     if fmt == "json":
-        safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
         return Response(
-            content=json_text,
+            content=json.dumps(records),
             media_type="application/json",
             headers={
                 **cors,
@@ -308,11 +312,8 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             },
         )
 
-    # CSV generated on-the-fly from the stored JSON.
-    records: list[dict] = json.loads(json_text)
+    # CSV generated on-the-fly from the already-resolved records.
     csv_text = pd.DataFrame(records).to_csv(index=False, quoting=csv.QUOTE_ALL)
-
-    safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
     return Response(
         content=csv_text,
         media_type="text/csv",

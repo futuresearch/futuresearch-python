@@ -28,6 +28,7 @@ from everyrow_mcp.result_store import (
     _format_columns,
     _sanitize_records,
     clamp_page_to_budget,
+    resolve_citations_in_records,
     try_cached_result,
     try_store_result,
 )
@@ -774,9 +775,100 @@ class TestApiDownload:
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert isinstance(data[0]["research"], dict)
-        assert data[0]["research"]["answer"] == "yes"
-        assert data[1]["research"]["confidence"] == "low"
+        # `research` is stripped from downloads (it's an internal field).
+        # Verify other fields survive the roundtrip.
+        assert data[0]["name"] == "Alice"
+        assert data[1]["name"] == "Bob"
+        assert "research" not in data[0]
+
+
+# ── Citation resolution ───────────────────────────────────────
+
+
+class TestResolveCitations:
+    def test_resolves_single_code(self):
+        records = [
+            {
+                "question": "Will X happen?",
+                "rationale": "Evidence suggests yes [abc123].",
+                "_source_bank": json.dumps(
+                    {"abc123": {"url": "https://example.com", "title": "Example"}}
+                ),
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert len(result) == 1
+        assert "_source_bank" not in result[0]
+        assert "[Example](https://example.com)" in result[0]["rationale"]
+        assert "[abc123]" not in result[0]["rationale"]
+
+    def test_resolves_multiple_codes(self):
+        records = [
+            {
+                "rationale": "See [aaa111, bbb222].",
+                "_source_bank": json.dumps(
+                    {
+                        "aaa111": {"url": "https://a.com", "title": "Source A"},
+                        "bbb222": {"url": "https://b.com", "title": "Source B"},
+                    }
+                ),
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert "[Source A](https://a.com)" in result[0]["rationale"]
+        assert "[Source B](https://b.com)" in result[0]["rationale"]
+
+    def test_partial_resolution_preserves_unknown(self):
+        records = [
+            {
+                "rationale": "See [aaa111, bbb222].",
+                "_source_bank": json.dumps(
+                    {"aaa111": {"url": "https://a.com", "title": "Source A"}}
+                ),
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert "[Source A](https://a.com)" in result[0]["rationale"]
+        assert "[bbb222]" in result[0]["rationale"]
+
+    def test_unknown_code_preserved(self):
+        records = [
+            {
+                "rationale": "See [dead01].",
+                "_source_bank": json.dumps({}),
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert "[dead01]" in result[0]["rationale"]
+
+    def test_no_source_bank(self):
+        records = [{"question": "test", "rationale": "No citations [abc123]."}]
+        result = resolve_citations_in_records(records)
+        assert result[0]["rationale"] == "No citations [abc123]."
+
+    def test_strips_heavy_fields(self):
+        records = [
+            {
+                "question": "test",
+                "_source_bank": "{}",
+                "research": "internal notes",
+                "provenance_and_notes": "metadata",
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert list(result[0].keys()) == ["question"]
+
+    def test_uses_url_as_fallback_title(self):
+        records = [
+            {
+                "rationale": "See [abc123].",
+                "_source_bank": json.dumps(
+                    {"abc123": {"url": "https://example.com", "content_summary": "..."}}
+                ),
+            }
+        ]
+        result = resolve_citations_in_records(records)
+        assert "[https://example.com](https://example.com)" in result[0]["rationale"]
 
 
 # ── Token budget clamping ─────────────────────────────────────

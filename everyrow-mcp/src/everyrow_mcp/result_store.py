@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import secrets
 from typing import Any
 
@@ -61,27 +62,81 @@ def _estimate_tokens(text: str) -> int:
 _LLM_STRIP_FIELDS = {"_source_bank", "research", "provenance_and_notes"}
 
 
-def _strip_for_llm(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Remove heavy fields that the user can see in the viz pane."""
-    return [
-        {k: v for k, v in row.items() if k not in _LLM_STRIP_FIELDS} for row in records
-    ]
+_CITATION_RE = re.compile(r"\[((?:[a-f0-9]{6})(?:\s*,\s*[a-f0-9]{6})*)\]")
+
+
+def _resolve_citations(text: str, source_bank: dict[str, Any]) -> str:
+    """Replace citation codes like ``[c91d21]`` with ``[title](url)`` links."""
+
+    def _replace(match: re.Match[str]) -> str:
+        ids = [s.strip() for s in match.group(1).split(",")]
+        parts = []
+        for cid in ids:
+            entry = source_bank.get(cid)
+            if not entry or not isinstance(entry, dict):
+                parts.append(f"[{cid}]")
+                continue
+            url = entry.get("url")
+            if not url:
+                parts.append(f"[{cid}]")
+                continue
+            title = entry.get("title") or url
+            parts.append(f"[{title}]({url})")
+        return " ".join(parts)
+
+    return _CITATION_RE.sub(_replace, text)
+
+
+def resolve_citations_in_records(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Resolve citation codes in all string fields using each row's ``_source_bank``.
+
+    Returns new records with citation codes replaced by markdown links
+    and the ``_source_bank`` field removed.
+    """
+    out = []
+    for row in records:
+        sb_raw = row.get("_source_bank")
+        if not sb_raw:
+            out.append({k: v for k, v in row.items() if k not in _LLM_STRIP_FIELDS})
+            continue
+        # Parse source bank (may be a JSON string or already a dict)
+        if isinstance(sb_raw, str):
+            try:
+                sb = json.loads(sb_raw)
+            except (json.JSONDecodeError, TypeError):
+                sb = {}
+        else:
+            sb = sb_raw
+        new_row = {}
+        for k, v in row.items():
+            if k in _LLM_STRIP_FIELDS:
+                continue
+            if isinstance(v, str) and sb:
+                new_row[k] = _resolve_citations(v, sb)
+            else:
+                new_row[k] = v
+        out.append(new_row)
+    return out
 
 
 def clamp_page_to_budget(
     preview_records: list[dict[str, Any]],
     page_size: int,
 ) -> tuple[list[dict[str, Any]], int]:
-    # Estimate tokens on stripped records (what the LLM actually sees).
-    stripped = _strip_for_llm(preview_records)
-    estimated = _estimate_tokens(json.dumps(stripped))
+    # Estimate tokens on resolved records (what the LLM actually sees).
+    # resolve_citations_in_records both strips heavy fields and expands
+    # citation codes into markdown links, so it's the accurate size.
+    resolved = resolve_citations_in_records(preview_records)
+    estimated = _estimate_tokens(json.dumps(resolved))
     if estimated <= settings.token_budget:
         return preview_records, page_size
 
     # Pre-compute per-row token sizes and build a prefix sum so the binary
     # search doesn't need to re-serialize on every iteration.
     # Overhead per-row is ~2 tokens for the JSON array wrapper/commas.
-    row_sizes = [_estimate_tokens(json.dumps(r)) + 2 for r in stripped]
+    row_sizes = [_estimate_tokens(json.dumps(r)) + 2 for r in resolved]
     prefix = [0] * (len(row_sizes) + 1)
     for i, s in enumerate(row_sizes):
         prefix[i + 1] = prefix[i] + s
@@ -131,7 +186,8 @@ def _build_result_response(
     """
     if skip_session:
         session_url = ""
-    col_names = _format_columns(columns)
+    visible_columns = [c for c in columns if c not in _LLM_STRIP_FIELDS]
+    col_names = _format_columns(visible_columns)
     hint_page_size = (
         requested_page_size if requested_page_size is not None else page_size
     )
@@ -167,7 +223,7 @@ def _build_result_response(
     if has_more:
         page_size_arg = f", page_size={hint_page_size}"
         summary = (
-            f"Results: {total} rows, {len(columns)} columns ({col_names}). "
+            f"Results: {total} rows, {len(visible_columns)} columns ({col_names}). "
             f"Showing rows {offset + 1}-{min(offset + page_size, total)} of {total}.\n"
             f"IMPORTANT: Tell the user that you can only see {min(page_size, total)} of the {total} rows in your context, "
             f"but they have access to all {total} rows via the widget above.\n"
@@ -180,7 +236,7 @@ def _build_result_response(
             )
     elif offset == 0:
         summary = (
-            f"Results: {total} rows, {len(columns)} columns ({col_names}). "
+            f"Results: {total} rows, {len(visible_columns)} columns ({col_names}). "
             f"All rows shown.\n"
             f"Full CSV download: {csv_url}\n"
             "IMPORTANT: Display this download link to the user as a clickable URL in your response."
@@ -201,9 +257,9 @@ def _build_result_response(
     if artifact_id:
         summary += f"\nOutput artifact_id (use to chain into next tool): {artifact_id}"
 
-    # Append data rows for the LLM, stripping heavy fields that the user
-    # can already see in the viz pane (source_bank, research notes).
-    data_text = json.dumps(_strip_for_llm(preview_records))
+    # Append data rows for the LLM: strip heavy fields (source_bank, research
+    # notes) and resolve citation codes like [c91d21] → [title](url).
+    data_text = json.dumps(resolve_citations_in_records(preview_records))
     summary += f"\n\nData:\n{data_text}"
 
     return CallToolResult(
