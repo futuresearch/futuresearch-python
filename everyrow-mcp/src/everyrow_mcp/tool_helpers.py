@@ -34,6 +34,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from everyrow_mcp import redis_store
 from everyrow_mcp.config import settings
+from everyrow_mcp.result_store import resolve_citations_in_records
 
 logger = logging.getLogger(__name__)
 
@@ -486,8 +487,9 @@ class TaskState(BaseModel):
             msg += "\n\nAgent activity:" + _format_summary_lines(summaries)
 
         if partial_rows:
+            resolved = resolve_citations_in_records(partial_rows)
             msg += "\n\nNewly completed rows:"
-            for row in partial_rows:
+            for row in resolved:
                 msg += f"\n- {json.dumps(row, default=str)}"
 
         progress_call = f"everyrow_progress(task_id='{task_id}'{cursor_arg})"
