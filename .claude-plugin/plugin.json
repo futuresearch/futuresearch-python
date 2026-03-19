@@ -14,38 +14,5 @@
         "EVERYROW_API_KEY": "${EVERYROW_API_KEY}"
       }
     }
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "mcp__plugin_everyrow_everyrow__everyrow_results",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/everyrow-mcp/scripts/everyrow-track-results.sh\""
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/everyrow-mcp/scripts/everyrow-stop-guard.sh\""
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "rm -f ~/.everyrow/task.json"
-          }
-        ]
-      }
-    ]
   }
 }
