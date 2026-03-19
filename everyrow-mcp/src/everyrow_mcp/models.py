@@ -742,11 +742,10 @@ class HttpResultsInput(BaseModel):
         default=settings.auto_page_size_threshold,
         description=(
             "Number of result rows to load into your context so you can read them. "
-            "The user has access to all rows via the widget regardless of this value. "
-            f"REQUIRED: If the task produced more than {settings.auto_page_size_threshold} rows, "
-            "you must ask the user how many rows they want before calling this tool. "
-            "Do not use the default without asking. "
-            f"If {settings.auto_page_size_threshold} or fewer rows, skip asking and set page_size to the total. "
+            "The user has access to all rows via the table view regardless of this value. "
+            f"For tasks with {settings.auto_page_size_threshold} or fewer rows, set page_size to the total. "
+            f"For larger tasks, you MUST use the page_size from the everyrow_progress completion message — "
+            f"do NOT set a higher value. "
             "Use offset to paginate through larger datasets."
         ),
         ge=1,

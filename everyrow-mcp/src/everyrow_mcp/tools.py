@@ -1089,12 +1089,12 @@ async def everyrow_results_http(
     """Retrieve results from a completed everyrow task.
 
     Only call this after everyrow_progress reports status 'completed'.
-    The user always has access to all rows via the widget — page_size only
+    The user always has access to all rows via the table view — page_size only
     controls how many rows _you_ can read.
     After results load, tell the user how many rows you can see vs the total.
 
-    Returns CallToolResult with structuredContent for the widget (not sent to
-    the LLM) and content with summary + data for the LLM.
+    Returns CallToolResult with structuredContent for the table view (not sent
+    to the LLM) and content with summary + data for the LLM.
     """
     logger.info(
         "everyrow_results (http): task_id=%s offset=%s page_size=%s",

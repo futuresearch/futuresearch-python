@@ -452,7 +452,7 @@ class TaskState(BaseModel):
             return round((end - created).total_seconds())
         return round((datetime.now(UTC) - created).total_seconds())
 
-    def progress_message(  # noqa: PLR0912
+    def progress_message(
         self,
         task_id: str,
         *,
@@ -466,20 +466,10 @@ class TaskState(BaseModel):
             if self.status == TaskStatus.COMPLETED:
                 completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
                 if settings.is_http:
-                    if self.total <= settings.auto_page_size_threshold:
-                        next_call = dedent(f"""\
-                            Call everyrow_results(task_id='{task_id}', page_size={max(self.total, 1)}) to load all rows.""")
-                    else:
-                        widget_note = (
-                            " You will have access to all of them via the widget."
-                            if is_internal_client()
-                            else ""
-                        )
-                        next_call = dedent(f"""\
-                            IMPORTANT: Do NOT call everyrow_results yet.\
-                             First, ask the user: "The task produced {self.total} rows. How many would you like me to load into my context so I can read them? (default: {settings.auto_page_size_threshold}).{widget_note}".\
-                             The answer the user provides will correspond to the `page_size`.\
-                             After the user responds, call everyrow_results(task_id='{task_id}', page_size=N).""")
+                    page_size = min(self.total, settings.auto_page_size_threshold)
+                    next_call = dedent(f"""\
+                        Call everyrow_results(task_id='{task_id}', page_size={max(page_size, 1)}) to load the first rows.\
+                         After reviewing the results, ask the user what they'd like to do next — remind them that this output can be used as input to another operation.""")
                 else:
                     next_call = f"Call everyrow_results(task_id='{task_id}', output_path='<choose_a_path>.csv') to save the output."
                 if self.artifact_id:
@@ -502,7 +492,7 @@ class TaskState(BaseModel):
 
         progress_call = f"everyrow_progress(task_id='{task_id}'{cursor_arg})"
 
-        if not is_internal_client() and (partial_rows or summaries):
+        if partial_rows or summaries:
             msg += f"\n\nBriefly comment on these updates for the user, then immediately call {progress_call}."
         else:
             msg += f"\nImmediately call {progress_call}."

@@ -60,6 +60,8 @@ def _estimate_tokens(text: str) -> int:
 
 # Fields stripped from LLM-facing data (user sees them in the viz pane).
 _LLM_STRIP_FIELDS = {"_source_bank", "research", "provenance_and_notes"}
+# Fields stripped from widget preview data (internal plumbing only).
+_WIDGET_STRIP_FIELDS = {"_source_bank"}
 
 
 _CITATION_RE = re.compile(r"\[((?:[a-f0-9]{6})(?:\s*,\s*[a-f0-9]{6})*)\]")
@@ -205,7 +207,10 @@ def _build_result_response(
     if offset == 0 and not skip_widget:
         structured = {
             "csv_url": csv_url,
-            "preview": preview_records,
+            "preview": [
+                {k: v for k, v in row.items() if k not in _WIDGET_STRIP_FIELDS}
+                for row in preview_records
+            ],
             "total": total,
             "fetch_full_results": True,
         }
@@ -225,8 +230,6 @@ def _build_result_response(
         summary = (
             f"Results: {total} rows, {len(visible_columns)} columns ({col_names}). "
             f"Showing rows {offset + 1}-{min(offset + page_size, total)} of {total}.\n"
-            f"IMPORTANT: Tell the user that you can only see {min(page_size, total)} of the {total} rows in your context, "
-            f"but they have access to all {total} rows via the widget above.\n"
             f"Call everyrow_results(task_id='{task_id}', offset={next_offset}{page_size_arg}) for the next page."
         )
         if offset == 0:
@@ -237,9 +240,7 @@ def _build_result_response(
     elif offset == 0:
         summary = (
             f"Results: {total} rows, {len(visible_columns)} columns ({col_names}). "
-            f"All rows shown.\n"
-            f"Full CSV download: {csv_url}\n"
-            "IMPORTANT: Display this download link to the user as a clickable URL in your response."
+            f"All rows shown.\nFull CSV download: {csv_url} in case the user asks."
         )
     else:
         summary = (
