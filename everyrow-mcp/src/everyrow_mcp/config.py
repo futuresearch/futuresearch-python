@@ -92,6 +92,16 @@ class Settings(BaseSettings):
         default=100,
         description="If total rows <= this value, skip asking the user for page_size and load all rows directly.",
     )
+    long_poll_timeout: int = Field(
+        default=25,
+        description="Max seconds to block in a single everyrow_progress call for widget-capable clients. "
+        "Must stay under both GKE backend timeout and MCP client tool timeout. "
+        "Set 0 to disable.",
+    )
+    long_poll_interval: int = Field(
+        default=5,
+        description="Seconds between internal status checks during long-poll.",
+    )
 
     # Upload settings (HTTP mode only)
     upload_secret: str = Field(

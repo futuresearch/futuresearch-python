@@ -8,6 +8,7 @@ spec:
     sessionAffinity:
       type: GENERATED_COOKIE
       cookieTtlSec: {{ .Values.sessionAffinity.gcpBackendPolicy.cookieTtlSec }}
+    timeoutSec: {{ .Values.sessionAffinity.gcpBackendPolicy.timeoutSec | default 30 }}
   targetRef:
     group: ""
     kind: Service

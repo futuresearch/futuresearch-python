@@ -42,6 +42,7 @@ sessionAffinity:
   gcpBackendPolicy:
     enabled: true
     cookieTtlSec: 3600
+    timeoutSec: 120
   # Service-level ClientIP affinity: kube-proxy layer fallback.
   clientIP:
     enabled: true

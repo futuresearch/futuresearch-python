@@ -192,6 +192,23 @@ def is_internal_client() -> bool:
     return "everyrow" in get_user_agent().lower()
 
 
+def should_long_poll(ctx: EveryRowContext) -> bool:
+    """Return True if this client should use a single long-poll instead of the 12s loop.
+
+    Widget-capable clients (claude.ai, Claude Desktop) get a single long-poll
+    followed by widget handoff, conserving their per-turn tool call quota.
+    stdio clients (Claude Code) and internal clients (everyrow-cc) keep the
+    12s short-poll loop.
+    """
+    if settings.is_stdio:
+        return False
+    if settings.long_poll_timeout <= 0:
+        return False
+    if is_internal_client():
+        return False
+    return client_supports_widgets(ctx)
+
+
 def _submission_text(
     label: str, session_url: str, task_id: str, session_id: str = ""
 ) -> str:
@@ -430,7 +447,7 @@ class TaskState(BaseModel):
             started_at=self.started_at,
         )
 
-    def progress_message(self, task_id: str) -> str:
+    def progress_message(self, task_id: str, *, widget_handoff: bool = False) -> str:
         if self.is_terminal:
             if self.error:
                 return f"Task {self.status.value}: {self.error}"
@@ -455,6 +472,16 @@ class TaskState(BaseModel):
                     completed_msg += f"\nOutput artifact_id: {self.artifact_id}"
                 return f"{completed_msg}\n{next_call}"
             return f"Task {self.status.value}. Report the error to the user."
+
+        # ── Non-terminal: still running ──────────────────────────────
+        if widget_handoff:
+            # Widget-capable client: tell Claude to stop polling.
+            # The widget already shows live progress via REST polling.
+            fail_part = f", {self.failed} failed" if self.failed else ""
+            return dedent(f"""\
+                Running: {self.completed}/{self.total} complete, {self.running} running{fail_part} ({self.elapsed_s}s elapsed).
+                Progress is live in the widget above. **Do NOT call everyrow_progress again.**
+                When the user is ready to review results, call everyrow_results(task_id='{task_id}').""")
 
         if self.is_screen:
             return dedent(f"""\

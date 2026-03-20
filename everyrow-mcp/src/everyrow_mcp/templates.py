@@ -809,6 +809,7 @@ a:hover{text-decoration:underline}
 .l-fail::before{background:#e53935!important}
 .status-done{color:#4caf50;font-weight:600}
 .status-fail{color:#e53935;font-weight:600}
+.prompt{margin-top:6px;font-size:12px;color:#666;font-style:italic}
 .eta{color:#888;font-size:11px}
 @keyframes flash{0%,100%{background:transparent}50%{background:rgba(76,175,80,.15)}}
 .flash{animation:flash 1s ease 3}
@@ -852,6 +853,7 @@ function render(d){
       h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
       h+=`<span>${comp}/${tot}${fail?` (${fail} failed)`:""}</span>`;
       if(elapsed)h+=`<span>${fmtTime(elapsed)}</span>`;
+      if(d.status==="completed")h+=`<div class="prompt">Ask Claude to show results</div>`;
     }else{
       h+=`<span>${comp}/${tot}</span>`;
       const eta=comp>0&&elapsed>0?Math.round((tot-comp)/(comp/elapsed)):0;

@@ -69,6 +69,7 @@ from everyrow_mcp.tool_helpers import (
     create_tool_response,
     is_internal_client,
     log_client_info,
+    should_long_poll,
     write_initial_task_state,
 )
 from everyrow_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
@@ -1006,7 +1007,6 @@ async def everyrow_progress(
     Do not add commentary between progress calls, just call again immediately.
     """
     logger.debug("everyrow_progress: task_id=%s", params.task_id)
-    client = _get_client(ctx)
     task_id = params.task_id
 
     # ── Cross-user access check ──────────────────────────────────
@@ -1021,6 +1021,15 @@ async def everyrow_progress(
                 text="Unable to verify task ownership. Please try again.",
             )
         ]
+
+    if should_long_poll(ctx):
+        return await _progress_long_poll(ctx, task_id)
+    return await _progress_short_poll(ctx, task_id)
+
+
+async def _progress_short_poll(ctx: EveryRowContext, task_id: str) -> list[TextContent]:
+    """Original 12s short-poll: sleep once, check status, return."""
+    client = _get_client(ctx)
 
     # Block server-side before polling — controls the cadence
     await asyncio.sleep(redis_store.PROGRESS_POLL_DELAY)
@@ -1050,6 +1059,76 @@ async def everyrow_progress(
         logger.info("everyrow_progress: task_id=%s status=%s", task_id, ts.status.value)
 
     return [TextContent(type="text", text=ts.progress_message(task_id))]
+
+
+async def _progress_long_poll(ctx: EveryRowContext, task_id: str) -> list[TextContent]:
+    """Long-poll for widget-capable clients: block up to ``long_poll_timeout``
+    seconds, checking status every ``long_poll_interval`` seconds.
+
+    If the task completes within the timeout, return the normal completion
+    message so Claude can immediately call everyrow_results.
+
+    If the task is still running, return a widget-handoff message telling
+    Claude to stop polling — the widget already shows live progress.
+    """
+    client = _get_client(ctx)
+    timeout = settings.long_poll_timeout
+    interval = settings.long_poll_interval
+    elapsed = 0
+    ts: TaskState | None = None
+
+    while elapsed < timeout:
+        await asyncio.sleep(interval)
+        elapsed += interval
+
+        try:
+            status_response = handle_response(
+                await get_task_status_tasks_task_id_status_get.asyncio(
+                    task_id=UUID(task_id),
+                    client=client,
+                )
+            )
+        except Exception:
+            logger.debug("Long-poll status check failed for %s, retrying", task_id)
+            continue  # retry next iteration
+
+        ts = TaskState(status_response)
+
+        # Emit MCP progress notification (no-op if no progressToken)
+        try:
+            await ctx.report_progress(
+                progress=float(ts.completed),
+                total=float(ts.total or 1),
+            )
+        except Exception:
+            pass  # progress notifications are best-effort
+
+        if ts.is_terminal:
+            break
+
+    if ts is None:
+        return [
+            TextContent(
+                type="text",
+                text=f"Unable to check status for task {task_id}. "
+                f"Call everyrow_progress(task_id='{task_id}') to retry.",
+            )
+        ]
+
+    if ts.is_terminal:
+        logger.info(
+            "everyrow_progress: task_id=%s status=%s (long-poll)",
+            task_id,
+            ts.status.value,
+        )
+
+    # Terminal → normal completion message; non-terminal → widget handoff
+    return [
+        TextContent(
+            type="text",
+            text=ts.progress_message(task_id, widget_handoff=not ts.is_terminal),
+        )
+    ]
 
 
 async def everyrow_results_stdio(
