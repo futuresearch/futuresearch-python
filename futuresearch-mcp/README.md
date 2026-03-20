@@ -10,7 +10,7 @@ This server exposes FutureSearch's core operations as MCP tools, allowing LLM ap
 
 ## Installation
 
-The server requires a FutureSearch API key. Get one at [futuresearch.ai/api-key](https://futuresearch.ai/api-key) ($20 free credit).
+The server requires a FutureSearch API key. Get one at [futuresearch.ai/app/api-key](https://futuresearch.ai/app/api-key) ($20 free credit).
 
 ### Claude Desktop
 

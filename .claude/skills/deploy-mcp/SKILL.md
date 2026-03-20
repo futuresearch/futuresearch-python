@@ -82,8 +82,8 @@ kubectl scale deploy futuresearch-mcp-staging -n futuresearch-mcp-staging --repl
 
 | Environment | Namespace | Host | Redis DB |
 |---|---|---|---|
-| Staging | `futuresearch-mcp-staging` | `mcp-staging.everyrow.io` | 14 |
-| Production | `futuresearch-mcp` | `mcp.everyrow.io` | (default in values.yaml) |
+| Staging | `futuresearch-mcp-staging` | `mcp-staging.futuresearch.ai` | 14 |
+| Production | `futuresearch-mcp` | `mcp.futuresearch.ai` | (default in values.yaml) |
 
 Both environments hit the **same production FutureSearch API** — there is no staging API.
 

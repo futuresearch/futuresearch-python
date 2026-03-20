@@ -9,8 +9,8 @@
 replicaCount: 2
 
 env:
-  MCP_SERVER_URL: "https://mcp-staging.everyrow.io"
+  MCP_SERVER_URL: "https://mcp-staging.futuresearch.ai"
   REDIS_DB: "14"
 
 httproute:
-  host: mcp-staging.everyrow.io
+  host: mcp-staging.futuresearch.ai
