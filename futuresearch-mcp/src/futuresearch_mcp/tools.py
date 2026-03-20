@@ -1001,7 +1001,7 @@ async def futuresearch_progress(
     cursor: str | None = params.cursor
 
     if not ts.is_terminal:
-        if ts.completed > 0 and params.include_partial_rows:
+        if ts.completed > 0 and settings.include_partial_rows:
             (
                 (partial_rows, rows_cursor),
                 (summaries, summary_cursor),

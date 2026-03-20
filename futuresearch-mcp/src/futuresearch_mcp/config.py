@@ -100,6 +100,11 @@ class Settings(BaseSettings):
         default=10,
         description="If total rows <= this value, skip asking the user for page_size and load all rows directly.",
     )
+    include_partial_rows: bool = Field(
+        default=False,
+        description="Include newly completed rows in progress responses. "
+        "When true, row data is returned alongside status counts and agent summaries.",
+    )
 
     # Upload settings (HTTP mode only)
     upload_secret: str = Field(
