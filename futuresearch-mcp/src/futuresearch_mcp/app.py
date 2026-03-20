@@ -125,7 +125,6 @@ instead of re-uploading data.
 - Be concise. Keep summaries to 1-2 sentences. Do not output markdown tables, \
 bullet lists of data rows, JSON, or CSV in chat — the user can see results \
 directly. Only render a table if the user explicitly asks for one.
-- Do not share session URLs with the user unless they explicitly ask for one.
 - Never guess or fabricate results — always wait for the task to complete.
 - For small datasets (<= {settings.auto_page_size_threshold} rows), prefer passing `data` directly.
 - For larger datasets, use `futuresearch_upload_data` to get an artifact_id first.

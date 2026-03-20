@@ -163,37 +163,6 @@ class TestBuildResultResponse:
         # Should be the text summary, not JSON
         assert "Showing rows" in _text(result)
 
-    def test_session_url_included_in_widget(self):
-        preview = [{"a": 1}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-url/download?token=abc"
-        result = _build_result_response(
-            task_id="task-url",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=1,
-            columns=["a"],
-            offset=0,
-            page_size=10,
-            session_url="https://futuresearch.ai/sessions/abc",
-        )
-        widget = _widget(result)
-        assert widget["session_url"] == "https://futuresearch.ai/sessions/abc"
-
-    def test_no_session_url_when_empty(self):
-        preview = [{"a": 1}]
-        csv_url = f"{FAKE_SERVER_URL}/api/results/task-nurl/download?token=abc"
-        result = _build_result_response(
-            task_id="task-nurl",
-            csv_url=csv_url,
-            preview_records=preview,
-            total=1,
-            columns=["a"],
-            offset=0,
-            page_size=10,
-        )
-        widget = _widget(result)
-        assert "session_url" not in widget
-
     def test_next_page_hint_uses_requested_page_size(self):
         """When clamped, the next-page hint should use the original page_size."""
         preview = [{"id": i} for i in range(3)]
@@ -357,28 +326,6 @@ class TestTryCachedResult:
         assert len(widget["preview"]) == 2
 
     @pytest.mark.asyncio
-    async def test_preserves_session_url_from_meta(self, _http_state):
-        meta = json.dumps(
-            {
-                "total": 1,
-                "columns": ["a"],
-                "session_url": "https://futuresearch.ai/sessions/xyz",
-            }
-        )
-        page = json.dumps([{"a": 1}])
-        task_id = "task-5"
-
-        await redis_store.store_result_meta(task_id, meta)
-        await redis_store.store_result_page(task_id, 0, 10, page)
-        await redis_store.store_poll_token(task_id, "test-token")
-
-        result = await try_cached_result(task_id, 0, 10, mcp_server_url=FAKE_SERVER_URL)
-
-        assert result is not None
-        widget = _widget(result)
-        assert widget["session_url"] == "https://futuresearch.ai/sessions/xyz"
-
-    @pytest.mark.asyncio
     async def test_preserves_artifact_id_from_meta(self, _http_state):
         meta = json.dumps(
             {
@@ -486,25 +433,6 @@ class TestTryStoreResult:
 
         # Verify artifact_id in text summary
         assert "output-artifact-456" in _text(result)
-
-    @pytest.mark.asyncio
-    async def test_includes_session_url_in_meta(self, sample_df, _http_state):
-        task_id = "task-sess"
-        await redis_store.store_poll_token(task_id, "test-token")
-
-        await try_store_result(
-            task_id,
-            sample_df,
-            0,
-            10,
-            session_url="https://futuresearch.ai/sessions/abc",
-            mcp_server_url=FAKE_SERVER_URL,
-        )
-
-        meta_raw = await redis_store.get_result_meta(task_id)
-        assert meta_raw is not None
-        meta = json.loads(meta_raw)
-        assert meta["session_url"] == "https://futuresearch.ai/sessions/abc"
 
     @pytest.mark.asyncio
     async def test_raises_on_redis_failure(self, sample_df, _http_state):

@@ -82,9 +82,7 @@ body.fullscreen .resize-handle{display:none}
 .copy-modal-box textarea{width:100%;height:300px;font-family:monospace;font-size:12px;border:1px solid var(--border);border-radius:4px;padding:8px;background:var(--input-bg);color:var(--text);resize:vertical}
 .copy-modal-box .modal-btns{display:flex;gap:8px;justify-content:flex-end}
 .copy-modal-box button{padding:6px 16px;border:1px solid var(--border);border-radius:5px;background:var(--btn-bg);color:var(--btn-text);cursor:pointer;font-size:12px}
-.session-link{margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px}
-.session-link a{font-weight:500}
-.session-link .spacer{flex:1}
+.search-bar{margin-bottom:6px;display:flex;align-items:center;justify-content:flex-end}
 .col-resize-handle{position:absolute;top:0;right:-2px;width:4px;height:100%;cursor:col-resize;z-index:5;user-select:none}
 .col-resize-handle:hover{background:var(--accent);opacity:.3}
 body.col-resizing,body.col-resizing *{cursor:col-resize!important;user-select:none!important}
@@ -111,7 +109,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 .settings-drop input[type="radio"]{margin:0}
 .settings-drop .drop-sep{border-top:1px solid var(--border-light);margin:4px 0}
 </style></head><body>
-<div id="sessionLink" class="session-link"><span class="spacer"></span><input id="globalSearch" type="text" placeholder="Search all columns..."></div>
+<div class="search-bar"><input id="globalSearch" type="text" placeholder="Search all columns..."></div>
 <div id="toolbar">
   <span id="sum">Loading...</span>
   <button id="selAllBtn">Select all</button>
@@ -145,9 +143,8 @@ const expandBtn=document.getElementById("expandBtn");
 const copyModal=document.getElementById("copyModal");
 const copyArea=document.getElementById("copyArea");
 const closeCopyModal=document.getElementById("closeCopyModal");
-const sessionLinkEl=document.getElementById("sessionLink");
 
-let sessionUrl="",csvUrl="",pollToken="",downloadTokenUrl="";
+let csvUrl="",pollToken="",downloadTokenUrl="";
 const TRUNC=200;
 let didDrag=false;
 let copyFmt="csv";
@@ -674,7 +671,6 @@ async function getFreshDownloadUrl(){
   }
   return csvUrl;
 }
-function updateDownloadLink(){updateSessionLink();}
 document.getElementById("exportLink")?.addEventListener("click",async()=>{
   if(!csvUrl&&!downloadTokenUrl){showToast("No download link yet");return;}
   const url=await getFreshDownloadUrl();
@@ -719,26 +715,6 @@ function onRowResizeUp(){
   document.removeEventListener("mouseup",onRowResizeUp);
 }
 
-/* --- session URL display --- */
-const linksEl=document.createElement("span");linksEl.id="sessionLinks";
-sessionLinkEl.insertBefore(linksEl,sessionLinkEl.querySelector(".spacer"));
-function updateSessionLink(){
-  let h="";
-  if(sessionUrl)h+='<a href="#" id="sessionOpenLink">Open FutureSearch session &#x2197;</a>';
-  if(csvUrl){if(h)h+=" &nbsp;|&nbsp; ";h+='<a href="#" id="csvOpenLink">Download CSV &#x2913;</a>';}
-  linksEl.innerHTML=h;
-  document.getElementById("sessionOpenLink")?.addEventListener("click",e=>{
-    e.preventDefault();
-    if(!/^https?:\\/\\//i.test(sessionUrl))return;app.openLink({url:sessionUrl}).catch(()=>window.open(sessionUrl,"_blank"));
-  });
-  document.getElementById("csvOpenLink")?.addEventListener("click",async e=>{
-    e.preventDefault();
-    const url=await getFreshDownloadUrl();
-    if(!url||!/^https?:\\/\\//i.test(url))return;
-    app.openLink({url}).catch(()=>window.open(url,"_blank"));
-  });
-}
-
 /* --- data loading --- */
 async function fetchFullResultsWithFreshToken(hasPreview,total){
   const base=await getFreshDownloadUrl();
@@ -767,10 +743,9 @@ app.ontoolresult=({structuredContent})=>{
   if(!isWidget){return;}
   widgetActive=true;
   document.body.style.height="auto";document.body.style.overflow="visible";document.body.style.padding="12px";
-  if(meta.session_url&&!sessionUrl){sessionUrl=meta.session_url;updateSessionLink();}
   if(meta.poll_token){pollToken=meta.poll_token;}
   if(meta.download_token_url){downloadTokenUrl=meta.download_token_url;}
-  if(meta.csv_url){csvUrl=meta.csv_url;updateDownloadLink();}
+  if(meta.csv_url){csvUrl=meta.csv_url;}
   if(meta.fetch_full_results){
     if(meta.preview)processData(meta.preview);
     fetchFullResultsWithFreshToken(!!meta.preview,meta.total);
@@ -815,13 +790,13 @@ a:hover{text-decoration:underline}
 import{App}from"SCRIPT_SRC";
 const app=new App({name:"FutureSearch Session",version:"1.0.0"});
 const el=document.getElementById("c");
-let pollUrl=null,pollToken=null,pollTimer=null,sessionUrl="",wasDone=false;
+let pollUrl=null,pollToken=null,pollTimer=null,wasDone=false;
 function esc(s){const d=document.createElement("div");d.textContent=String(s);return d.innerHTML;}
 
 app.ontoolresult=({content})=>{
   const t=content?.find(c=>c.type==="text");if(!t)return;
   try{
-    const d=JSON.parse(t.text);sessionUrl=d.session_url||"";render(d);
+    const d=JSON.parse(t.text);render(d);
     if(d.progress_url&&!pollTimer){pollUrl=d.progress_url;pollToken=d.poll_token||null;startPoll()}
   }catch{el.textContent=t.text}
 };
@@ -830,10 +805,9 @@ function render(d){
   const comp=d.completed||0,tot=d.total||0,fail=d.failed||0,run=d.running||0;
   const pend=Math.max(0,tot-comp-fail-run);
   const done=["completed","failed","revoked"].includes(d.status);
-  const url=d.session_url||sessionUrl;
   const elapsed=d.elapsed_s||0;
 
-  let h=url?`<a href="#" class="session-open">Open FutureSearch session &#x2197;</a>`:"";
+  let h="";
 
   if(tot>0){
     const pDone=comp/tot*100,pRun=run/tot*100,pFail=fail/tot*100;
@@ -870,12 +844,6 @@ function render(d){
   }
 
   el.innerHTML=h;
-
-  const link=el.querySelector(".session-open");
-  if(link){link.addEventListener("click",e=>{
-    e.preventDefault();
-    if(!/^https?:\\/\\//i.test(url))return;app.openLink({url:url}).catch(()=>window.open(url,"_blank"));
-  });}
 
   if(done&&!wasDone){wasDone=true;el.classList.add("flash")}
   if(done&&pollTimer){clearInterval(pollTimer);pollTimer=null}

@@ -218,7 +218,6 @@ class TestApiProgress:
         assert body["failed"] == 1
         assert body["running"] == 2
         assert "elapsed_s" in body
-        assert "session_url" in body
         assert resp.headers["Access-Control-Allow-Origin"] == "*"
 
     @pytest.mark.asyncio
@@ -254,7 +253,6 @@ class TestApiProgress:
         assert body["failed"] == 1
         assert body["running"] == 2
         assert "elapsed_s" in body
-        assert "session_url" in body
         assert resp.headers["Access-Control-Allow-Origin"] == "*"
 
     @pytest.mark.asyncio

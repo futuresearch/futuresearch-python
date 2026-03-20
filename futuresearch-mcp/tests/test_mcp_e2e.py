@@ -123,7 +123,6 @@ def _mock_task(task_id: str | None = None):
 def _mock_session():
     """Create a mock session context manager."""
     session = MagicMock()
-    session.get_url.return_value = "https://app.futuresearch.ai/session/test-session"
 
     @asynccontextmanager
     async def _fake_create_session(**_kwargs):

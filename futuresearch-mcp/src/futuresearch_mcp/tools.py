@@ -25,7 +25,7 @@ from futuresearch.ops import (
     rank_async,
     single_agent_async,
 )
-from futuresearch.session import create_session, get_session_url, list_sessions
+from futuresearch.session import create_session, list_sessions
 from futuresearch.task import cancel_task
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
@@ -222,7 +222,6 @@ async def futuresearch_use_list(
 
     try:
         async with create_session(client=client) as session:
-            session_url = session.get_url()
             result = await use_built_in_list(
                 artifact_id=UUID(params.artifact_id),
                 session=session,
@@ -260,8 +259,7 @@ async def futuresearch_use_list(
                 f"Artifact ID: {result.artifact_id}\n"
                 f"{csv_line}"
                 f"Rows: {len(df)}\n"
-                f"Columns: {', '.join(df.columns)}\n"
-                f"Session: {session_url}\n\n"
+                f"Columns: {', '.join(df.columns)}\n\n"
                 f'Pass artifact_id="{result.artifact_id}" to other futuresearch tools.'
             ),
         )
@@ -293,7 +291,7 @@ async def futuresearch_agent(
     - "Research the CEO's background and previous companies"
     - "Find pricing information for this product"
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -315,7 +313,6 @@ async def futuresearch_agent(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         kwargs: dict[str, Any] = {
             "task": params.task,
@@ -339,7 +336,6 @@ async def futuresearch_agent(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} agents starting."
         if total
         else "Submitted: agents starting (artifact).",
@@ -375,7 +371,7 @@ async def futuresearch_single_agent(
     - "Research the latest funding round for this company" (with input_data: {"company": "Stripe"})
     - "What are the pricing tiers for this product?" (with input_data: {"product": "Snowflake"})
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -398,7 +394,6 @@ async def futuresearch_single_agent(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         kwargs: dict[str, Any] = {
             "task": params.task,
@@ -422,7 +417,6 @@ async def futuresearch_single_agent(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label="Submitted: single agent starting.",
         token=client.token,
         total=1,
@@ -456,7 +450,7 @@ async def futuresearch_rank(
     - "What is this country's 5-year GDP growth rate as a percentage?"
     - "Score this candidate from 0 to 100 by fit for a senior engineering role"
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -484,7 +478,6 @@ async def futuresearch_rank(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         cohort_task = await rank_async(
             task=params.task,
@@ -500,7 +493,6 @@ async def futuresearch_rank(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} rows for ranking."
         if total
         else "Submitted: artifact for ranking.",
@@ -537,7 +529,7 @@ async def futuresearch_dedupe(
     - Dedupe companies: "Same company including subsidiaries and name variations"
     - Dedupe research papers: "Same work including preprints and published versions"
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -561,7 +553,6 @@ async def futuresearch_dedupe(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         cohort_task = await dedupe_async(
             equivalence_relation=params.equivalence_relation,
@@ -575,7 +566,6 @@ async def futuresearch_dedupe(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} rows for deduplication."
         if total
         else "Submitted: artifact for deduplication.",
@@ -630,7 +620,7 @@ async def futuresearch_merge(
       relationship_type: many_to_many (companies share investors and vice versa;
       matched values joined with " | ").
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -656,7 +646,6 @@ async def futuresearch_merge(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         cohort_task = await merge_async(
             task=params.task,
@@ -673,7 +662,6 @@ async def futuresearch_merge(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} left rows for merging."
         if total
         else "Submitted: artifacts for merging.",
@@ -715,7 +703,7 @@ async def futuresearch_forecast(
 
     Output columns added: ``rationale`` (str) and ``probability`` (int, 0-100).
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -733,7 +721,6 @@ async def futuresearch_forecast(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         cohort_task = await forecast_async(
             task=params.context or "",
@@ -745,7 +732,6 @@ async def futuresearch_forecast(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} rows for forecasting (6 research dimensions + dual forecaster per row)."
         if total
         else "Submitted: artifact for forecasting.",
@@ -783,7 +769,7 @@ async def futuresearch_classify(
     Output columns added: the ``classification_field`` column (default: ``classification``)
     containing the assigned category. Optionally a ``reasoning`` column if ``include_reasoning`` is true.
 
-    This function submits the task and returns immediately with a task_id and session_url.
+    This function submits the task and returns immediately with a task_id.
 
     Then immediately call futuresearch_progress(task_id) to monitor.
     Once the task is completed, call futuresearch_results to save the output.
@@ -802,7 +788,6 @@ async def futuresearch_classify(
     async with create_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
-        session_url = session.get_url()
         session_id_str = str(session.session_id)
         cohort_task = await classify_async(
             task=params.task,
@@ -817,7 +802,6 @@ async def futuresearch_classify(
 
     return await create_tool_response(
         task_id=task_id,
-        session_url=session_url,
         label=f"Submitted: {total} rows for classification into {len(params.categories)} categories."
         if total
         else f"Submitted: artifact for classification into {len(params.categories)} categories.",
@@ -1117,10 +1101,8 @@ async def futuresearch_results_http(
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     log_client_info(ctx, "futuresearch_results")
     skip_widget = not client_supports_widgets(ctx)
-    skip_session = False
     if is_internal_client():
         skip_widget = True
-        skip_session = True
 
     # ── Cross-user access check ──────────────────────────────────
     try:
@@ -1137,15 +1119,13 @@ async def futuresearch_results_http(
         params.page_size,
         mcp_server_url=mcp_server_url,
         skip_widget=skip_widget,
-        skip_session=skip_session,
     )
     if cached is not None:
         return cached
 
     # ── Fetch from API ────────────────────────────────────────────
     try:
-        df, session_id, artifact_id = await _fetch_task_result(client, task_id)
-        session_url = get_session_url(UUID(session_id)) if session_id else ""
+        df, _session_id, artifact_id = await _fetch_task_result(client, task_id)
     except TaskNotReady as e:
         return _error_result(
             dedent(f"""\
@@ -1167,11 +1147,9 @@ async def futuresearch_results_http(
         df,
         params.offset,
         params.page_size,
-        session_url,
         mcp_server_url=mcp_server_url,
         artifact_id=artifact_id,
         skip_widget=skip_widget,
-        skip_session=skip_session,
     )
 
 
@@ -1191,7 +1169,7 @@ async def futuresearch_list_sessions(
 ) -> list[TextContent]:
     """List futuresearch sessions owned by the authenticated user (paginated).
 
-    Returns session names, IDs, timestamps, and dashboard URLs.
+    Returns session names, IDs, and timestamps.
     Use this to find past sessions or check what's been run.
     Results are paginated — 25 sessions per page by default.
     """
@@ -1231,8 +1209,7 @@ async def futuresearch_list_sessions(
         lines.append(
             f"- **{s.name}** (id: {s.session_id})\n"
             f"  Created: {s.created_at:%Y-%m-%d %H:%M UTC} | "
-            f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}\n"
-            f"  URL: {s.get_url()}"
+            f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}"
         )
 
     has_more = (result.offset + result.limit) < result.total

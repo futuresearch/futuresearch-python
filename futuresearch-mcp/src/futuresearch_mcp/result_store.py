@@ -165,14 +165,12 @@ def _build_result_response(
     columns: list[str],
     offset: int,
     page_size: int,
-    session_url: str = "",
     poll_token: str = "",
     mcp_server_url: str = "",
     artifact_id: str = "",
     *,
     requested_page_size: int | None = None,
     skip_widget: bool = False,
-    skip_session: bool = False,
 ) -> CallToolResult:
     """Build a CallToolResult with separate content and structuredContent.
 
@@ -186,8 +184,6 @@ def _build_result_response(
     and is used in the "next page" hint so the server can re-clamp
     independently on each call.
     """
-    if skip_session:
-        session_url = ""
     visible_columns = [c for c in columns if c not in _LLM_STRIP_FIELDS]
     col_names = _format_columns(visible_columns)
     hint_page_size = (
@@ -214,8 +210,6 @@ def _build_result_response(
             "total": total,
             "fetch_full_results": True,
         }
-        if session_url:
-            structured["session_url"] = session_url
         if artifact_id:
             structured["artifact_id"] = artifact_id
         if poll_token:
@@ -295,7 +289,6 @@ async def try_cached_result(
     mcp_server_url: str = "",
     *,
     skip_widget: bool = False,
-    skip_session: bool = False,
 ) -> CallToolResult | None:
     cached_meta_raw = await redis_store.get_result_meta(task_id)
     if not cached_meta_raw:
@@ -345,13 +338,11 @@ async def try_cached_result(
         columns=meta["columns"],
         offset=min(offset, meta["total"]),
         page_size=effective_page_size,
-        session_url=meta.get("session_url", ""),
         poll_token=poll_token or "",
         mcp_server_url=mcp_server_url,
         artifact_id=meta.get("artifact_id", ""),
         requested_page_size=page_size,
         skip_widget=skip_widget,
-        skip_session=skip_session,
     )
 
 
@@ -360,12 +351,10 @@ async def try_store_result(
     df: pd.DataFrame,
     offset: int,
     page_size: int,
-    session_url: str = "",
     mcp_server_url: str = "",
     artifact_id: str = "",
     *,
     skip_widget: bool = False,
-    skip_session: bool = False,
 ) -> CallToolResult:
     """Store a DataFrame in Redis and return a paginated response."""
     try:
@@ -377,8 +366,6 @@ async def try_store_result(
 
         # Store base metadata
         meta: dict[str, Any] = {"total": total, "columns": columns}
-        if session_url:
-            meta["session_url"] = session_url
         if artifact_id:
             meta["artifact_id"] = artifact_id
         await redis_store.store_result_meta(task_id, json.dumps(meta))
@@ -412,13 +399,11 @@ async def try_store_result(
             columns=columns,
             offset=clamped_offset,
             page_size=effective_page_size,
-            session_url=session_url,
             poll_token=poll_token or "",
             mcp_server_url=mcp_server_url,
             artifact_id=artifact_id,
             requested_page_size=page_size,
             skip_widget=skip_widget,
-            skip_session=skip_session,
         )
     except Exception:
         logger.exception("Failed to store results in Redis for task %s", task_id)

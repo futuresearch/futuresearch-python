@@ -138,9 +138,6 @@ def _make_mock_task(task_id=None):
 def _make_mock_session(session_id=None):
     session = MagicMock()
     session.session_id = session_id or uuid4()
-    session.get_url.return_value = (
-        f"https://futuresearch.ai/sessions/{session.session_id}"
-    )
     return session
 
 
@@ -235,7 +232,6 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="futuresearch_agent")
         text = result[0].text
         assert str(task.task_id) in text
-        assert "Session:" in text
         assert "futuresearch_progress" in text
 
     @pytest.mark.asyncio
@@ -252,7 +248,6 @@ class TestStdioSubmissionContent:
         assert_stdio_clean(result, tool_name="futuresearch_single_agent")
         text = result[0].text
         assert str(task.task_id) in text
-        assert "Session:" in text
 
     @pytest.mark.asyncio
     async def test_rank_content(self):

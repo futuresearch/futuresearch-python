@@ -217,9 +217,6 @@ def _make_mock_session(session_id=None):
     """Create a mock Session."""
     session = MagicMock()
     session.session_id = session_id or uuid4()
-    session.get_url.return_value = (
-        f"https://futuresearch.ai/sessions/{session.session_id}"
-    )
     return session
 
 
@@ -290,7 +287,7 @@ class TestAgent:
 
     @pytest.mark.asyncio
     async def test_submit_returns_task_id(self):
-        """Test that submit returns immediately with task_id and session_url."""
+        """Test that submit returns immediately with task_id."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
         mock_client = _make_mock_client()
@@ -320,7 +317,6 @@ class TestAgent:
             assert len(result) == 1
             text = result[0].text
             assert str(mock_task.task_id) in text
-            assert "Session:" in text
             assert "futuresearch_progress" in text
 
 
@@ -329,7 +325,7 @@ class TestSingleAgent:
 
     @pytest.mark.asyncio
     async def test_submit_returns_task_id(self):
-        """Test that submit returns immediately with task_id and session_url."""
+        """Test that submit returns immediately with task_id."""
         mock_task = _make_mock_task()
         mock_session = _make_mock_session()
         mock_client = _make_mock_client()
@@ -353,7 +349,6 @@ class TestSingleAgent:
             text = result[0].text
 
             assert str(mock_task.task_id) in text
-            assert "Session:" in text
             assert "futuresearch_progress" in text
             assert "single agent" in text
 
@@ -798,14 +793,12 @@ class TestListSessions:
                 name="My Session",
                 created_at=datetime(2025, 6, 1, 12, 0, tzinfo=UTC),
                 updated_at=datetime(2025, 6, 1, 13, 0, tzinfo=UTC),
-                get_url=lambda: "https://futuresearch.ai/sessions/abc",
             ),
             MagicMock(
                 session_id=uuid4(),
                 name="Another Session",
                 created_at=datetime(2025, 6, 2, 10, 0, tzinfo=UTC),
                 updated_at=datetime(2025, 6, 2, 11, 0, tzinfo=UTC),
-                get_url=lambda: "https://futuresearch.ai/sessions/def",
             ),
         ]
 
@@ -867,8 +860,8 @@ class TestListSessions:
         mock_ls.assert_called_once_with(client=mock_client, offset=5, limit=10)
 
     @pytest.mark.asyncio
-    async def test_list_sessions_output_contains_urls_and_dates(self):
-        """Test that the formatted output includes URLs and timestamps."""
+    async def test_list_sessions_output_contains_dates(self):
+        """Test that the formatted output includes timestamps."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         session_id = uuid4()
@@ -878,7 +871,6 @@ class TestListSessions:
                 name="Pipeline Run",
                 created_at=datetime(2025, 8, 15, 9, 30, tzinfo=UTC),
                 updated_at=datetime(2025, 8, 15, 10, 45, tzinfo=UTC),
-                get_url=lambda: f"https://futuresearch.ai/sessions/{session_id}",
             ),
         ]
 
@@ -893,7 +885,6 @@ class TestListSessions:
         assert "Pipeline Run" in text
         assert "2025-08-15 09:30 UTC" in text
         assert "2025-08-15 10:45 UTC" in text
-        assert f"https://futuresearch.ai/sessions/{session_id}" in text
 
     @pytest.mark.asyncio
     async def test_list_sessions_pagination_params(self):
@@ -924,7 +915,6 @@ class TestListSessions:
                 name=f"Session {i}",
                 created_at=now,
                 updated_at=now,
-                get_url=lambda: "https://futuresearch.ai/sessions/x",
             )
             for i in range(10)
         ]
@@ -1691,109 +1681,6 @@ class TestResultsWidgetData:
 
         assert result.structuredContent is not None
         assert result.structuredContent["csv_url"] == csv_url
-
-    @pytest.mark.asyncio
-    async def test_http_widget_omits_session_url_when_unavailable(self):
-        """Verify session_url is omitted when not provided."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response([{"name": "A"}])
-
-        store_response = CallToolResult(
-            content=[TextContent(type="text", text="Results: 1 rows. All rows shown.")],
-            structuredContent={
-                "csv_url": "https://example.com/download",
-                "preview": [{"name": "A"}],
-                "total": 1,
-            },
-            isError=False,
-        )
-
-        with (
-            patch(
-                "futuresearch_mcp.tools.try_cached_result",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
-            patch(
-                "futuresearch_mcp.tools.try_store_result",
-                new_callable=AsyncMock,
-                return_value=store_response,
-            ),
-        ):
-            result = await futuresearch_results_http(
-                HttpResultsInput(task_id=task_id), ctx
-            )
-
-        assert result.structuredContent is not None
-        assert "session_url" not in result.structuredContent
-
-    @pytest.mark.asyncio
-    async def test_http_widget_includes_session_url(self):
-        """Verify session_url is present in widget data when available."""
-        task_id = str(uuid4())
-        session_id = uuid4()
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-        session_url = f"https://futuresearch.ai/sessions/{session_id}"
-
-        status_response = _make_task_status_response(
-            status="completed", session_id=session_id
-        )
-        result_response = _make_task_result_response([{"name": "A"}])
-
-        store_response = CallToolResult(
-            content=[TextContent(type="text", text="Results: 1 rows. All rows shown.")],
-            structuredContent={
-                "csv_url": "https://example.com/download",
-                "preview": [{"name": "A"}],
-                "total": 1,
-                "session_url": session_url,
-            },
-            isError=False,
-        )
-
-        with (
-            patch(
-                "futuresearch_mcp.tools.try_cached_result",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
-            patch(
-                "futuresearch_mcp.tools.try_store_result",
-                new_callable=AsyncMock,
-                return_value=store_response,
-            ),
-        ):
-            result = await futuresearch_results_http(
-                HttpResultsInput(task_id=task_id), ctx
-            )
-
-        assert result.structuredContent is not None
-        assert result.structuredContent["session_url"] == session_url
 
 
 # ---------- Session resumption / naming ----------

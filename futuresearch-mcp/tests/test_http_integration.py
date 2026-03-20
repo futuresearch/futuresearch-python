@@ -202,7 +202,6 @@ class TestProgressEndpoint:
         assert body["failed"] == 1
         assert body["running"] == 4
         assert body["elapsed_s"] >= 0
-        assert "session_url" in body
         # CORS header
         assert resp.headers["access-control-allow-origin"] == "*"
 

@@ -25,7 +25,6 @@ from futuresearch.generated.models.task_result_response_data_type_1 import (
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
 from futuresearch.generated.types import Unset
-from futuresearch.session import get_session_url
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
@@ -195,24 +194,8 @@ def is_internal_client() -> bool:
     return "futuresearch" in get_user_agent().lower()
 
 
-def _submission_text(
-    label: str, session_url: str, task_id: str, session_id: str = ""
-) -> str:
+def _submission_text(label: str, task_id: str, session_id: str = "") -> str:
     """Build human-readable text for submission tool results."""
-    if settings.is_stdio:
-        session_line = f"\nSession ID: {session_id}" if session_id else ""
-        return dedent(f"""\
-        {label}
-        Session: {session_url}{session_line}
-        Task ID: {task_id}
-
-        Immediately call futuresearch_progress(task_id='{task_id}').""")
-    if is_internal_client():
-        return dedent(f"""\
-        {label}
-        Task ID: {task_id}
-
-        Immediately call futuresearch_progress(task_id='{task_id}').""")
     session_line = f"\nSession ID: {session_id}" if session_id else ""
     return dedent(f"""\
         {label}{session_line}
@@ -253,7 +236,6 @@ async def _record_task_ownership(task_id: str, token: str) -> str:
 
 
 async def _submission_ui_json(
-    session_url: str,
     task_id: str,
     total: int,
     poll_token: str,
@@ -262,7 +244,6 @@ async def _submission_ui_json(
 ) -> str:
     """Build JSON for the session MCP App widget."""
     data: dict[str, Any] = {
-        "session_url": session_url,
         "task_id": task_id,
         "total": total,
         "status": "submitted",
@@ -290,7 +271,6 @@ async def _start_headless_summarizer(task_id: str, token: str) -> None:
 async def create_tool_response(
     *,
     task_id: str,
-    session_url: str,
     label: str,
     token: str,
     total: int,
@@ -302,7 +282,7 @@ async def create_tool_response(
     Returns human-readable text in all modes, plus a widget JSON
     prepended in HTTP mode.
     """
-    text = _submission_text(label, session_url, task_id, session_id=session_id)
+    text = _submission_text(label, task_id, session_id=session_id)
     main_content = TextContent(type="text", text=text)
     if settings.is_http:
         poll_token = await _record_task_ownership(task_id, token)
@@ -311,7 +291,6 @@ async def create_tool_response(
             # summaries without needing a frontend SSE connection.
             await _start_headless_summarizer(task_id, token)
             ui_json = await _submission_ui_json(
-                session_url=session_url,
                 task_id=task_id,
                 total=total,
                 poll_token=poll_token,
@@ -382,11 +361,6 @@ class TaskState(BaseModel):
     @property
     def task_type(self) -> PublicTaskType:
         return self._response.task_type
-
-    @computed_field
-    @property
-    def session_url(self) -> str:
-        return get_session_url(self._response.session_id)
 
     @computed_field
     @property
