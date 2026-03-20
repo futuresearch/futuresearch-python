@@ -37,11 +37,8 @@ To install the MCP server, add to your MCP config:
 {
   "mcpServers": {
     "futuresearch": {
-      "command": "uvx",
-      "args": ["futuresearch-mcp"],
-      "env": {
-        "FUTURESEARCH_API_KEY": "${FUTURESEARCH_API_KEY}"
-      }
+      "type": "http",
+      "url": "https://mcp.futuresearch.ai/mcp"
     }
   }
 }
@@ -51,25 +48,6 @@ Config file locations:
 - **Claude Code**: `~/.claude.json` (user) or `.mcp.json` (project)
 - **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 - **Cursor**: `~/.cursor/mcp.json`
-
-## Configuration
-
-First, check if FutureSearch is already connected via remote MCP. Run `\mcp` and look for `futuresearch` in the list. If it's there, no API key is needed, the remote MCP server authenticates via OAuth with Google sign-in only.
-
-If the user cannot use MCP for some reason, you may fall back to asking them to fetch an FUTURESEARCH_API_KEY.
-
-Prompt the user:
-
-> FutureSearch requires an API key. Do you have one?
->
-> - If yes, paste it here
-> - If no, get one at https://futuresearch.ai/api-key and paste it back
-
-Once the user provides the key, set it:
-
-```bash
-export FUTURESEARCH_API_KEY=<their_key>
-```
 
 ## When to Use SDK vs MCP
 

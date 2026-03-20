@@ -8,11 +8,8 @@
   "repository": "https://github.com/futuresearch/everyrow-sdk",
   "mcpServers": {
     "futuresearch": {
-      "command": "uvx",
-      "args": ["futuresearch-mcp"],
-      "env": {
-        "FUTURESEARCH_API_KEY": "${FUTURESEARCH_API_KEY}"
-      }
+      "type": "http",
+      "url": "https://mcp.futuresearch.ai/mcp"
     }
   }
 }
