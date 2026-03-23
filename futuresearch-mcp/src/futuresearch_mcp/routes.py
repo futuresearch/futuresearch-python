@@ -272,12 +272,17 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
         )
 
     try:
+        # Trailing slash on base_url is required for httpx to append
+        # relative paths correctly (RFC 3986).  A leading slash on the
+        # request path would *replace* the base path, sending the
+        # request to https://host/tasks/… instead of …/api/v0/tasks/….
+        base = settings.futuresearch_api_url.rstrip("/") + "/"
         async with httpx.AsyncClient(
-            base_url=settings.futuresearch_api_url,
+            base_url=base,
             headers={"Authorization": f"Bearer {api_key}"},
         ) as http:
             resp = await http.get(
-                f"/tasks/{task_id}/result",
+                f"tasks/{task_id}/result",
                 params={"offset": 0, "limit": 100000},
             )
             resp.raise_for_status()
