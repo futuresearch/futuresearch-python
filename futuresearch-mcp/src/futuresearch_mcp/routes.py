@@ -6,7 +6,6 @@ import csv
 import json
 import logging
 import secrets
-from typing import Any
 from uuid import UUID
 
 import httpx
@@ -173,8 +172,8 @@ async def api_progress(request: Request) -> Response:  # noqa: PLR0911
 
         ts = TaskState(status_response)
 
-        if ts.is_terminal:
-            await redis_store.pop_task_token(task_id)
+        # Don't pop the token on completion — the download route needs it.
+        # Let the Redis TTL expire it naturally.
 
         return JSONResponse(
             ts.model_dump(mode="json", exclude=_UI_EXCLUDE), headers=cors
@@ -236,15 +235,14 @@ async def api_download_url(request: Request) -> Response:
     return JSONResponse({"download_url": download_url}, headers=cors)
 
 
-async def api_download(request: Request) -> Response:
+async def api_download(request: Request) -> Response:  # noqa: PLR0911
     """Download task results as CSV or JSON.
 
-    Unauthenticated — the task ID (UUID) is sufficient. The Engine's
-    internal ``/tasks/{id}/output_rows`` endpoint is also unauthenticated.
+    Fetches results from the public Engine API using the per-task API key
+    stored in Redis.
 
     Query params:
         format: "csv" (default) or "json"
-        raw: "true" to keep _source_bank for client-side citation rendering
     """
     cors = _cors_headers()
     if request.method == "OPTIONS":
@@ -263,30 +261,28 @@ async def api_download(request: Request) -> Response:
         return JSONResponse(
             {"error": "Unsupported format"}, status_code=400, headers=cors
         )
-    raw = request.query_params.get("raw", "").lower() in ("true", "1")
-
-    # Pass processing flags to the Engine — it does the stripping/resolution.
-    engine_params: dict[str, Any] = {"offset": 0, "limit": 100000}
-    if raw:
-        engine_params["strip_internal_cols"] = True
-    else:
-        engine_params.update(
-            resolve_citations=True,
-            strip_source_bank=True,
-            strip_internal_cols=True,
+    # Fetch results via the public API (paginated path handles citation
+    # resolution and internal column stripping automatically).
+    api_key = await redis_store.get_task_token(task_id)
+    if not api_key:
+        return JSONResponse(
+            {"error": "Unknown task or expired session"},
+            status_code=404,
+            headers=cors,
         )
 
     try:
-        engine_base = settings.futuresearch_api_url.removesuffix(
-            "/api/v0"
-        ).removesuffix("/")
-        async with httpx.AsyncClient(base_url=engine_base) as http:
-            resp = await http.post(
-                f"/tasks/{task_id}/output_rows",
-                params=engine_params,
+        async with httpx.AsyncClient(
+            base_url=settings.futuresearch_api_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+        ) as http:
+            resp = await http.get(
+                f"/tasks/{task_id}/result",
+                params={"offset": 0, "limit": 100000},
             )
             resp.raise_for_status()
-            records: list[dict] = resp.json()
+            body = resp.json()
+            records: list[dict] = body.get("data") or []
     except Exception:
         logger.exception("Failed to fetch results for download, task %s", task_id)
         return JSONResponse(

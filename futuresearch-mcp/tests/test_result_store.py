@@ -290,15 +290,19 @@ class TestApiDownload:
     @pytest.mark.asyncio
     async def test_valid_download(self, client: httpx.AsyncClient):
         task_id = str(uuid4())
+        await redis_store.store_task_token(task_id, "sk-cho-test")
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = [
-            {"name": "Alice", "score": 95},
-            {"name": "Bob", "score": 87},
-        ]
+        mock_resp.json.return_value = {
+            "data": [
+                {"name": "Alice", "score": 95},
+                {"name": "Bob", "score": 87},
+            ],
+            "status": "completed",
+        }
         mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.post.return_value = mock_resp
+        mock_http.__aenter__.return_value.get.return_value = mock_resp
 
         with patch(
             "futuresearch_mcp.routes.httpx.AsyncClient",
@@ -315,15 +319,19 @@ class TestApiDownload:
     async def test_json_format_returns_json(self, client: httpx.AsyncClient):
         """?format=json returns a JSON array fetched from the Engine."""
         task_id = str(uuid4())
+        await redis_store.store_task_token(task_id, "sk-cho-test")
 
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = [
-            {"name": "Alice", "score": 95},
-            {"name": "Bob", "score": 87},
-        ]
+        mock_resp.json.return_value = {
+            "data": [
+                {"name": "Alice", "score": 95},
+                {"name": "Bob", "score": 87},
+            ],
+            "status": "completed",
+        }
         mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.post.return_value = mock_resp
+        mock_http.__aenter__.return_value.get.return_value = mock_resp
 
         with patch(
             "futuresearch_mcp.routes.httpx.AsyncClient",

@@ -281,8 +281,8 @@ class TestApiProgress:
         body = json.loads(bytes(resp.body).decode())
         assert body["status"] == "completed"
 
-        # Task token cleaned up; poll token kept for CSV download
-        assert await redis_store.get_task_token(task_id) is None
+        # Both tokens kept — task token needed for CSV download, TTL expires them
+        assert await redis_store.get_task_token(task_id) is not None
         assert await redis_store.get_poll_token(task_id) is not None
 
     @pytest.mark.asyncio
@@ -380,6 +380,7 @@ class TestApiDownloadToken:
 
         await redis_store.store_poll_token(task_id, poll_token, user_id="test-user")
         await redis_store.store_task_owner(task_id, "test-user")
+        await redis_store.store_task_token(task_id, "sk-cho-test")
 
         # Step 1: Get the download URL
         mint_req = FakeRequest(
@@ -392,15 +393,15 @@ class TestApiDownloadToken:
         download_url = mint_body["download_url"]
         assert f"/api/results/{task_id}/download" in download_url
 
-        # Step 2: Download directly (unauthenticated)
+        # Step 2: Download via public API (forwards API key from Redis)
         dl_req = FakeRequest(
             path_params={"task_id": task_id},
         )
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = records
+        mock_resp.json.return_value = {"data": records, "status": "completed"}
         mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.post.return_value = mock_resp
+        mock_http.__aenter__.return_value.get.return_value = mock_resp
 
         with patch(
             "futuresearch_mcp.routes.httpx.AsyncClient",
@@ -427,15 +428,16 @@ class TestApiDownloadToken:
             },
         ]
 
-        # Download CSV directly (unauthenticated)
+        await redis_store.store_task_token(task_id, "sk-cho-test")
+
         dl_req = FakeRequest(
             path_params={"task_id": task_id},
         )
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = records
+        mock_resp.json.return_value = {"data": records, "status": "completed"}
         mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.post.return_value = mock_resp
+        mock_http.__aenter__.return_value.get.return_value = mock_resp
 
         with patch(
             "futuresearch_mcp.routes.httpx.AsyncClient",
