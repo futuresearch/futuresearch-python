@@ -1514,10 +1514,6 @@ class TestStdioVsHttpGating:
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_access_token",
-                return_value=fake_token,
-            ),
         ):
             mock_op.return_value = mock_task
             params = AgentInput(
@@ -1573,11 +1569,6 @@ class TestStdioVsHttpGating:
                 return_value=status_response,
             ),
             patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
-            patch(
-                "futuresearch_mcp.tools._check_task_ownership",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
         ):
             result = await futuresearch_progress(ProgressInput(task_id=task_id), ctx)
 

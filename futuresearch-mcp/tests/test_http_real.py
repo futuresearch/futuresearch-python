@@ -72,8 +72,6 @@ def _http_mode(fake_redis):
     with (
         override_settings(transport="streamable-http", upload_secret="test-secret"),
         patch.object(redis_store, "get_redis_client", return_value=fake_redis),
-        patch("futuresearch_mcp.tools.get_access_token", _fake_access_token),
-        patch("futuresearch_mcp.tool_helpers.get_access_token", _fake_access_token),
     ):
         yield
 

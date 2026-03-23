@@ -553,10 +553,6 @@ class TestHttpModeIncludesWidgets:
                 patch.object(settings, "transport", Transport.HTTP),
                 patch.object(settings, "upload_secret", "test-secret"),
                 patch.object(redis_store, "get_redis_client", return_value=fake_redis),
-                patch(
-                    "futuresearch_mcp.tool_helpers.get_access_token",
-                    return_value=fake_token,
-                ),
             ):
                 result = await futuresearch_agent(
                     AgentInput(task="Find HQ", data=[{"name": "TechStart"}]), ctx
@@ -587,11 +583,6 @@ class TestHttpModeIncludesWidgets:
                 return_value=status_resp,
             ),
             patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
-            patch(
-                "futuresearch_mcp.tools._check_task_ownership",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
         ):
             result = await futuresearch_progress(ProgressInput(task_id=task_id), ctx)
 
@@ -614,11 +605,6 @@ class TestHttpModeIncludesWidgets:
                 return_value=status_resp,
             ),
             patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
-            patch(
-                "futuresearch_mcp.tools._check_task_ownership",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
         ):
             result = await futuresearch_progress(ProgressInput(task_id=task_id), ctx)
 

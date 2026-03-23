@@ -27,7 +27,6 @@ from futuresearch.ops import (
 )
 from futuresearch.session import create_session, list_sessions
 from futuresearch.task import cancel_task
-from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
 
@@ -81,50 +80,6 @@ def _error_result(text: str) -> CallToolResult:
         content=[TextContent(type="text", text=text)],
         isError=True,
     )
-
-
-async def _check_task_ownership(task_id: str) -> list[TextContent] | None:
-    """Verify the current user owns *task_id*. Returns an error response if
-    access should be denied, or ``None`` if the caller may proceed.
-
-    Only active in HTTP mode; always returns ``None`` for stdio.
-
-    When no owner is recorded in Redis (e.g. tasks created via the presigned
-    upload URL flow, which bypasses the MCP tool layer), the current user is
-    auto-registered as owner.  The Engine independently validates ownership
-    on every API call via session-level checks, so this is safe — a user
-    cannot claim a task they don't own because subsequent Engine calls would
-    fail.
-    """
-    if not settings.is_http:
-        return None
-
-    access_token = get_access_token()
-    user_id = access_token.client_id if access_token else None
-    if not user_id:
-        return [TextContent(type="text", text="Access denied: no authenticated user.")]
-
-    owner = await redis_store.get_task_owner(task_id)
-    if not owner:
-        # Task was likely created outside the MCP tool layer (e.g. presigned
-        # URL upload).  Claim it for the current user — the Engine will
-        # independently reject any API calls if this user doesn't actually
-        # own the task's session.
-        logger.info(
-            "No owner recorded for task %s — auto-registering user %s",
-            task_id,
-            user_id,
-        )
-        await redis_store.store_task_owner(task_id, user_id)
-        return None
-
-    if user_id != owner:
-        return [
-            TextContent(
-                type="text", text="Access denied: this task belongs to another user."
-            )
-        ]
-    return None
 
 
 @mcp.tool(
@@ -958,18 +913,6 @@ async def futuresearch_progress(
     client = _get_client(ctx)
     task_id = params.task_id
 
-    # ── Cross-user access check ──────────────────────────────────
-    try:
-        if denied := await _check_task_ownership(task_id):
-            return denied
-    except Exception:
-        logger.exception("Could not verify task ownership for %s", task_id)
-        return [
-            TextContent(
-                type="text", text="Unable to verify task ownership. Please try again."
-            )
-        ]
-
     # Block server-side before polling — controls the cadence
     await asyncio.sleep(redis_store.PROGRESS_POLL_DELAY)
 
@@ -1109,14 +1052,6 @@ async def futuresearch_results_http(
     skip_widget = not client_supports_widgets(ctx)
     if is_internal_client():
         skip_widget = True
-
-    # ── Cross-user access check ──────────────────────────────────
-    try:
-        if denied := await _check_task_ownership(task_id):
-            return CallToolResult(content=denied, isError=True)  # pyright: ignore[reportArgumentType]  # list invariance
-    except Exception:
-        logger.exception("Could not verify task ownership for %s", task_id)
-        return _error_result("Unable to verify task ownership. Please try again.")
 
     # ── Fetch paginated rows directly from Engine ─────────────────
     try:
@@ -1368,18 +1303,6 @@ async def futuresearch_cancel(
     log_client_info(ctx, "futuresearch_cancel")
     client = _get_client(ctx)
     task_id = params.task_id
-
-    # ── Cross-user access check ──────────────────────────────────
-    try:
-        if denied := await _check_task_ownership(task_id):
-            return denied
-    except Exception:
-        logger.exception("Could not verify task ownership for %s", task_id)
-        return [
-            TextContent(
-                type="text", text="Unable to verify task ownership. Please try again."
-            )
-        ]
 
     try:
         await cancel_task(task_id=UUID(task_id), client=client)

@@ -44,16 +44,6 @@ from tests.conftest import override_settings
 # ── Fixtures / helpers ────────────────────────────────────────
 
 
-_TEST_USER_ID = "test-user-123"
-
-
-def _fake_access_token():
-    """Return a mock access token for ownership checks."""
-    tok = MagicMock()
-    tok.client_id = _TEST_USER_ID
-    return tok
-
-
 @pytest.fixture
 def _http_state(fake_redis):
     """Configure settings for HTTP mode and patch Redis.
@@ -71,8 +61,6 @@ def _http_state(fake_redis):
     with (
         override_settings(transport="streamable-http", upload_secret="test-secret"),
         patch.object(redis_store, "get_redis_client", return_value=fake_redis),
-        patch("futuresearch_mcp.tools.get_access_token", _fake_access_token),
-        patch("futuresearch_mcp.tool_helpers.get_access_token", _fake_access_token),
     ):
         yield
 
@@ -203,9 +191,6 @@ class TestMcpProtocol:
             running=3,
         )
 
-        # Store task owner so the ownership check passes
-        await redis_store.store_task_owner(task_id, _TEST_USER_ID)
-
         async with mcp_client() as session:
             with (
                 patch(
@@ -288,9 +273,6 @@ class TestMcpProtocol:
             failed=0,
             running=0,
         )
-
-        # Store task owner so the ownership check passes
-        await redis_store.store_task_owner(task_id, _TEST_USER_ID)
 
         async with mcp_client() as session:
             with (

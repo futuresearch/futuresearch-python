@@ -20,7 +20,6 @@ from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
 from futuresearch.generated.types import Unset
-from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import TextContent
@@ -199,33 +198,16 @@ def _submission_text(label: str, task_id: str, session_id: str = "") -> str:
 
 
 async def _record_task_ownership(task_id: str, token: str) -> str:
-    """Record task ownership and create a poll token.
+    """Store the API token and create a poll token for a submitted task.
 
     Must run for every HTTP submission (including internal clients) so that
-    downstream ownership checks in progress/results don't fail.
+    downstream poll-token checks in progress/results don't fail.
 
     Returns the poll_token.
     """
     poll_token = secrets.token_urlsafe(32)
     await redis_store.store_task_token(task_id, token)
-
-    # Record task owner for cross-user access checks (HTTP mode only).
-    # This MUST succeed — downstream ownership checks deny access when no
-    # owner is recorded, so a silent failure here would lock the user out
-    # of their own task.
-    user_id = ""
-    if settings.is_http:
-        access_token = get_access_token()
-        if not access_token or not access_token.client_id:
-            raise RuntimeError(
-                f"Cannot record task owner for {task_id}: no authenticated user"
-            )
-        user_id = access_token.client_id
-        await redis_store.store_task_owner(task_id, user_id)
-
-    # Bind the poll token to the same user identity so the REST layer
-    # can cross-check poll_owner == task_owner.
-    await redis_store.store_poll_token(task_id, poll_token, user_id=user_id)
+    await redis_store.store_poll_token(task_id, poll_token)
     return poll_token
 
 
