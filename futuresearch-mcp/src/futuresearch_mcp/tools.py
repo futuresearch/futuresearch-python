@@ -758,6 +758,8 @@ async def futuresearch_classify(
 ) -> list[TextContent]:
     """Classify each row of a dataset into one of the provided categories.
 
+    If the user does not provide categories, try to come up with a few meaningful categories yourself. If this is hard and it is important that the user defines the categories, ask him to provide or describe them before you proceed.
+
     Uses web research that scales to the difficulty of the classification.
     Each row is assigned exactly one of the provided categories.
 
