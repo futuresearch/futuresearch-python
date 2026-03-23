@@ -6,8 +6,10 @@ import csv
 import json
 import logging
 import secrets
+from typing import Any
 from uuid import UUID
 
+import httpx
 import pandas as pd
 from futuresearch.api_utils import handle_response
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
@@ -17,7 +19,6 @@ from starlette.responses import JSONResponse, Response
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.config import settings
-from futuresearch_mcp.result_store import resolve_citations_in_records
 from futuresearch_mcp.tool_helpers import _UI_EXCLUDE, TaskState
 
 logger = logging.getLogger(__name__)
@@ -206,12 +207,12 @@ async def _validate_poll_token_bearer_only(
     return None
 
 
-async def api_download_token(request: Request) -> Response:
-    """Mint a fresh short-lived download token, authenticated via poll token.
+async def api_download_url(request: Request) -> Response:
+    """Return the download URL for a task.
 
-    The widget calls this on click so the user always gets a valid
-    download URL, even if the original one baked into the tool result
-    has expired (5-min TTL) or was already consumed (single-use).
+    The widget calls this to get the download URL. Validates the poll
+    token so only the session owner gets the URL (the download itself
+    is open by task ID).
     """
     cors = _cors_headers()
     if request.method == "OPTIONS":
@@ -231,28 +232,19 @@ async def api_download_token(request: Request) -> Response:
     if err := await _validate_task_owner(task_id):
         return err
 
-    # No point minting a token if the result data has already expired
-    if not await redis_store.result_json_exists(task_id):
-        return JSONResponse(
-            {"error": "Results not found or expired"}, status_code=404, headers=cors
-        )
-
-    download_token = secrets.token_urlsafe(32)
-    await redis_store.store_download_token(download_token, task_id)
-
-    download_url = (
-        f"{settings.mcp_server_url}/api/results/{task_id}/download"
-        f"?token={download_token}"
-    )
+    download_url = f"{settings.mcp_server_url}/api/results/{task_id}/download"
     return JSONResponse({"download_url": download_url}, headers=cors)
 
 
-async def api_download(request: Request) -> Response:  # noqa: PLR0911
-    """REST endpoint to download task results as CSV or JSON.
+async def api_download(request: Request) -> Response:
+    """Download task results as CSV or JSON.
 
-    Authenticates via a short-lived download token (not the long-lived poll
-    token).  Tokens are reusable until they expire — the unguessable 32-byte
-    token provides sufficient protection without single-use semantics.
+    Unauthenticated — the task ID (UUID) is sufficient. The Engine's
+    internal ``/tasks/{id}/output_rows`` endpoint is also unauthenticated.
+
+    Query params:
+        format: "csv" (default) or "json"
+        raw: "true" to keep _source_bank for client-side citation rendering
     """
     cors = _cors_headers()
     if request.method == "OPTIONS":
@@ -266,39 +258,41 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
     if err := _validate_uuid(task_id):
         return err
 
-    provided = request.query_params.get("token", "")
-
-    # Validate the download token (reusable — not consumed on use)
-    token_task_id = await redis_store.get_download_token(provided) if provided else None
-    if token_task_id is None:
-        logger.warning("Invalid or expired download token for task %s", task_id)
-        return JSONResponse({"error": "Unauthorized"}, status_code=403, headers=cors)
-
-    # Verify the token was issued for this task
-    if not secrets.compare_digest(token_task_id, task_id):
-        logger.warning(
-            "Download token task_id mismatch: token for %s used on %s",
-            token_task_id,
-            task_id,
-        )
-        return JSONResponse({"error": "Unauthorized"}, status_code=403, headers=cors)
-
-    json_text = await redis_store.get_result_json(task_id)
-    if json_text is None:
-        return JSONResponse(
-            {"error": "Results not found or expired"}, status_code=404, headers=cors
-        )
-
-    # Validate format parameter
     fmt = request.query_params.get("format", "csv")
     if fmt not in ("csv", "json"):
         return JSONResponse(
             {"error": "Unsupported format"}, status_code=400, headers=cors
         )
+    raw = request.query_params.get("raw", "").lower() in ("true", "1")
 
-    # Resolve citation codes and strip heavy internal fields for downloads.
-    records: list[dict] = json.loads(json_text)
-    records = resolve_citations_in_records(records)
+    # Pass processing flags to the Engine — it does the stripping/resolution.
+    engine_params: dict[str, Any] = {"offset": 0, "limit": 100000}
+    if raw:
+        engine_params["strip_internal_cols"] = True
+    else:
+        engine_params.update(
+            resolve_citations=True,
+            strip_source_bank=True,
+            strip_internal_cols=True,
+        )
+
+    try:
+        engine_base = settings.futuresearch_api_url.removesuffix(
+            "/api/v0"
+        ).removesuffix("/")
+        async with httpx.AsyncClient(base_url=engine_base) as http:
+            resp = await http.post(
+                f"/tasks/{task_id}/output_rows",
+                params=engine_params,
+            )
+            resp.raise_for_status()
+            records: list[dict] = resp.json()
+    except Exception:
+        logger.exception("Failed to fetch results for download, task %s", task_id)
+        return JSONResponse(
+            {"error": "Failed to fetch results"}, status_code=500, headers=cors
+        )
+
     safe_prefix = "".join(c for c in task_id[:8] if c.isalnum() or c == "-")
 
     if fmt == "json":
@@ -312,7 +306,6 @@ async def api_download(request: Request) -> Response:  # noqa: PLR0911
             },
         )
 
-    # CSV generated on-the-fly from the already-resolved records.
     csv_text = pd.DataFrame(records).to_csv(index=False, quoting=csv.QUOTE_ALL)
     return Response(
         content=csv_text,

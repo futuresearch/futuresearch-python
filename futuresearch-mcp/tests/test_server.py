@@ -29,13 +29,10 @@ from futuresearch.generated.models.task_result_response import TaskResultRespons
 from futuresearch.generated.models.task_result_response_data_type_0_item import (
     TaskResultResponseDataType0Item,
 )
-from futuresearch.generated.models.task_result_response_data_type_1 import (
-    TaskResultResponseDataType1,
-)
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
 from futuresearch.task import EffortLevel
-from mcp.types import CallToolResult, TextContent
+from mcp.types import TextContent
 from pydantic import ValidationError
 
 from futuresearch_mcp import redis_store
@@ -217,6 +214,9 @@ def _make_mock_session(session_id=None):
     """Create a mock Session."""
     session = MagicMock()
     session.session_id = session_id or uuid4()
+    session.get_url.return_value = (
+        f"https://futuresearch.ai/sessions/{session.session_id}"
+    )
     return session
 
 
@@ -227,6 +227,26 @@ def _make_mock_client():
     client.__aexit__ = AsyncMock(return_value=None)
     client.token = "fake-token"
     return client
+
+
+def _setup_httpx_result(
+    mock_client: AsyncMock, data: list | dict, artifact_id: str = ""
+) -> None:
+    """Configure mock_client.get_async_httpx_client().request() to return a result response."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.headers = {
+        "X-Total-Row-Count": str(len(data) if isinstance(data, list) else 1)
+    }
+    mock_resp.json.return_value = {
+        "data": data,
+        "artifact_id": artifact_id or str(uuid4()),
+        "status": "completed",
+        "task_id": str(uuid4()),
+    }
+    mock_client.get_async_httpx_client.return_value.request = AsyncMock(
+        return_value=mock_resp
+    )
 
 
 def _make_async_context_manager(return_value):
@@ -317,6 +337,7 @@ class TestAgent:
             assert len(result) == 1
             text = result[0].text
             assert str(mock_task.task_id) in text
+            assert "Session ID:" in text
             assert "futuresearch_progress" in text
 
 
@@ -349,6 +370,7 @@ class TestSingleAgent:
             text = result[0].text
 
             assert str(mock_task.task_id) in text
+            assert "Session ID:" in text
             assert "futuresearch_progress" in text
             assert "single agent" in text
 
@@ -568,25 +590,17 @@ class TestResults:
         ctx = make_test_context(mock_client)
         output_file = tmp_path / "output.csv"
 
+        rows = [
+            {"name": "TechStart", "answer": "Series A"},
+            {"name": "AILabs", "answer": "Seed"},
+        ]
         status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response(
-            [
-                {"name": "TechStart", "answer": "Series A"},
-                {"name": "AILabs", "answer": "Seed"},
-            ]
-        )
+        _setup_httpx_result(mock_client, rows)
 
-        with (
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
+        with patch(
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            new_callable=AsyncMock,
+            return_value=status_response,
         ):
             params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
             result = await futuresearch_results_stdio(params, ctx)
@@ -602,33 +616,20 @@ class TestResults:
 
     @pytest.mark.asyncio
     async def test_results_scalar_single_agent(self, tmp_path: Path):
-        """Test results handles scalar (single_agent) TaskResultResponseDataType1."""
+        """Test results handles scalar (single_agent) response as single-row dict."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         output_file = tmp_path / "output.csv"
 
         status_response = _make_task_status_response(status="completed")
-        scalar_data = TaskResultResponseDataType1.from_dict(
-            {"ceo": "Tim Cook", "company": "Apple"}
-        )
-        result_response = TaskResultResponse(
-            task_id=uuid4(),
-            status=TaskStatus.COMPLETED,
-            data=scalar_data,
-        )
+        # Engine returns scalar as a single dict (not list)
+        _setup_httpx_result(mock_client, {"ceo": "Tim Cook", "company": "Apple"})
 
-        with (
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
+        with patch(
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            new_callable=AsyncMock,
+            return_value=status_response,
         ):
             params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
             result = await futuresearch_results_stdio(params, ctx)
@@ -638,54 +639,33 @@ class TestResults:
 
     @pytest.mark.asyncio
     async def test_results_http_store(self):
-        """In HTTP mode, results are stored in Redis and returned with download URL."""
+        """In HTTP mode, results are fetched and returned with download URL."""
         task_id = str(uuid4())
+        session_id = str(uuid4())
+        artifact_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
-        status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response(
-            [{"name": "A", "val": "1"}, {"name": "B", "val": "2"}]
-        )
-
-        store_response = CallToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text="Results: 2 rows, 2 columns (name, val). All rows shown.",
-                ),
-            ],
-            structuredContent={
-                "csv_url": "https://storage.googleapis.com/signed/data.csv",
-                "preview": [
-                    {"name": "A", "val": "1"},
-                    {"name": "B", "val": "2"},
-                ],
-                "total": 2,
-            },
-            isError=False,
-        )
+        rows = [{"name": "A", "val": "1"}, {"name": "B", "val": "2"}]
 
         with (
             patch(
-                "futuresearch_mcp.tools.try_cached_result",
+                "futuresearch_mcp.tools._fetch_task_result",
                 new_callable=AsyncMock,
-                return_value=None,
+                return_value=(rows, 2, session_id, artifact_id),
             ),
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
+                "futuresearch_mcp.tools.clamp_page_to_budget",
+                return_value=(rows, len(rows)),
             ),
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
+                "futuresearch_mcp.tools._get_csv_url",
+                return_value="http://test/download",
             ),
             patch(
-                "futuresearch_mcp.tools.try_store_result",
+                "futuresearch_mcp.tools.redis_store.get_poll_token",
                 new_callable=AsyncMock,
-                return_value=store_response,
+                return_value="poll-tok",
             ),
         ):
             result = await futuresearch_results_http(
@@ -699,73 +679,44 @@ class TestResults:
         assert "2 rows" in block.text
 
     @pytest.mark.asyncio
-    async def test_results_http_cache_hit(self):
-        """In HTTP mode, cached results are returned directly."""
+    async def test_results_http_single_row(self):
+        """In HTTP mode, single-row results are returned correctly."""
         task_id = str(uuid4())
+        session_id = str(uuid4())
+        artifact_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
-        cached_response = [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "csv_url": "https://storage.googleapis.com/signed/data.csv",
-                        "preview": [{"name": "A"}],
-                        "total": 1,
-                    }
-                ),
-            ),
-            TextContent(type="text", text="Results: 1 rows. All rows shown."),
-        ]
+        rows = [{"name": "A"}]
 
         with (
             patch(
-                "futuresearch_mcp.tools.try_cached_result",
+                "futuresearch_mcp.tools._fetch_task_result",
                 new_callable=AsyncMock,
-                return_value=cached_response,
+                return_value=(rows, 1, session_id, artifact_id),
+            ),
+            patch(
+                "futuresearch_mcp.tools.clamp_page_to_budget",
+                return_value=(rows, len(rows)),
+            ),
+            patch(
+                "futuresearch_mcp.tools._get_csv_url",
+                return_value="http://test/download",
+            ),
+            patch(
+                "futuresearch_mcp.tools.redis_store.get_poll_token",
+                new_callable=AsyncMock,
+                return_value="poll-tok",
             ),
         ):
             result = await futuresearch_results_http(
                 HttpResultsInput(task_id=task_id), ctx
             )
 
-        assert result == cached_response
-
-    @pytest.mark.asyncio
-    async def test_results_http_store_failure_raises(self):
-        """In HTTP mode, Redis failure propagates as an error."""
-        task_id = str(uuid4())
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response([{"name": "A"}])
-
-        with (
-            patch(
-                "futuresearch_mcp.tools.try_cached_result",
-                new_callable=AsyncMock,
-                return_value=None,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
-            ),
-            patch(
-                "futuresearch_mcp.tools.try_store_result",
-                new_callable=AsyncMock,
-                side_effect=RuntimeError("Redis down"),
-            ),
-            pytest.raises(RuntimeError, match="Redis down"),
-        ):
-            await futuresearch_results_http(HttpResultsInput(task_id=task_id), ctx)
+        assert result.structuredContent is not None
+        block = result.content[0]
+        assert isinstance(block, TextContent)
+        assert "1 rows" in block.text
 
 
 class TestListSessions:
@@ -793,12 +744,14 @@ class TestListSessions:
                 name="My Session",
                 created_at=datetime(2025, 6, 1, 12, 0, tzinfo=UTC),
                 updated_at=datetime(2025, 6, 1, 13, 0, tzinfo=UTC),
+                get_url=lambda: "https://futuresearch.ai/sessions/abc",
             ),
             MagicMock(
                 session_id=uuid4(),
                 name="Another Session",
                 created_at=datetime(2025, 6, 2, 10, 0, tzinfo=UTC),
                 updated_at=datetime(2025, 6, 2, 11, 0, tzinfo=UTC),
+                get_url=lambda: "https://futuresearch.ai/sessions/def",
             ),
         ]
 
@@ -860,8 +813,8 @@ class TestListSessions:
         mock_ls.assert_called_once_with(client=mock_client, offset=5, limit=10)
 
     @pytest.mark.asyncio
-    async def test_list_sessions_output_contains_dates(self):
-        """Test that the formatted output includes timestamps."""
+    async def test_list_sessions_output_contains_urls_and_dates(self):
+        """Test that the formatted output includes URLs and timestamps."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         session_id = uuid4()
@@ -871,6 +824,7 @@ class TestListSessions:
                 name="Pipeline Run",
                 created_at=datetime(2025, 8, 15, 9, 30, tzinfo=UTC),
                 updated_at=datetime(2025, 8, 15, 10, 45, tzinfo=UTC),
+                get_url=lambda: f"https://futuresearch.ai/sessions/{session_id}",
             ),
         ]
 
@@ -885,6 +839,7 @@ class TestListSessions:
         assert "Pipeline Run" in text
         assert "2025-08-15 09:30 UTC" in text
         assert "2025-08-15 10:45 UTC" in text
+        assert f"https://futuresearch.ai/sessions/{session_id}" in text
 
     @pytest.mark.asyncio
     async def test_list_sessions_pagination_params(self):
@@ -915,6 +870,7 @@ class TestListSessions:
                 name=f"Session {i}",
                 created_at=now,
                 updated_at=now,
+                get_url=lambda: "https://futuresearch.ai/sessions/x",
             )
             for i in range(10)
         ]
@@ -1634,45 +1590,34 @@ class TestResultsWidgetData:
 
     @pytest.mark.asyncio
     async def test_http_widget_includes_csv_url(self):
-        """Verify csv_url is present in widget JSON when results are stored."""
+        """Verify csv_url is present in widget JSON when results are fetched."""
         task_id = str(uuid4())
+        session_id = str(uuid4())
+        artifact_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
-        status_response = _make_task_status_response(status="completed")
-        result_response = _make_task_result_response([{"name": "A"}])
-        csv_url = "https://example.com/api/results/123/download?token=abc"
-
-        store_response = CallToolResult(
-            content=[TextContent(type="text", text="Results: 1 rows. All rows shown.")],
-            structuredContent={
-                "csv_url": csv_url,
-                "preview": [{"name": "A"}],
-                "total": 1,
-            },
-            isError=False,
-        )
+        rows = [{"name": "A"}]
+        csv_url = "https://example.com/api/results/123/download"
 
         with (
             patch(
-                "futuresearch_mcp.tools.try_cached_result",
+                "futuresearch_mcp.tools._fetch_task_result",
                 new_callable=AsyncMock,
-                return_value=None,
+                return_value=(rows, 1, session_id, artifact_id),
             ),
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_response,
+                "futuresearch_mcp.tools.clamp_page_to_budget",
+                return_value=(rows, len(rows)),
             ),
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_response,
+                "futuresearch_mcp.tools._get_csv_url",
+                return_value=csv_url,
             ),
             patch(
-                "futuresearch_mcp.tools.try_store_result",
+                "futuresearch_mcp.tools.redis_store.get_poll_token",
                 new_callable=AsyncMock,
-                return_value=store_response,
+                return_value="poll-tok",
             ),
         ):
             result = await futuresearch_results_http(
@@ -1949,7 +1894,7 @@ class TestUseList:
             patch(
                 "futuresearch_mcp.tools._fetch_task_result",
                 new_callable=AsyncMock,
-                return_value=(mock_df, None, None),
+                return_value=(mock_df.to_dict(orient="records"), len(mock_df), "", ""),
             ),
         ):
             params = UseListInput(artifact_id=str(uuid4()))
@@ -1996,7 +1941,7 @@ class TestUseList:
             patch(
                 "futuresearch_mcp.tools._fetch_task_result",
                 new_callable=AsyncMock,
-                return_value=(mock_df, None, None),
+                return_value=(mock_df.to_dict(orient="records"), len(mock_df), "", ""),
             ),
             patch(
                 "futuresearch_mcp.tools._record_task_ownership",

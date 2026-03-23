@@ -28,7 +28,7 @@ from futuresearch_mcp.middleware import (
     SecurityHeadersMiddleware,
 )
 from futuresearch_mcp.redis_store import get_redis_client
-from futuresearch_mcp.routes import api_download, api_download_token, api_progress
+from futuresearch_mcp.routes import api_download, api_download_url, api_progress
 from futuresearch_mcp.templates import RESULTS_HTML, SESSION_HTML
 from futuresearch_mcp.uploads import proxy_upload
 
@@ -151,7 +151,7 @@ def _register_routes(
         api_download
     )
     mcp.custom_route("/api/results/{task_id}/download-token", ["GET", "OPTIONS"])(
-        api_download_token
+        api_download_url
     )
 
     async def _health(_request: Request) -> Response:

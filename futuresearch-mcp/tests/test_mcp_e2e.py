@@ -448,14 +448,13 @@ class TestMcpE2ERealApi:
                     return_value=_real_client,
                 ),
                 patch(
-                    "futuresearch_mcp.tools.try_cached_result",
-                    new_callable=AsyncMock,
-                    return_value=None,
+                    "futuresearch_mcp.tools._get_csv_url",
+                    return_value="http://test/download",
                 ),
                 patch(
-                    "futuresearch_mcp.tools.try_store_result",
+                    "futuresearch_mcp.tools.redis_store.get_poll_token",
                     new_callable=AsyncMock,
-                    return_value=None,
+                    return_value="poll-tok",
                 ),
             ):
                 results = await session.call_tool(

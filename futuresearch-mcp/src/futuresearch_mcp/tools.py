@@ -54,8 +54,9 @@ from futuresearch_mcp.models import (
     _schema_to_model,
 )
 from futuresearch_mcp.result_store import (
-    try_cached_result,
-    try_store_result,
+    _build_result_response,
+    _get_csv_url,
+    clamp_page_to_budget,
 )
 from futuresearch_mcp.tool_helpers import (
     FuturesearchContext,
@@ -228,7 +229,8 @@ async def futuresearch_use_list(
             )
 
             # Fetch the copied data for summary info
-            df, _, _ = await _fetch_task_result(client, str(result.task_id))
+            rows, _, _, _ = await _fetch_task_result(client, str(result.task_id))
+            df = pd.DataFrame(rows)
 
             # Register a poll token so futuresearch_results can build download URLs.
             # Without this, the instant-completion path skips create_tool_response()
@@ -259,7 +261,8 @@ async def futuresearch_use_list(
                 f"Artifact ID: {result.artifact_id}\n"
                 f"{csv_line}"
                 f"Rows: {len(df)}\n"
-                f"Columns: {', '.join(df.columns)}\n\n"
+                f"Columns: {', '.join(df.columns)}\n"
+                f"\n"
                 f'Pass artifact_id="{result.artifact_id}" to other futuresearch tools.'
             ),
         )
@@ -758,8 +761,6 @@ async def futuresearch_classify(
 ) -> list[TextContent]:
     """Classify each row of a dataset into one of the provided categories.
 
-    If the user does not provide categories, try to come up with a few meaningful categories yourself. If this is hard and it is important that the user defines the categories, ask him to provide or describe them before you proceed.
-
     Uses web research that scales to the difficulty of the classification.
     Each row is assigned exactly one of the provided categories.
 
@@ -1045,7 +1046,10 @@ async def futuresearch_results_stdio(
     task_id = params.task_id
 
     try:
-        df, _session_id, artifact_id = await _fetch_task_result(client, task_id)
+        rows, _total, _session_id, artifact_id = await _fetch_task_result(
+            client, task_id
+        )
+        df = pd.DataFrame(rows)
     except TaskNotReady as e:
         return [
             TextContent(
@@ -1114,20 +1118,15 @@ async def futuresearch_results_http(
         logger.exception("Could not verify task ownership for %s", task_id)
         return _error_result("Unable to verify task ownership. Please try again.")
 
-    # ── Return from cache if available ───────────────────────────
-    cached = await try_cached_result(
-        task_id,
-        params.offset,
-        params.page_size,
-        mcp_server_url=mcp_server_url,
-        skip_widget=skip_widget,
-    )
-    if cached is not None:
-        return cached
-
-    # ── Fetch from API ────────────────────────────────────────────
+    # ── Fetch paginated rows directly from Engine ─────────────────
     try:
-        df, _session_id, artifact_id = await _fetch_task_result(client, task_id)
+        rows, total_count, session_id, artifact_id = await _fetch_task_result(
+            client,
+            task_id,
+            offset=params.offset,
+            limit=params.page_size,
+        )
+        _ = session_id
     except TaskNotReady as e:
         return _error_result(
             dedent(f"""\
@@ -1140,17 +1139,32 @@ async def futuresearch_results_http(
             f"Error retrieving results for task {task_id}. Please try again."
         )
 
-    # output_path is accepted by the schema but ignored in HTTP mode —
-    # the server must not write to its own filesystem on remote request.
+    # Clamp page to LLM token budget
+    preview_records, effective_page_size = clamp_page_to_budget(
+        preview_records=rows,
+        page_size=params.page_size,
+    )
 
-    # ── Store in Redis and return response ──────────────────────
-    return await try_store_result(
-        task_id,
-        df,
-        params.offset,
-        params.page_size,
+    # Build download URL (no auth token needed)
+    csv_url = _get_csv_url(task_id, mcp_server_url)
+
+    # Poll token still needed for the widget's progress polling
+    poll_token = await redis_store.get_poll_token(task_id) or ""
+
+    columns = list(rows[0].keys()) if rows else []
+
+    return _build_result_response(
+        task_id=task_id,
+        csv_url=csv_url,
+        preview_records=preview_records,
+        total=total_count,
+        columns=columns,
+        offset=params.offset,
+        page_size=effective_page_size,
+        poll_token=poll_token,
         mcp_server_url=mcp_server_url,
         artifact_id=artifact_id,
+        requested_page_size=params.page_size,
         skip_widget=skip_widget,
     )
 
@@ -1171,7 +1185,7 @@ async def futuresearch_list_sessions(
 ) -> list[TextContent]:
     """List futuresearch sessions owned by the authenticated user (paginated).
 
-    Returns session names, IDs, and timestamps.
+    Returns session names, IDs, timestamps, and dashboard URLs.
     Use this to find past sessions or check what's been run.
     Results are paginated — 25 sessions per page by default.
     """
@@ -1211,7 +1225,8 @@ async def futuresearch_list_sessions(
         lines.append(
             f"- **{s.name}** (id: {s.session_id})\n"
             f"  Created: {s.created_at:%Y-%m-%d %H:%M UTC} | "
-            f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}"
+            f"Updated: {s.updated_at:%Y-%m-%d %H:%M UTC}\n"
+            f"  URL: {s.get_url()}"
         )
 
     has_more = (result.offset + result.limit) < result.total

@@ -188,9 +188,16 @@ function flatWithResearch(obj){
       if(v!=null)research[k]=typeof v==="string"?v:String(v);
     }
   }
+  /* Parse _source_bank for citation resolution in popovers */
+  let sourceBank=null;
+  if(obj._source_bank){
+    try{sourceBank=typeof obj._source_bank==="string"?JSON.parse(obj._source_bank):obj._source_bank;}
+    catch(e){sourceBank=null;}
+  }
   const display=flat(obj);
   delete display.research;
-  return{display,research};
+  delete display._source_bank;
+  return{display,research,sourceBank};
 }
 
 function processData(data){
@@ -200,7 +207,7 @@ function processData(data){
   const colSet=new Set();
   S.rows.forEach(r=>{for(const k of Object.keys(r.display))colSet.add(k)});
   const all=[...colSet];
-  const visible=all.filter(k=>k!=="research"&&!k.startsWith("research."));
+  const visible=all.filter(k=>k!=="research"&&!k.startsWith("research.")&&k!=="_source_bank");
   S.allCols=[...visible.filter(k=>!k.includes(".")),...visible.filter(k=>k.includes("."))];
   S.sortCol=null;S.sortDir=0;S.filters={};S.globalQuery="";globalSearchEl.value="";S.selected.clear();S.lastClick=null;
   S.filteredIdx=S.rows.map((_,i)=>i);
@@ -455,10 +462,22 @@ settingsDrop.querySelectorAll('input[name="tsize"]').forEach(r=>{
 /* --- popover --- */
 let popTimer=null,popTarget=null,popVisible=false;
 
+function resolveCitations(text,sb){
+  if(!sb)return text;
+  return text.replace(/\\[((?:[a-f0-9]{6})(?:\\s*,\\s*[a-f0-9]{6})*)\\]/g,(m,ids)=>{
+    return ids.split(",").map(id=>{
+      id=id.trim();const e=sb[id];
+      if(!e||!e.url)return"["+id+"]";
+      const t=e.title||e.url;
+      return"["+t+"]("+e.url+")";
+    }).join(" ");
+  });
+}
 function showPopover(td){
   const tr=td.closest("tr");const idx=parseInt(tr.dataset.idx,10);const col=td.dataset.col;
   const row=S.rows[idx];if(!row)return;
-  const text=getResearch(row,col);if(text==null)return;
+  let text=getResearch(row,col);if(text==null)return;
+  text=resolveCitations(text,row.sourceBank);
   popHdr.textContent="research."+col.replace(/^research\\./,"");
   popBody.innerHTML=linkify(text);
   const rect=td.getBoundingClientRect();
@@ -719,7 +738,7 @@ function onRowResizeUp(){
 async function fetchFullResultsWithFreshToken(hasPreview,total){
   const base=await getFreshDownloadUrl();
   if(!base){if(!hasPreview)sum.textContent="Download link expired";return;}
-  const url=base+(base.includes("?")?"&":"?")+"format=json";
+  const url=base+(base.includes("?")?"&":"?")+"format=json&raw=true";
   fetchFullResults(url,{},hasPreview,total);
 }
 function fetchFullResults(url,opts,hasPreview,total){

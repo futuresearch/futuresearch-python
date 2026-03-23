@@ -11,17 +11,12 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-import pandas as pd
 from futuresearch.api_utils import handle_response
 from futuresearch.generated.api.tasks import (
-    get_task_result_tasks_task_id_result_get,
     get_task_status_tasks_task_id_status_get,
 )
 from futuresearch.generated.client import AuthenticatedClient
 from futuresearch.generated.models.public_task_type import PublicTaskType
-from futuresearch.generated.models.task_result_response_data_type_1 import (
-    TaskResultResponseDataType1,
-)
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
 from futuresearch.generated.types import Unset
@@ -33,7 +28,6 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.config import settings
-from futuresearch_mcp.result_store import resolve_citations_in_records
 
 logger = logging.getLogger(__name__)
 
@@ -461,13 +455,19 @@ class TaskState(BaseModel):
             msg += "\n\nAgent activity:" + _format_summary_lines(summaries)
 
         if partial_rows:
-            # Resolve citations first (needs _source_bank), then strip
-            # heavy internal fields to avoid blowing up context.
-            _STRIP = {"_source_bank", "research", "provenance_and_notes"}
-            resolved = resolve_citations_in_records(partial_rows)
+            _skip = {
+                "_source_bank",
+                "_row_index",
+                "_status",
+                "_completed_at",
+                "_error",
+                "_expand_index",
+                "research",
+                "provenance_and_notes",
+            }
             msg += "\n\nNewly completed rows:"
-            for row in resolved:
-                light = {k: v for k, v in row.items() if k not in _STRIP}
+            for row in partial_rows:
+                light = {k: v for k, v in row.items() if k not in _skip}
                 msg += f"\n- {json.dumps(light, default=str)}"
 
         progress_call = f"futuresearch_progress(task_id='{task_id}'{cursor_arg})"
@@ -489,19 +489,26 @@ class TaskNotReady(Exception):
 
 
 async def _fetch_task_result(
-    client: Any, task_id: str
-) -> tuple[pd.DataFrame, str, str]:
-    """Fetch a task's result DataFrame, session ID, and output artifact ID from the API.
+    client: Any,
+    task_id: str,
+    *,
+    offset: int | None = None,
+    limit: int | None = None,
+) -> tuple[list[dict[str, Any]], int, str, str]:
+    """Fetch a task's result rows, total count, session ID, and artifact ID.
 
-    Checks task status first, then retrieves and parses the result data.
+    When ``offset``/``limit`` are provided, uses the Engine's paginated
+    ClickHouse path which returns citation-resolved, metadata-stripped rows
+    and an ``X-Total-Row-Count`` header.
+
+    When they are ``None``, fetches all rows via the existing Supabase path.
 
     Returns:
-        Tuple of (DataFrame, session_id, artifact_id).
+        Tuple of (rows, total_count, session_id, artifact_id).
 
     Raises:
         TaskNotReady: If the task is not in a terminal state.
         ValueError: If the result has no table data.
-        Exception: On API errors.
     """
     status_response = handle_response(
         await get_task_status_tasks_task_id_status_get.asyncio(
@@ -524,25 +531,28 @@ async def _fetch_task_result(
 
     session_id = str(status_response.session_id) if status_response.session_id else ""
 
-    result_response = handle_response(
-        await get_task_result_tasks_task_id_result_get.asyncio(
-            task_id=UUID(task_id),
-            client=client,
-        )
+    # Always use the paginated Engine endpoint — it returns citation-resolved,
+    # metadata-stripped rows via process_rows on the Engine side.
+    effective_offset = offset if offset is not None else 0
+    effective_limit = limit if limit is not None else 100000
+
+    httpx_client = client.get_async_httpx_client()
+    resp = await httpx_client.request(
+        method="get",
+        url=f"/tasks/{task_id}/result",
+        params={"offset": effective_offset, "limit": effective_limit},
     )
+    if resp.status_code != 200:
+        raise ValueError(f"Engine returned {resp.status_code} for result: {resp.text}")
+    body = resp.json()
+    total_from_header = resp.headers.get("X-Total-Row-Count")
+    data = body.get("data")
+    artifact_id = body.get("artifact_id") or ""
 
-    artifact_id = ""
-    aid = result_response.artifact_id
-    if aid is not None and not isinstance(aid, Unset):
-        artifact_id = str(aid)
-
-    if isinstance(result_response.data, list):
-        records = [item.additional_properties for item in result_response.data]
-        return pd.DataFrame(records), session_id, artifact_id
-    if isinstance(result_response.data, TaskResultResponseDataType1):
-        return (
-            pd.DataFrame([result_response.data.additional_properties]),
-            session_id,
-            artifact_id,
-        )
+    if isinstance(data, list):
+        total_count = int(total_from_header) if total_from_header else len(data)
+        return data, total_count, session_id, artifact_id
+    if isinstance(data, dict):
+        total_count = int(total_from_header) if total_from_header else 1
+        return [data], total_count, session_id, artifact_id
     raise ValueError("Task result has no table data.")

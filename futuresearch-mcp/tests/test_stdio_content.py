@@ -417,22 +417,27 @@ class TestStdioResultsContent:
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
 
+        rows = [{"name": "Acme", "score": "85"}, {"name": "Beta", "score": "42"}]
         status_resp = _make_status_response(status="completed")
-        result_resp = _make_result_response(
-            [{"name": "Acme", "score": "85"}, {"name": "Beta", "score": "42"}]
+
+        # Configure mock httpx response for _fetch_task_result
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"X-Total-Row-Count": str(len(rows))}
+        mock_resp.json.return_value = {
+            "data": rows,
+            "artifact_id": str(uuid4()),
+            "status": "completed",
+            "task_id": task_id,
+        }
+        mock_client.get_async_httpx_client.return_value.request = AsyncMock(
+            return_value=mock_resp
         )
 
-        with (
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=status_resp,
-            ),
-            patch(
-                "futuresearch_mcp.tool_helpers.get_task_result_tasks_task_id_result_get.asyncio",
-                new_callable=AsyncMock,
-                return_value=result_resp,
-            ),
+        with patch(
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            new_callable=AsyncMock,
+            return_value=status_resp,
         ):
             result = await futuresearch_results_stdio(
                 StdioResultsInput(task_id=task_id, output_path=str(output_file)), ctx

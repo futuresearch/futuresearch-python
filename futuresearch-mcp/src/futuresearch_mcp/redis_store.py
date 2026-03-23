@@ -22,10 +22,7 @@ logger = logging.getLogger(__name__)
 HEALTH_CHECK_INTERVAL = 30
 
 PROGRESS_POLL_DELAY = 12
-RESULT_CACHE_TTL = 600
-RESULT_DATA_TTL = 3600  # 1 hour — full result data stored in Redis for download
 TOKEN_TTL = 86400  # 24 hours — must outlive the longest possible task
-DOWNLOAD_TOKEN_TTL = 3600  # 1 hour — single-use download tokens (match RESULT_DATA_TTL)
 
 
 class Transport(StrEnum):
@@ -175,65 +172,6 @@ def set_redis_client(client: Redis | None) -> None:
     _redis_client = client
 
 
-async def get_result_meta(task_id: str) -> str | None:
-    return await get_redis_client().get(build_key("result", task_id))
-
-
-async def store_result_meta(task_id: str, meta_json: str) -> None:
-    await get_redis_client().setex(
-        build_key("result", task_id), RESULT_CACHE_TTL, meta_json
-    )
-
-
-# ── Result pages ──────────────────────────────────────────────
-
-
-async def get_result_page(task_id: str, offset: int, page_size: int) -> str | None:
-    key = build_key("result", task_id, "page", str(offset), str(page_size))
-    return await get_redis_client().get(key)
-
-
-async def store_result_page(
-    task_id: str, offset: int, page_size: int, preview_json: str
-) -> None:
-    await get_redis_client().setex(
-        build_key("result", task_id, "page", str(offset), str(page_size)),
-        RESULT_CACHE_TTL,
-        preview_json,
-    )
-
-
-# ── JSON result storage ────────────────────────────────────────
-
-
-MAX_JSON_CACHE_CHARS = (
-    80 * 1024 * 1024
-)  # 80M characters — skip Redis cache for oversized results (JSON is ~1.5x larger than CSV)
-
-
-async def store_result_json(task_id: str, json_text: str) -> None:
-    if len(json_text) > MAX_JSON_CACHE_CHARS:
-        logger.warning(
-            "Skipping Redis cache for task %s: JSON is %d chars (limit %d)",
-            task_id,
-            len(json_text),
-            MAX_JSON_CACHE_CHARS,
-        )
-        return
-    await get_redis_client().setex(
-        name=build_key("result", task_id, "json"), time=RESULT_DATA_TTL, value=json_text
-    )
-
-
-async def get_result_json(task_id: str) -> str | None:
-    return await get_redis_client().get(name=build_key("result", task_id, "json"))
-
-
-async def result_json_exists(task_id: str) -> bool:
-    """O(1) existence check — avoids reading the full JSON into memory."""
-    return await get_redis_client().exists(build_key("result", task_id, "json")) > 0
-
-
 async def store_task_token(task_id: str, token: str) -> None:
     await get_redis_client().setex(
         build_key("task_token", task_id), TOKEN_TTL, encrypt_value(token)
@@ -293,30 +231,3 @@ async def store_task_owner(task_id: str, user_id: str) -> None:
 async def get_task_owner(task_id: str) -> str | None:
     """Return the user_id that owns a task, or None if not recorded."""
     return await get_redis_client().get(build_key("task_owner", task_id))
-
-
-# ── Download tokens (reusable, TTL-limited) ──────────────────
-
-
-async def store_download_token(download_token: str, task_id: str) -> None:
-    """Store a download token that maps back to a task_id.
-
-    Keyed by token (reverse-lookup) so multiple concurrent download tokens
-    can exist for the same task. Tokens are reusable until they expire.
-    """
-    await get_redis_client().setex(
-        name=build_key("dl_token", download_token),
-        time=DOWNLOAD_TOKEN_TTL,
-        value=encrypt_value(task_id),
-    )
-
-
-async def get_download_token(download_token: str) -> str | None:
-    """Look up a download token without consuming it.
-
-    Returns the task_id or None if the token does not exist / has expired.
-    """
-    encrypted = await get_redis_client().get(build_key("dl_token", download_token))
-    if encrypted is None:
-        return None
-    return decrypt_value(encrypted)
