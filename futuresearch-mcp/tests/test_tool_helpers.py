@@ -25,6 +25,7 @@ def _make_status_response(
     progress: TaskProgressInfo | None = None,
     created_at: datetime.datetime | None = None,
     updated_at: datetime.datetime | None = None,
+    additional_properties: dict | None = None,
 ):
     """Build a mock TaskStatusResponse."""
     resp = MagicMock()
@@ -35,6 +36,7 @@ def _make_status_response(
     resp.error = error
     resp.created_at = created_at
     resp.updated_at = updated_at
+    resp.additional_properties = additional_properties or {}
 
     if progress is None:
         p = MagicMock()
@@ -160,3 +162,69 @@ class TestFormatSummaryLines:
         result = _format_summary_lines(summaries)
         assert "[Row 3] Has index" in result
         assert "No index" in result
+
+
+class TestTaskStateActiveWorkers:
+    def test_active_workers_from_additional_properties(self):
+        resp = _make_status_response(
+            additional_properties={"active_workers": 7, "user_active_workers": 12},
+        )
+        ts = TaskState(resp)
+        assert ts.active_workers == 7
+        assert ts.user_active_workers == 12
+
+    def test_active_workers_none_when_absent(self):
+        resp = _make_status_response(additional_properties={})
+        ts = TaskState(resp)
+        assert ts.active_workers is None
+        assert ts.user_active_workers is None
+
+    def test_pool_size_still_works(self):
+        resp = _make_status_response(
+            additional_properties={"pool_size": 30, "active_workers": 5},
+        )
+        ts = TaskState(resp)
+        assert ts.pool_size == 30
+        assert ts.active_workers == 5
+
+
+class TestProgressMessageActiveWorkers:
+    def test_running_message_includes_active_workers(self):
+        p = MagicMock()
+        p.completed = 10
+        p.failed = 1
+        p.running = 5
+        p.total = 50
+        resp = _make_status_response(
+            status=TaskStatus.RUNNING,
+            progress=p,
+            created_at=datetime.datetime.now(datetime.UTC),
+            additional_properties={
+                "pool_size": 30,
+                "active_workers": 8,
+                "user_active_workers": 15,
+            },
+        )
+        ts = TaskState(resp)
+        msg = ts.progress_message("task-aw")
+        assert "active_workers 8" in msg
+        assert "user_active_workers 15" in msg
+        assert "pool_size 30" in msg
+
+    def test_running_message_omits_active_workers_when_absent(self):
+        p = MagicMock()
+        p.completed = 10
+        p.failed = 0
+        p.running = 5
+        p.total = 50
+        resp = _make_status_response(
+            status=TaskStatus.RUNNING,
+            progress=p,
+            created_at=datetime.datetime.now(datetime.UTC),
+            additional_properties={"pool_size": 30},
+        )
+        ts = TaskState(resp)
+        msg = ts.progress_message("task-no-aw")
+        assert "active_workers" not in msg
+        assert "user_active_workers" not in msg
+        assert "pool_size 30" in msg

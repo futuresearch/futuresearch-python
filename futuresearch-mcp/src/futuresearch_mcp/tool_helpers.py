@@ -397,6 +397,21 @@ class TaskState(BaseModel):
 
     @computed_field
     @property
+    def pool_size(self) -> int | None:
+        return self._response.additional_properties.get("pool_size")
+
+    @computed_field
+    @property
+    def active_workers(self) -> int | None:
+        return self._response.additional_properties.get("active_workers")
+
+    @computed_field
+    @property
+    def user_active_workers(self) -> int | None:
+        return self._response.additional_properties.get("user_active_workers")
+
+    @computed_field
+    @property
     def artifact_id(self) -> str:
         aid = self._response.artifact_id
         if aid is not None and not isinstance(aid, Unset):
@@ -462,9 +477,22 @@ class TaskState(BaseModel):
             return f"Task {self.status.value}. Report the error to the user."
 
         fail_part = f", {self.failed} failed" if self.failed else ""
+        pool_part = (
+            f", pool_size {self.pool_size}" if self.pool_size is not None else ""
+        )
+        aw_part = (
+            f", active_workers {self.active_workers}"
+            if self.active_workers is not None
+            else ""
+        )
+        uaw_part = (
+            f", user_active_workers {self.user_active_workers}"
+            if self.user_active_workers is not None
+            else ""
+        )
         cursor_arg = f", cursor='{cursor}'" if cursor else ""
         msg = dedent(f"""\
-            Running: {self.completed}/{self.total} complete, {self.running} running{fail_part} ({self.elapsed_s}s elapsed)""")
+            Running: {self.completed}/{self.total} complete, {self.running} running{fail_part}{pool_part}{aw_part}{uaw_part} ({self.elapsed_s}s elapsed)""")
 
         if summaries:
             msg += "\n\nAgent activity:" + _format_summary_lines(summaries)
