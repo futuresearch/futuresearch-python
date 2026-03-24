@@ -1001,12 +1001,31 @@ function fetchFullResults(url,opts,hasPreview,total){
   });
 }
 
+/* ── fetch last aggregate summary (for re-mount when task already done) ── */
+async function backfillSummaries(){
+  if(!pollUrl||!pollToken)return;
+  try{
+    const opts=pollToken?{headers:{"Authorization":"Bearer "+pollToken}}:{};
+    const r=await fetch(pollUrl,opts);
+    if(!r.ok)return;
+    const d=await r.json();
+    if(d.aggregate_summary||d.summaries)renderProgress(d);
+  }catch{}
+}
+
 /* ── ontoolresult: unified entry point ── */
 app.ontoolresult=({content,structuredContent})=>{
   /* Entry 1: structuredContent from futuresearch_status (widget data) */
   if(structuredContent&&structuredContent.progress_url){
     enterProgressMode(structuredContent);
-    if(!pollTimer){pollUrl=structuredContent.progress_url;startPoll();}
+    /* If task already completed on re-mount, backfill summaries then fetch results */
+    const done=["completed","failed","revoked"].includes(structuredContent.status);
+    if(done){
+      wasDone=true;
+      backfillSummaries().then(()=>{if(!resultsFetched)autoFetchResults();});
+    } else if(!pollTimer){
+      pollUrl=structuredContent.progress_url;startPoll();
+    }
     return;
   }
 
@@ -1018,7 +1037,13 @@ app.ontoolresult=({content,structuredContent})=>{
         const d=JSON.parse(t.text);
         if(d.progress_url){
           enterProgressMode(d);
-          if(!pollTimer){pollUrl=d.progress_url;startPoll();}
+          const done=["completed","failed","revoked"].includes(d.status);
+          if(done){
+            wasDone=true;
+            backfillSummaries().then(()=>{if(!resultsFetched)autoFetchResults();});
+          } else if(!pollTimer){
+            pollUrl=d.progress_url;startPoll();
+          }
           return;
         }
       }catch{}

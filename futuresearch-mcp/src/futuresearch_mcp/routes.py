@@ -193,8 +193,10 @@ async def api_progress(request: Request) -> Response:
 
         payload = ts.model_dump(mode="json", exclude=_UI_EXCLUDE)
 
-        # Fetch aggregate + micro-summaries + partial rows for non-terminal tasks
-        if not ts.is_terminal:
+        # Fetch aggregate + micro-summaries for non-terminal tasks,
+        # or for terminal tasks without cursor (re-mount backfill).
+        backfill = ts.is_terminal and not request.query_params.get("cursor")
+        if not ts.is_terminal or backfill:
             cursor = request.query_params.get("cursor")
             aggregate, summaries, new_cursor = await _fetch_aggregate_rest(
                 client, task_id, cursor
