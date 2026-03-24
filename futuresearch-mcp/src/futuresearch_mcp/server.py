@@ -55,7 +55,9 @@ def parse_args() -> InputArgs:
         default="0.0.0.0",
         help="Host for HTTP transport (default: 0.0.0.0).",
     )
-    input_args = InputArgs.model_validate(vars(parser.parse_args()))
+    raw_args = parser.parse_args()
+    host_was_explicit = any(a == "--host" or a.startswith("--host=") for a in sys.argv)
+    input_args = InputArgs.model_validate(vars(raw_args))
 
     if input_args.no_auth and not input_args.http:
         parser.error("--no-auth requires --http")
@@ -68,8 +70,9 @@ def parse_args() -> InputArgs:
         )
         sys.exit(1)
 
-    # Default to localhost in --no-auth mode to avoid exposing on all interfaces
-    if input_args.no_auth and input_args.host == "0.0.0.0":
+    # Default to localhost in --no-auth mode to avoid exposing on all interfaces.
+    # Skip if the user explicitly passed --host (e.g. in a container).
+    if input_args.no_auth and not host_was_explicit:
         input_args.host = "127.0.0.1"
 
     return input_args

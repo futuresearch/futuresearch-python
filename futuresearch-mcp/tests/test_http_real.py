@@ -22,7 +22,7 @@ import json
 import os
 import re
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import httpx
 import pandas as pd
@@ -57,13 +57,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 # ── Fixtures ───────────────────────────────────────────────────
-
-
-def _fake_access_token():
-    """Return a mock access token for ownership checks."""
-    tok = MagicMock()
-    tok.client_id = "integration-test-user"
-    return tok
 
 
 @pytest.fixture

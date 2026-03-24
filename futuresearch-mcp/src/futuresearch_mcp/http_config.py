@@ -93,6 +93,13 @@ def configure_http_mode(
     mcp.settings.port = port
     mcp.settings.stateless_http = True
 
+    if no_auth:
+        # Disable DNS rebinding protection in --no-auth mode so Docker
+        # internal hostnames (e.g. "mcp:8000") aren't rejected as invalid.
+        mcp.settings.transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        )
+
     if not no_auth and (not settings.upload_secret or len(settings.upload_secret) < 32):
         raise RuntimeError(
             "UPLOAD_SECRET must be at least 32 characters in HTTP auth mode "

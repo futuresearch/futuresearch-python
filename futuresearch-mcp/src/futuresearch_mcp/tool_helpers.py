@@ -260,12 +260,13 @@ async def create_tool_response(
     """
     text = _submission_text(label, task_id, session_id=session_id)
     main_content = TextContent(type="text", text=text)
+    if not is_internal_client():
+        # Start headless summarizer so external clients (stdio and HTTP)
+        # get progress summaries without needing a frontend SSE connection.
+        await _start_headless_summarizer(task_id, token)
     if settings.is_http:
         poll_token = await _record_task_ownership(task_id, token)
         if not is_internal_client():
-            # Start headless summarizer so external clients get progress
-            # summaries without needing a frontend SSE connection.
-            await _start_headless_summarizer(task_id, token)
             ui_json = await _submission_ui_json(
                 task_id=task_id,
                 total=total,
