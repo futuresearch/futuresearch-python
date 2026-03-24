@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "futuresearch-mcp",
   "display_name": "FutureSearch MCP Server",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Give your AI a research team. Forecast, score, classify, or research every row of a dataset.",
   "long_description": "MCP server for futuresearch: give your AI a research team. Each operation dispatches web research agents across a dataset to forecast, score, classify, deduplicate, merge, or research at scale.",
   "author": {

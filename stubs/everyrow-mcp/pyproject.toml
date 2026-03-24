@@ -1,10 +1,10 @@
 [project]
 name = "everyrow-mcp"
-version = "0.6.0"
+version = "0.6.1"
 description = "Renamed to futuresearch-mcp. This package is a compatibility shim."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["futuresearch-mcp>=0.6.0"]
+dependencies = ["futuresearch-mcp>=0.6.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/everyrow_mcp"]
