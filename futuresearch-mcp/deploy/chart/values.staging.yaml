@@ -6,7 +6,7 @@
 # FUTURESEARCH_API_URL is intentionally not overridden — there is no staging API.
 # The MCP server is a frontend to the production FutureSearch API in both environments.
 
-replicaCount: 0
+replicaCount: 2
 
 env:
   MCP_SERVER_URL: "https://mcp-staging.futuresearch.ai"

@@ -9,7 +9,7 @@ image:
 releaseId: "latest"
 
 # OAuth state is stored in Redis. Multiple replicas are possible.
-replicaCount: 0
+replicaCount: 2
 
 service:
   port: 80
