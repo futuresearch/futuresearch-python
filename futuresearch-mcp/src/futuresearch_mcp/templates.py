@@ -292,7 +292,7 @@ function renderProgress(d){
   if(d.aggregate_summary){
     const now=new Date();
     const ts=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    const micros=(d.summaries||[]).map(s=>({text:s.summary||String(s),row_index:s.row_index}));
+    const micros=(d.summaries||[]).map(s=>({text:s.summary||String(s),row_indices:s.row_indices||null,row_index:s.row_index}));
     /* only add if aggregate text is new */
     const lastAgg=aggHistory.length?aggHistory[aggHistory.length-1].aggregate:"";
     if(d.aggregate_summary!==lastAgg){
@@ -303,7 +303,7 @@ function renderProgress(d){
     /* fallback: no aggregate, just micro-summaries — create a placeholder entry */
     const now=new Date();
     const ts=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    const micros=d.summaries.map(s=>({text:s.summary||String(s),row_index:s.row_index}));
+    const micros=d.summaries.map(s=>({text:s.summary||String(s),row_indices:s.row_indices||null,row_index:s.row_index}));
     const fallbackAgg=micros[0]?.text||"Agent activity";
     const lastAgg=aggHistory.length?aggHistory[aggHistory.length-1].aggregate:"";
     if(fallbackAgg!==lastAgg){
@@ -365,7 +365,9 @@ function renderProgress(d){
       if(hasMicros){
         al+=`<ul class="agg-micros">`;
         for(const m of a.micros){
-          const rowLabel=m.row_index!=null?`<span class="agg-micro-row">Row ${m.row_index+1}</span>`:"";
+          let rowLabel="";
+          if(m.row_indices&&m.row_indices.length>1){rowLabel=`<span class="agg-micro-row">Rows ${m.row_indices.map(r=>r+1).join(", ")}</span>`;}
+          else if(m.row_index!=null){rowLabel=`<span class="agg-micro-row">Row ${m.row_index+1}</span>`;}
           al+=`<li>${rowLabel}${esc(m.text)}</li>`;
         }
         al+=`</ul>`;

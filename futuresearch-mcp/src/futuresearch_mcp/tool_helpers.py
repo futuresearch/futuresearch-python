@@ -291,31 +291,54 @@ _UI_EXCLUDE: set[str] = {"is_terminal", "task_type", "error", "started_at"}
 
 
 def _format_summary_lines(summaries: list[dict[str, Any]]) -> str:
-    """Collapse duplicate summaries from batched agents into grouped lines.
+    """Format summaries as text lines with row index prefixes.
 
-    One trace handling multiple rows produces the same text per row.
-    Groups by text and merges row indices: ``[Rows 29, 17] Summarizing...``
+    Accepts both raw (K duplicates from Engine) and already-deduped
+    summaries (with ``row_indices`` lists from ``dedupe_summaries``).
     """
-    grouped: dict[str, list[int]] = {}
-    grouped_order: list[str] = []
-    for s in summaries:
-        text = s["summary"]
-        row_idx = s.get("row_index")
-        if text not in grouped:
-            grouped[text] = []
-            grouped_order.append(text)
-        if row_idx is not None:
-            grouped[text].append(row_idx)
+    # Dedupe only if input lacks row_indices (raw from Engine)
+    if summaries and "row_indices" not in summaries[0]:
+        summaries = dedupe_summaries(summaries)
     lines = ""
-    for text in grouped_order:
-        rows = grouped[text]
+    for entry in summaries:
+        text = entry.get("summary", "")
+        rows = entry.get("row_indices") or []
         if rows:
             label = "Row" if len(rows) == 1 else "Rows"
-            prefix = f"[{label} {', '.join(str(r) for r in sorted(rows))}] "
+            prefix = f"[{label} {', '.join(str(r) for r in rows)}] "
         else:
             prefix = ""
         lines += f"\n- {prefix}{text}"
     return lines
+
+
+def dedupe_summaries(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse duplicate summaries from batched agents into one per unique text.
+
+    The Engine returns K identical summaries (one per row) when a batched
+    agent handles K rows.  This merges them into a single entry with a
+    ``row_indices`` list, preserving order.
+    """
+    grouped: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for s in summaries:
+        text = s.get("summary", "")
+        if text not in grouped:
+            grouped[text] = {**s, "row_indices": []}
+            order.append(text)
+        row_idx = s.get("row_index")
+        if row_idx is not None:
+            grouped[text]["row_indices"].append(row_idx)
+    result = []
+    for text in order:
+        entry = grouped[text]
+        indices = sorted(entry["row_indices"])
+        entry["row_indices"] = indices or None
+        entry.pop("row_index", None)
+        if indices:
+            entry["row_index"] = indices[0]
+        result.append(entry)
+    return result
 
 
 class TaskState(BaseModel):

@@ -66,6 +66,7 @@ from futuresearch_mcp.tool_helpers import (
     _get_client,
     _record_task_ownership,
     create_tool_response,
+    dedupe_summaries,
     log_client_info,
 )
 from futuresearch_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
@@ -869,7 +870,10 @@ async def _fetch_partial_rows(
 async def _fetch_summaries(
     httpx_client: Any, task_id: str, cursor: str | None
 ) -> tuple[list[dict[str, Any]] | None, str | None]:
-    """Fetch progress summaries. Returns (summaries, updated_cursor)."""
+    """Fetch progress summaries, deduplicating batched agent copies.
+
+    Returns (summaries, updated_cursor).
+    """
     try:
         query: dict[str, Any] = {}
         if cursor:
@@ -881,7 +885,10 @@ async def _fetch_summaries(
         )
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("summaries") or None, data.get("cursor") or cursor
+            raw = data.get("summaries") or None
+            if raw:
+                raw = dedupe_summaries(raw)
+            return raw, data.get("cursor") or cursor
         logger.warning("summaries returned %s for task %s", resp.status_code, task_id)
     except Exception:
         logger.debug("Failed to fetch summaries for task %s", task_id)

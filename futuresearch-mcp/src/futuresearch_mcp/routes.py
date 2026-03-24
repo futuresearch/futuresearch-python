@@ -18,7 +18,12 @@ from starlette.responses import JSONResponse, Response
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.config import settings
 from futuresearch_mcp.result_store import _sanitize_records
-from futuresearch_mcp.tool_helpers import _UI_EXCLUDE, TaskState, _fetch_task_result
+from futuresearch_mcp.tool_helpers import (
+    _UI_EXCLUDE,
+    TaskState,
+    _fetch_task_result,
+    dedupe_summaries,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +102,10 @@ async def _fetch_summaries_rest(
         )
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("summaries") or None, data.get("cursor") or cursor
+            raw = data.get("summaries") or None
+            if raw:
+                raw = dedupe_summaries(raw)
+            return raw, data.get("cursor") or cursor
     except Exception:
         logger.debug("Failed to fetch summaries for task %s via REST", task_id)
     return None, cursor
@@ -123,9 +131,12 @@ async def _fetch_aggregate_rest(
         )
         if resp.status_code == 200:
             data = resp.json()
+            micros = data.get("micro_summaries") or None
+            if micros:
+                micros = dedupe_summaries(micros)
             return (
                 data.get("aggregate") or None,
-                data.get("micro_summaries") or None,
+                micros,
                 data.get("cursor") or cursor,
             )
     except Exception:
