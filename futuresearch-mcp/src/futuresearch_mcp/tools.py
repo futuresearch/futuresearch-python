@@ -628,7 +628,7 @@ async def futuresearch_merge(
     name="futuresearch_forecast",
     structured_output=False,
     annotations=ToolAnnotations(
-        title="Probability Forecast",
+        title="Forecast",
         readOnlyHint=False,
         destructiveHint=False,
         idempotentHint=False,
@@ -638,12 +638,17 @@ async def futuresearch_merge(
 async def futuresearch_forecast(
     params: ForecastInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Forecast the probability of binary questions from a CSV file.
+    """Forecast questions about the future using deep research and multi-model ensemble.
 
-    Each row is forecast using an approach validated against FutureSearch's
-    past-casting environment of 1500 hard forecasting questions and 15M research
-    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
-    and https://arxiv.org/abs/2506.21558.
+    Supports two modes:
+
+    - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
+      Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
+
+    - **numeric**: Forecasts percentile estimates for continuous numeric questions.
+      Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
+      ``units`` (str), and ``rationale`` (str).
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
     columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
@@ -653,14 +658,13 @@ async def futuresearch_forecast(
     to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
     rows are self-contained.
 
-    Output columns added: ``rationale`` (str) and ``probability`` (int, 0-100).
-
     This function submits the task and returns immediately with a task_id.
 
     Then immediately follow the instructions in the response to monitor progress.
     """
     logger.info(
-        "futuresearch_forecast: context=%.80s rows=%s",
+        "futuresearch_forecast: type=%s context=%.80s rows=%s",
+        params.forecast_type,
         params.context or "",
         len(params.data) if params.data else "artifact",
     )
@@ -677,15 +681,21 @@ async def futuresearch_forecast(
             task=params.context or "",
             session=session,
             input=input_data,
+            forecast_type=params.forecast_type,
+            output_field=params.output_field,
+            units=params.units,
         )
         task_id = str(cohort_task.task_id)
         total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
+    mode_label = (
+        "numeric percentile" if params.forecast_type == "numeric" else "probability"
+    )
     return await create_tool_response(
         task_id=task_id,
-        label=f"Submitted: {total} rows for forecasting (6 research dimensions + dual forecaster per row)."
+        label=f"Submitted: {total} rows for {mode_label} forecasting (6 research dimensions + 3 forecasters per batch)."
         if total
-        else "Submitted: artifact for forecasting.",
+        else f"Submitted: artifact for {mode_label} forecasting.",
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,

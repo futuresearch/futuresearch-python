@@ -50,7 +50,7 @@
     },
     {
       "name": "futuresearch_forecast",
-      "description": "Forecast the probability of binary questions from a CSV file."
+      "description": "Forecast questions about the future using deep research and multi-model ensemble."
     },
     {
       "name": "futuresearch_classify",

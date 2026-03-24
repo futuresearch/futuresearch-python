@@ -34,6 +34,9 @@ class ForecastOperation:
     task: str
     session_id: None | Unset | UUID = UNSET
     webhook_url: None | str | Unset = UNSET
+    forecast_type: str | Unset = UNSET
+    output_field: None | str | Unset = UNSET
+    units: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -77,6 +80,30 @@ class ForecastOperation:
             field_dict["session_id"] = session_id
         if webhook_url is not UNSET:
             field_dict["webhook_url"] = webhook_url
+
+        forecast_type: str | Unset
+        if isinstance(self.forecast_type, Unset):
+            forecast_type = UNSET
+        else:
+            forecast_type = self.forecast_type
+        if forecast_type is not UNSET:
+            field_dict["forecast_type"] = forecast_type
+
+        output_field: None | str | Unset
+        if isinstance(self.output_field, Unset):
+            output_field = UNSET
+        else:
+            output_field = self.output_field
+        if output_field is not UNSET:
+            field_dict["output_field"] = output_field
+
+        units: None | str | Unset
+        if isinstance(self.units, Unset):
+            units = UNSET
+        else:
+            units = self.units
+        if units is not UNSET:
+            field_dict["units"] = units
 
         return field_dict
 
@@ -145,11 +172,34 @@ class ForecastOperation:
 
         webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
 
+        forecast_type = d.pop("forecast_type", UNSET)
+
+        def _parse_output_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        output_field = _parse_output_field(d.pop("output_field", UNSET))
+
+        def _parse_units(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        units = _parse_units(d.pop("units", UNSET))
+
         forecast_operation = cls(
             input_=input_,
             task=task,
             session_id=session_id,
             webhook_url=webhook_url,
+            forecast_type=forecast_type,
+            output_field=output_field,
+            units=units,
         )
 
         forecast_operation.additional_properties = d

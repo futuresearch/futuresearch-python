@@ -712,18 +712,28 @@ async def forecast(
     input: DataFrame | UUID | TableResult,
     context: str | None = None,
     session: Session | None = None,
+    *,
+    forecast_type: Literal["binary", "numeric"],
+    output_field: str | None = None,
+    units: str | None = None,
 ) -> TableResult:
-    """Forecast the probability of binary questions resolving YES or NO.
+    """Forecast questions using deep research and multi-model ensemble.
 
-    Each row is forecast using an approach validated against FutureSearch's
-    past-casting environment of 1500 hard forecasting questions and 15M research
-    documents, see more at https://futuresearch.ai/automating-forecasting-questions/
-    and https://arxiv.org/abs/2506.21558.
+    Supports two modes:
 
-    The input table should contain at minimum a ``question`` column with the binary
-    question to forecast.  Recommended additional columns: ``resolution_criteria``,
-    ``resolution_date``, ``background``.  All columns are passed to the research
-    agents and forecasters.
+    - **binary** (default): Forecasts the probability (0-100) of YES/NO questions.
+      Output columns: ``probability`` (int) and ``rationale`` (str).
+
+    - **numeric**: Forecasts percentile estimates for continuous numeric questions.
+      Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
+      ``units`` (str), and ``rationale`` (str).
+
+    Each row is forecast using 6 parallel research agents followed by a 3-model
+    forecaster ensemble, validated against FutureSearch's past-casting environment.
+
+    The input table should contain at minimum a ``question`` column.  Recommended
+    additional columns: ``resolution_criteria``, ``resolution_date``, ``background``.
 
     Args:
         input: The input table.  Each row should contain the question/scenario to
@@ -732,10 +742,15 @@ async def forecast(
             row (e.g. "Focus on EU regulatory sources" or "Assume resolution by
             end of 2027").  Leave *None* when the rows are self-contained.
         session: Optional session. If not provided, one will be created automatically.
+        forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
+            percentile estimates.
+        output_field: Name of the quantity being forecast (required for numeric,
+            e.g. ``"price"``, ``"count"``).
+        units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
+            Required when *forecast_type* is ``"numeric"``.
 
     Returns:
-        TableResult with ``probability`` (int, 0-100) and ``rationale`` (str) columns
-        added to each input row.
+        TableResult with forecast columns added to each input row.
     """
     task = context or ""
     if session is None:
@@ -744,6 +759,9 @@ async def forecast(
                 task=task,
                 session=internal_session,
                 input=input,
+                forecast_type=forecast_type,
+                output_field=output_field,
+                units=units,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -753,6 +771,9 @@ async def forecast(
         task=task,
         session=session,
         input=input,
+        forecast_type=forecast_type,
+        output_field=output_field,
+        units=units,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -764,11 +785,22 @@ async def forecast_async(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
+    forecast_type: Literal["binary", "numeric"],
+    output_field: str | None = None,
+    units: str | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit a forecast task asynchronously.
 
+    Args:
+        task: Context or instructions for the forecast.
+        session: Active session.
+        input: Input data.
+        forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for percentile estimates.
+        output_field: Name of the numeric quantity (required for numeric).
+        units: Units for numeric forecasts (required for numeric).
+
     Returns:
-        EveryrowTask that resolves to a TableResult with `probability` and `rationale` columns.
+        EveryrowTask that resolves to a TableResult with forecast columns.
     """
     input_data = _prepare_table_input(input, ForecastOperationInputType1Item)
 
@@ -776,6 +808,9 @@ async def forecast_async(
         input_=input_data,  # type: ignore
         task=task,
         session_id=session.session_id,
+        forecast_type=forecast_type,
+        output_field=output_field,
+        units=units,
     )
 
     response = await forecast_operations_forecast_post.asyncio(

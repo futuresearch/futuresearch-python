@@ -468,6 +468,22 @@ class ForecastInput(_SingleSourceInput):
         "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
         "Leave empty when the rows are self-contained.",
     )
+    forecast_type: Literal["binary", "numeric"] = Field(
+        description="Type of forecast. 'binary': yes/no probability (0-100) for questions like "
+        "'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like "
+        "'What will the price/value/count be?'. Requires output_field when 'numeric'.",
+    )
+    output_field: str | None = Field(
+        default=None,
+        description="Name of the numeric quantity being forecast (e.g. 'price', 'count'). "
+        "Required when forecast_type is 'numeric'. Output columns are named "
+        "{output_field}_p10 through {output_field}_p90.",
+    )
+    units: str | None = Field(
+        default=None,
+        description="Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). "
+        "Required when forecast_type is 'numeric'.",
+    )
 
 
 class ClassifyInput(_SingleSourceInput):
