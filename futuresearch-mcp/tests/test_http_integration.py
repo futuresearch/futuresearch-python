@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import httpx
@@ -26,7 +26,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from futuresearch_mcp import redis_store
-from futuresearch_mcp.routes import api_download, api_download_url, api_progress
+from futuresearch_mcp.routes import api_download, api_progress
 from tests.conftest import override_settings
 
 # ── Fixtures ───────────────────────────────────────────────────
@@ -54,11 +54,6 @@ def app(_http_state):
             Route(
                 "/api/progress/{task_id}",
                 api_progress,
-                methods=["GET", "OPTIONS"],
-            ),
-            Route(
-                "/api/results/{task_id}/download-token",
-                api_download_url,
                 methods=["GET", "OPTIONS"],
             ),
             Route(
@@ -288,148 +283,35 @@ class TestProgressLifecycle:
 # ── Download-token endpoint ──────────────────────────────────
 
 
-class TestDownloadTokenEndpoint:
-    """ASGI-level tests for the download-token minting endpoint.
-
-    These go through real Starlette routing, header parsing, and URL
-    query-param parsing — unlike the FakeRequest unit tests in test_routes.py.
-    """
-
-    @pytest.mark.asyncio
-    async def test_bearer_auth_via_real_http_header(self, client: httpx.AsyncClient):
-        """Authorization: Bearer header is parsed correctly by Starlette."""
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
-
-        resp = await client.get(
-            f"/api/results/{task_id}/download-token",
-            headers={"Authorization": f"Bearer {poll_token}"},
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "download_url" in body
-        assert f"/api/results/{task_id}/download" in body["download_url"]
-
-    @pytest.mark.asyncio
-    async def test_cors_preflight(self, client: httpx.AsyncClient):
-        """OPTIONS request through Starlette returns proper CORS headers."""
-        task_id = str(uuid4())
-        resp = await client.options(
-            f"/api/results/{task_id}/download-token",
-        )
-        assert resp.status_code == 204
-        assert resp.headers["access-control-allow-origin"] == "*"
-        assert resp.headers["access-control-allow-methods"] == "GET"
-        assert resp.headers["access-control-allow-headers"] == "Authorization"
-        assert resp.headers["access-control-max-age"] == "3600"
-
-    @pytest.mark.asyncio
-    async def test_query_param_rejected_through_real_url(
-        self, client: httpx.AsyncClient
-    ):
-        """Poll token via ?token= query param in a real URL is rejected."""
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
-
-        resp = await client.get(
-            f"/api/results/{task_id}/download-token",
-            params={"token": poll_token},
-        )
-        assert resp.status_code == 403
-
-    @pytest.mark.asyncio
-    async def test_multiple_calls_return_same_url(self, client: httpx.AsyncClient):
-        """Two sequential calls for the same task return the same download URL."""
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
-
-        headers = {"Authorization": f"Bearer {poll_token}"}
-        resp1 = await client.get(
-            f"/api/results/{task_id}/download-token", headers=headers
-        )
-        resp2 = await client.get(
-            f"/api/results/{task_id}/download-token", headers=headers
-        )
-        assert resp1.status_code == 200
-        assert resp2.status_code == 200
-
-        url1 = resp1.json()["download_url"]
-        url2 = resp2.json()["download_url"]
-        assert url1 == url2
-
-    @pytest.mark.asyncio
-    async def test_download_is_repeatable(self, client: httpx.AsyncClient):
-        """Download endpoint can be called multiple times."""
-        task_id = str(uuid4())
-        await redis_store.store_task_token(task_id, "sk-cho-test")
-
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "data": [{"x": 1, "y": 2}],
-            "status": "completed",
-        }
-        mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.get.return_value = mock_resp
-
-        with patch(
-            "futuresearch_mcp.routes.httpx.AsyncClient",
-            return_value=mock_http,
-        ):
-            # First download succeeds
-            resp1 = await client.get(f"/api/results/{task_id}/download")
-            assert resp1.status_code == 200
-
-            # Second download also succeeds
-            resp2 = await client.get(f"/api/results/{task_id}/download")
-            assert resp2.status_code == 200
-
-
 # ── Download lifecycle ─────────────────────────────────────────
 
 
 class TestDownloadLifecycle:
-    """Full lifecycle: get download URL → download CSV from Engine."""
+    """Full lifecycle: download CSV from Engine with poll token auth."""
 
     @pytest.mark.asyncio
-    async def test_get_url_and_download(self, client: httpx.AsyncClient):
-        """End-to-end: get download URL → download CSV."""
+    async def test_download_with_poll_token(self, client: httpx.AsyncClient):
+        """Download CSV using poll token for auth."""
         task_id = str(uuid4())
         poll_token = secrets.token_urlsafe(16)
 
         await redis_store.store_poll_token(task_id, poll_token)
         await redis_store.store_task_token(task_id, "sk-cho-test")
 
-        # 1. Get the download URL
-        mint_resp = await client.get(
-            f"/api/results/{task_id}/download-token",
-            headers={"Authorization": f"Bearer {poll_token}"},
-        )
-        assert mint_resp.status_code == 200
-        download_url = mint_resp.json()["download_url"]
-        assert f"/api/results/{task_id}/download" in download_url
-
-        # 2. Download CSV via public API (forwards API key from Redis)
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "data": [
-                {"name": "Alice", "score": 95},
-                {"name": "Bob", "score": 87},
-            ],
-            "status": "completed",
-        }
-        mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.get.return_value = mock_resp
+        rows = [
+            {"name": "Alice", "score": 95},
+            {"name": "Bob", "score": 87},
+        ]
 
         with patch(
-            "futuresearch_mcp.routes.httpx.AsyncClient",
-            return_value=mock_http,
+            "futuresearch_mcp.routes._fetch_task_result",
+            new_callable=AsyncMock,
+            return_value=(rows, 2, "", ""),
         ):
-            dl_resp = await client.get(f"/api/results/{task_id}/download")
+            dl_resp = await client.get(
+                f"/api/results/{task_id}/download",
+                params={"token": poll_token},
+            )
         assert dl_resp.status_code == 200
         assert dl_resp.headers["content-type"] == "text/csv; charset=utf-8"
         assert "Alice" in dl_resp.text

@@ -91,12 +91,9 @@ def _build_result_response(
     columns: list[str],
     offset: int,
     page_size: int,
-    poll_token: str = "",
-    mcp_server_url: str = "",
     artifact_id: str = "",
     *,
     requested_page_size: int | None = None,
-    skip_widget: bool = False,
 ) -> CallToolResult:
     """Build a CallToolResult with separate content and structuredContent.
 
@@ -115,26 +112,6 @@ def _build_result_response(
 
     has_more = offset + page_size < total
     next_offset = offset + page_size if has_more else None
-
-    # ── Widget data → structuredContent (client only, NOT the LLM) ───
-    #
-    # Only emit on the first page — the widget fetches the full dataset
-    # independently, so subsequent pages only need the text summary.
-    structured: dict[str, Any] | None = None
-    if offset == 0 and not skip_widget:
-        structured = {
-            "csv_url": csv_url,
-            "preview": preview_records,
-            "total": total,
-            "fetch_full_results": True,
-        }
-        if artifact_id:
-            structured["artifact_id"] = artifact_id
-        if poll_token:
-            structured["poll_token"] = poll_token
-            structured["download_token_url"] = (
-                f"{mcp_server_url}/api/results/{task_id}/download-token"
-            )
 
     # ── Summary + inline data → content (for the LLM) ───────────────
     if has_more:
@@ -175,7 +152,6 @@ def _build_result_response(
 
     return CallToolResult(
         content=[TextContent(type="text", text=summary)],  # pyright: ignore[reportArgumentType]  # list invariance
-        structuredContent=structured,
         isError=False,
     )
 

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import secrets
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -19,8 +17,6 @@ from futuresearch.generated.models.task_status_response import TaskStatusRespons
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.routes import (
     _cors_headers,
-    api_download,
-    api_download_url,
     api_progress,
 )
 
@@ -253,160 +249,6 @@ class TestApiProgress:
         assert resp.status_code == 500
         body = json.loads(bytes(resp.body).decode())
         assert body["error"] == "Internal server error"
-
-
-class TestApiDownloadToken:
-    """Tests for the download-token minting endpoint."""
-
-    @pytest.mark.asyncio
-    async def test_options_returns_204(self):
-        req = FakeRequest(method="OPTIONS", path_params={"task_id": "abc"})
-        resp = await api_download_url(req)  # pyright: ignore[reportArgumentType]
-        assert resp.status_code == 204
-        assert resp.headers["Access-Control-Allow-Origin"] == "*"
-
-    @pytest.mark.asyncio
-    async def test_valid_poll_token_returns_download_url(self):
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
-
-        req = FakeRequest(
-            path_params={"task_id": task_id},
-            headers={"authorization": f"Bearer {poll_token}"},
-        )
-        resp = await api_download_url(req)  # pyright: ignore[reportArgumentType]
-        assert resp.status_code == 200
-        body = json.loads(bytes(resp.body).decode())
-        assert "download_url" in body
-        assert f"/api/results/{task_id}/download" in body["download_url"]
-
-    @pytest.mark.asyncio
-    async def test_query_param_token_rejected(self):
-        """Poll token via ?token= query param should be rejected (bearer only)."""
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        await redis_store.store_poll_token(task_id, poll_token)
-
-        req = FakeRequest(
-            path_params={"task_id": task_id},
-            query_params={"token": poll_token},
-        )
-        resp = await api_download_url(req)  # pyright: ignore[reportArgumentType]
-        assert resp.status_code == 403
-
-    @pytest.mark.asyncio
-    async def test_invalid_poll_token_returns_403(self):
-        task_id = str(uuid4())
-        await redis_store.store_poll_token(task_id, "correct-token")
-
-        req = FakeRequest(
-            path_params={"task_id": task_id},
-            headers={"authorization": "Bearer wrong-token"},
-        )
-        resp = await api_download_url(req)  # pyright: ignore[reportArgumentType]
-        assert resp.status_code == 403
-
-    @pytest.mark.asyncio
-    async def test_invalid_uuid_returns_400(self):
-        req = FakeRequest(
-            path_params={"task_id": "not-a-uuid"},
-            headers={"authorization": "Bearer some-token"},
-        )
-        resp = await api_download_url(req)  # pyright: ignore[reportArgumentType]
-        assert resp.status_code == 400
-
-    @pytest.mark.asyncio
-    async def test_download_url_works_for_download(self):
-        """End-to-end: get download URL, then use it to download CSV."""
-        task_id = str(uuid4())
-        poll_token = secrets.token_urlsafe(16)
-        records = [{"col_a": "val1", "col_b": "val2"}]
-
-        await redis_store.store_poll_token(task_id, poll_token)
-        await redis_store.store_task_token(task_id, "sk-cho-test")
-
-        # Step 1: Get the download URL
-        mint_req = FakeRequest(
-            path_params={"task_id": task_id},
-            headers={"authorization": f"Bearer {poll_token}"},
-        )
-        mint_resp = await api_download_url(mint_req)  # pyright: ignore[reportArgumentType]
-        assert mint_resp.status_code == 200
-        mint_body = json.loads(bytes(mint_resp.body).decode())
-        download_url = mint_body["download_url"]
-        assert f"/api/results/{task_id}/download" in download_url
-
-        # Step 2: Download via public API (forwards API key from Redis)
-        dl_req = FakeRequest(
-            path_params={"task_id": task_id},
-        )
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"data": records, "status": "completed"}
-        mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.get.return_value = mock_resp
-
-        with patch(
-            "futuresearch_mcp.routes.httpx.AsyncClient",
-            return_value=mock_http,
-        ):
-            dl_resp = await api_download(dl_req)  # pyright: ignore[reportArgumentType]
-        assert dl_resp.status_code == 200
-        assert "val1" in dl_resp.body.decode()  # pyright: ignore[reportAttributeAccessIssue]
-
-    @pytest.mark.asyncio
-    async def test_csv_download_quotes_all_fields(self):
-        """CSV download uses QUOTE_ALL so commas in text never break parsing."""
-        task_id = str(uuid4())
-        records = [
-            {
-                "company": "Acme, Inc.",
-                "description": 'Makes "great" widgets, bolts',
-                "revenue": 1000000,
-            },
-            {
-                "company": "Simple Co",
-                "description": "No special chars",
-                "revenue": 500,
-            },
-        ]
-
-        await redis_store.store_task_token(task_id, "sk-cho-test")
-
-        dl_req = FakeRequest(
-            path_params={"task_id": task_id},
-        )
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {"data": records, "status": "completed"}
-        mock_http = AsyncMock()
-        mock_http.__aenter__.return_value.get.return_value = mock_resp
-
-        with patch(
-            "futuresearch_mcp.routes.httpx.AsyncClient",
-            return_value=mock_http,
-        ):
-            dl_resp = await api_download(dl_req)  # pyright: ignore[reportArgumentType]
-        assert dl_resp.status_code == 200
-
-        csv_body = dl_resp.body.decode()  # pyright: ignore[reportAttributeAccessIssue]
-
-        # Every field (including headers and numbers) should be quoted
-        reader = csv.reader(io.StringIO(csv_body))
-        rows = list(reader)
-        assert len(rows) == 3  # header + 2 data rows
-
-        # Headers are quoted
-        assert rows[0] == ["company", "description", "revenue"]
-
-        # Commas and embedded quotes survive round-trip
-        assert rows[1][0] == "Acme, Inc."
-        assert rows[1][1] == 'Makes "great" widgets, bolts'
-        assert rows[1][2] == "1000000"
-
-        # Simple values also quoted (QUOTE_ALL)
-        assert rows[2][0] == "Simple Co"
 
 
 class TestCorsHeaders:

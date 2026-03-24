@@ -22,7 +22,10 @@
     "entry_point": "src/futuresearch_mcp/server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run", "${__dirname}/src/futuresearch_mcp/server.py"],
+      "args": [
+        "run",
+        "${__dirname}/src/futuresearch_mcp/server.py"
+      ],
       "env": {
         "FUTURESEARCH_API_KEY": "${user_config.api_key}"
       }
@@ -60,6 +63,10 @@
     {
       "name": "futuresearch_progress",
       "description": "Check progress of a running task. Blocks briefly to limit the polling rate."
+    },
+    {
+      "name": "futuresearch_status",
+      "description": "Check task status and display a live progress widget."
     },
     {
       "name": "futuresearch_results",
@@ -104,12 +111,29 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "linux", "win32"],
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
     "runtimes": {
       "python": ">=3.12"
     }
   },
-  "keywords": ["futuresearch", "dataframe", "csv", "ai", "data-processing", "classify", "dedupe", "merge", "rank", "forecast"],
+  "keywords": [
+    "futuresearch",
+    "dataframe",
+    "csv",
+    "ai",
+    "data-processing",
+    "classify",
+    "dedupe",
+    "merge",
+    "rank",
+    "forecast"
+  ],
   "license": "MIT",
-  "privacy_policies": ["https://futuresearch.ai/privacy/"]
+  "privacy_policies": [
+    "https://futuresearch.ai/privacy/"
+  ]
 }

@@ -35,7 +35,6 @@ from futuresearch_mcp.app import mcp as mcp_app
 from futuresearch_mcp.tool_helpers import SessionContext
 from futuresearch_mcp.tools import (
     _RESULTS_ANNOTATIONS,
-    _RESULTS_META,
     futuresearch_results_http,
     futuresearch_results_stdio,
 )
@@ -55,7 +54,6 @@ def _http_state(fake_redis):
         name="futuresearch_results",
         structured_output=False,
         annotations=_RESULTS_ANNOTATIONS,
-        meta=_RESULTS_META,
     )(futuresearch_results_http)
 
     with (
@@ -70,7 +68,6 @@ def _http_state(fake_redis):
         name="futuresearch_results",
         structured_output=False,
         annotations=_RESULTS_ANNOTATIONS,
-        meta=_RESULTS_META,
     )(futuresearch_results_stdio)
 
 
@@ -171,6 +168,7 @@ class TestMcpProtocol:
                     "futuresearch_merge",
                     "futuresearch_progress",
                     "futuresearch_rank",
+                    "futuresearch_status",
                     "futuresearch_results",
                     "futuresearch_single_agent",
                     "futuresearch_upload_data",

@@ -19,7 +19,6 @@ from futuresearch_mcp.http_config import configure_http_mode
 from futuresearch_mcp.redis_store import Transport
 from futuresearch_mcp.tools import (
     _RESULTS_ANNOTATIONS,
-    _RESULTS_META,
     futuresearch_results_http,
 )
 from futuresearch_mcp.uploads import register_upload_tool
@@ -98,6 +97,11 @@ def main():
     settings.transport = transport.value
     mcp._mcp_server.instructions = get_instructions(is_http=input_args.http)
 
+    # futuresearch_status is only useful for widget-capable clients (HTTP mode).
+    # Remove it in stdio mode so Claude Code never sees it.
+    if transport != Transport.HTTP:
+        mcp._tool_manager.remove_tool("futuresearch_status")
+
     # tools.py registers futuresearch_results_stdio by default.
     # Override with the HTTP variant when running in HTTP mode.
     # ToolManager.add_tool() is a no-op for existing names, so remove first.
@@ -107,7 +111,6 @@ def main():
             name="futuresearch_results",
             structured_output=False,
             annotations=_RESULTS_ANNOTATIONS,
-            meta=_RESULTS_META,
         )(futuresearch_results_http)
 
     if input_args.http:

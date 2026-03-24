@@ -15,6 +15,7 @@ from futuresearch.built_in_lists import list_built_in_datasets, use_built_in_lis
 from futuresearch.constants import FuturesearchError as EveryrowError
 from futuresearch.generated.api.billing import get_billing_balance_billing_get
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
+from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.ops import (
     agent_map_async,
     classify_async,
@@ -64,9 +65,7 @@ from futuresearch_mcp.tool_helpers import (
     _fetch_task_result,
     _get_client,
     _record_task_ownership,
-    client_supports_widgets,
     create_tool_response,
-    is_internal_client,
     log_client_info,
 )
 from futuresearch_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
@@ -251,8 +250,7 @@ async def futuresearch_agent(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
     """
     logger.info(
         "futuresearch_agent: task=%.80s rows=%s",
@@ -331,8 +329,7 @@ async def futuresearch_single_agent(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
     """
     logger.info("futuresearch_single_agent: task=%.80s", params.task)
     log_client_info(ctx, "futuresearch_single_agent")
@@ -410,8 +407,7 @@ async def futuresearch_rank(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
 
     Args:
         params: RankInput
@@ -489,8 +485,7 @@ async def futuresearch_dedupe(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
 
     Args:
         params: DedupeInput
@@ -580,8 +575,7 @@ async def futuresearch_merge(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
 
     Args:
         params: MergeInput
@@ -663,8 +657,7 @@ async def futuresearch_forecast(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
     """
     logger.info(
         "futuresearch_forecast: context=%.80s rows=%s",
@@ -729,8 +722,7 @@ async def futuresearch_classify(
 
     This function submits the task and returns immediately with a task_id.
 
-    Then immediately call futuresearch_progress(task_id) to monitor.
-    Once the task is completed, call futuresearch_results to save the output.
+    Then immediately follow the instructions in the response to monitor progress.
     """
     logger.info(
         "futuresearch_classify: task=%.80s categories=%s rows=%s",
@@ -976,6 +968,109 @@ async def futuresearch_progress(
     ]
 
 
+@mcp.tool(
+    name="futuresearch_status",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Check Task Status (widget)",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    meta={"ui": {"resourceUri": "ui://futuresearch/session.html"}},
+)
+async def futuresearch_status(
+    params: ProgressInput,
+    ctx: FuturesearchContext,
+) -> CallToolResult:
+    """Check task status and display a live progress widget.
+
+    Returns a progress widget that auto-updates via REST polling.
+    The widget handles both progress tracking and result display.
+    After calling this once, do NOT call futuresearch_progress or
+    futuresearch_results — the widget handles everything automatically.
+    """
+    logger.debug("futuresearch_status: task_id=%s", params.task_id)
+    task_id = params.task_id
+
+    # One status check so we can return current state
+    client = _get_client(ctx)
+    try:
+        status_response = handle_response(
+            await get_task_status_tasks_task_id_status_get.asyncio(
+                task_id=UUID(task_id),
+                client=client,
+            )
+        )
+    except Exception:
+        logger.exception("Failed to check task %s", task_id)
+        return _error_result(
+            f"Error checking task {task_id}. Please try calling futuresearch_status again."
+        )
+
+    ts = TaskState(status_response)
+
+    if ts.is_terminal and ts.status != TaskStatus.COMPLETED:
+        return CallToolResult(
+            content=[TextContent(type="text", text=ts.progress_message(task_id))],
+        )
+
+    # ── Build widget data → structuredContent (client only, NOT the LLM) ──
+    # Always return widget data — even for completed tasks — so the widget
+    # can initialize and auto-fetch results.
+    mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
+    poll_token = await redis_store.get_poll_token(task_id)
+
+    if not poll_token or not mcp_server_url:
+        # Fallback: no widget possible, tell Claude to fetch results manually
+        if ts.is_terminal:
+            return CallToolResult(
+                content=[TextContent(type="text", text=ts.progress_message(task_id))],
+            )
+        return _error_result(
+            f"Live progress unavailable for task {task_id} (session may have expired). "
+            "Try calling futuresearch_status again."
+        )
+
+    widget_data: dict[str, Any] = {
+        "task_id": task_id,
+        "total": ts.total,
+        "completed": ts.completed,
+        "running": ts.running,
+        "failed": ts.failed,
+        "status": ts.status.value,
+        "elapsed_s": ts.elapsed_s,
+        "progress_url": f"{mcp_server_url}/api/progress/{task_id}",
+        "poll_token": poll_token,
+        "download_url": f"{mcp_server_url}/api/results/{task_id}/download",
+    }
+
+    if ts.is_terminal:
+        text = dedent(f"""\
+            Completed: {ts.completed}/{ts.total} ({ts.failed} failed) in {ts.elapsed_s}s.
+            Results are loading in the widget above.
+            Do NOT call futuresearch_results — the widget displays all results.
+            Wait for the user to tell you what to do next.""")
+    else:
+        fail_part = f", {ts.failed} failed" if ts.failed else ""
+        text = dedent(f"""\
+            Running: {ts.completed}/{ts.total} complete, {ts.running} running{fail_part} ({ts.elapsed_s}s elapsed).
+            Progress and results are handled by the widget above.
+
+            Important:
+            - Do NOT call futuresearch_results — the widget loads results automatically when the task completes.
+            - Do NOT call futuresearch_progress — the widget polls automatically.
+            - Do NOT call futuresearch_status again.
+            - Wait for the user to tell you what to do next.
+            """)
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structuredContent=widget_data,
+    )
+
+
 async def futuresearch_results_stdio(
     params: StdioResultsInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
@@ -1029,15 +1124,11 @@ async def futuresearch_results_stdio(
 async def futuresearch_results_http(
     params: HttpResultsInput, ctx: FuturesearchContext
 ) -> CallToolResult:
-    """Retrieve results from a completed futuresearch task.
+    """Retrieve results from a completed futuresearch task (text-only).
 
-    Only call this after futuresearch_progress reports status 'completed'.
-    The user always has access to all rows via the table view — page_size only
-    controls how many rows _you_ can read.
-    After results load, tell the user how many rows you can see vs the total.
-
-    Returns CallToolResult with structuredContent for the table view (not sent
-    to the LLM) and content with summary + data for the LLM.
+    Only call this if explicitly asked — the unified widget
+    (futuresearch_status) handles result display automatically.
+    page_size controls how many rows are included in the LLM response.
     """
     logger.info(
         "futuresearch_results (http): task_id=%s offset=%s page_size=%s",
@@ -1049,9 +1140,6 @@ async def futuresearch_results_http(
     task_id = params.task_id
     mcp_server_url = ctx.request_context.lifespan_context.mcp_server_url
     log_client_info(ctx, "futuresearch_results")
-    skip_widget = not client_supports_widgets(ctx)
-    if is_internal_client():
-        skip_widget = True
 
     # ── Fetch paginated rows directly from Engine ─────────────────
     try:
@@ -1080,11 +1168,11 @@ async def futuresearch_results_http(
         page_size=params.page_size,
     )
 
-    # Build download URL (no auth token needed)
+    # Build download URL with poll token for authentication
+    poll_token = await redis_store.get_poll_token(task_id)
     csv_url = _get_csv_url(task_id, mcp_server_url)
-
-    # Poll token still needed for the widget's progress polling
-    poll_token = await redis_store.get_poll_token(task_id) or ""
+    if poll_token:
+        csv_url += f"?token={poll_token}"
 
     columns = list(rows[0].keys()) if rows else []
 
@@ -1096,11 +1184,8 @@ async def futuresearch_results_http(
         columns=columns,
         offset=params.offset,
         page_size=effective_page_size,
-        poll_token=poll_token,
-        mcp_server_url=mcp_server_url,
         artifact_id=artifact_id,
         requested_page_size=params.page_size,
-        skip_widget=skip_widget,
     )
 
 
@@ -1340,11 +1425,8 @@ _RESULTS_ANNOTATIONS = ToolAnnotations(
     idempotentHint=False,
     openWorldHint=False,
 )
-_RESULTS_META = {"ui": {"resourceUri": "ui://futuresearch/results.html"}}
-
 mcp.tool(
     name="futuresearch_results",
     structured_output=False,
     annotations=_RESULTS_ANNOTATIONS,
-    meta=_RESULTS_META,
 )(futuresearch_results_stdio)

@@ -190,6 +190,15 @@ def is_internal_client() -> bool:
 def _submission_text(label: str, task_id: str, session_id: str = "") -> str:
     """Build human-readable text for submission tool results."""
     session_line = f"\nSession ID: {session_id}" if session_id else ""
+    if not settings.is_stdio and _widgets_from_user_agent():
+        # Claude.ai / Claude Desktop: direct to widget tool
+        return dedent(f"""\
+            {label}{session_line}
+            Task ID: {task_id}
+
+            Immediately call futuresearch_status(task_id='{task_id}') to show a live progress widget.
+            Do NOT call futuresearch_progress — the widget polls automatically.""")
+    # stdio, Claude Code, everyrow-cc, or unknown clients: text-only polling
     return dedent(f"""\
         {label}{session_line}
         Task ID: {task_id}
@@ -514,16 +523,19 @@ async def _fetch_task_result(
 
     session_id = str(status_response.session_id) if status_response.session_id else ""
 
-    # Always use the paginated Engine endpoint — it returns citation-resolved,
-    # metadata-stripped rows via process_rows on the Engine side.
-    effective_offset = offset if offset is not None else 0
-    effective_limit = limit if limit is not None else 100000
+    # When offset/limit are provided, use the paginated parquet path.
+    # Otherwise, use the Supabase path which resolves citations via
+    # per-child render_citations (parquet doesn't have source_bank).
+    params: dict[str, int] = {}
+    if offset is not None and limit is not None:
+        params["offset"] = offset
+        params["limit"] = limit
 
     httpx_client = client.get_async_httpx_client()
     resp = await httpx_client.request(
         method="get",
         url=f"/tasks/{task_id}/result",
-        params={"offset": effective_offset, "limit": effective_limit},
+        params=params if params else None,
     )
     if resp.status_code != 200:
         raise ValueError(f"Engine returned {resp.status_code} for result: {resp.text}")

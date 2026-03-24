@@ -54,7 +54,6 @@ from futuresearch_mcp.models import (
 )
 from futuresearch_mcp.tools import (
     _RESULTS_ANNOTATIONS,
-    _RESULTS_META,
     futuresearch_agent,
     futuresearch_cancel,
     futuresearch_list_sessions,
@@ -672,8 +671,8 @@ class TestResults:
                 HttpResultsInput(task_id=task_id), ctx
             )
 
-        assert result.structuredContent is not None
-        assert "csv_url" in result.structuredContent
+        # futuresearch_results is now text-only (no widget)
+        assert result.structuredContent is None
         block = result.content[0]
         assert isinstance(block, TextContent)
         assert "2 rows" in block.text
@@ -713,7 +712,7 @@ class TestResults:
                 HttpResultsInput(task_id=task_id), ctx
             )
 
-        assert result.structuredContent is not None
+        assert result.structuredContent is None
         block = result.content[0]
         assert isinstance(block, TextContent)
         assert "1 rows" in block.text
@@ -1386,7 +1385,6 @@ class TestHttpResultsToolOverride:
             name="futuresearch_results",
             structured_output=False,
             annotations=_RESULTS_ANNOTATIONS,
-            meta=_RESULTS_META,
         )(futuresearch_results_http)
 
         tool = mcp_app._tool_manager.get_tool("futuresearch_results")
@@ -1402,7 +1400,6 @@ class TestHttpResultsToolOverride:
             name="futuresearch_results",
             structured_output=False,
             annotations=_RESULTS_ANNOTATIONS,
-            meta=_RESULTS_META,
         )(futuresearch_results_stdio)
 
 
@@ -1615,8 +1612,8 @@ class TestResultsWidgetData:
                 HttpResultsInput(task_id=task_id), ctx
             )
 
-        assert result.structuredContent is not None
-        assert result.structuredContent["csv_url"] == csv_url
+        # futuresearch_results is now text-only (no widget)
+        assert result.structuredContent is None
 
 
 # ---------- Session resumption / naming ----------
