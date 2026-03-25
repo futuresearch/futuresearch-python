@@ -244,6 +244,12 @@ async def futuresearch_agent(
     requested research fields for each row. Agents run in parallel to save
     time and are optimized to find accurate answers at minimum cost.
 
+    `task` describes WHAT to research in natural language. `response_schema`
+    defines the OUTPUT STRUCTURE as a JSON Schema. If omitted, results default
+    to a single {"answer": string} field. Pass it whenever you need typed or
+    multi-field output. Do NOT describe desired output columns only in `task`
+    — the schema is what controls the output structure.
+
     Examples:
     - "Find this company's latest funding round and lead investors"
     - "Research the CEO's background and previous companies"
@@ -323,6 +329,12 @@ async def futuresearch_single_agent(
     to research a single question. The agent can search the web, read pages, and
     return structured results.
 
+    `task` describes WHAT to research in natural language. `response_schema`
+    defines the OUTPUT STRUCTURE as a JSON Schema. If omitted, results default
+    to a single {"answer": string} field. Pass it whenever you need typed or
+    multi-field output. Do NOT describe desired output columns only in `task`
+    — the schema is what controls the output structure.
+
     Examples:
     - "Find the current CEO of Apple and their background"
     - "Research the latest funding round for this company" (with input_data: {"company": "Stripe"})
@@ -401,6 +413,11 @@ async def futuresearch_rank(
     table. Conducts research, and can also apply judgment to the results if the
     criteria are qualitative.
 
+    `task` describes WHAT to score in natural language. `response_schema`
+    optionally defines extra output columns as a JSON Schema. If omitted,
+    only the score column is returned. Do NOT describe desired output columns
+    only in `task` — the schema is what controls the output structure.
+
     Examples:
     - "Estimate this drug's peak annual sales in billions of dollars"
     - "What is this country's 5-year GDP growth rate as a percentage?"
@@ -409,12 +426,6 @@ async def futuresearch_rank(
     This function submits the task and returns immediately with a task_id.
 
     Then immediately follow the instructions in the response to monitor progress.
-
-    Args:
-        params: RankInput
-
-    Returns:
-        Success message containing task_id for monitoring progress
     """
     logger.info(
         "futuresearch_rank: task=%.80s rows=%s",

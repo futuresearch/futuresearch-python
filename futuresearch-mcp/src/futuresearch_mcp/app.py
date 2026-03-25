@@ -99,10 +99,24 @@ More efficient than open-ended research for categorical answers.
 3. **Rank** — quantitative rating. Prefer an objective metric with units when possible. \
 Use a subjective 0-100 score only if necessary.
 4. **Agent** — open-ended web research when Classify, Rank, and Forecast don't fit. \
-Specify a response schema with descriptive column names (include units, e.g. \
-`population_millions`). Don't add reasoning/justification fields — users can \
-inspect the research behind each row.
+Pass `response_schema` for multi-field output (see below). Don't add reasoning/justification fields — \
+users can inspect the research behind each row.
 5. **Dedupe / Merge** — data consolidation.
+
+## Specifying the response schema (Agent, Rank, Single Agent)
+
+Agent, Rank, and Single Agent accept a `response_schema` parameter. If omitted, results \
+default to a single `{{"answer": string}}` field. Pass it whenever you need typed or \
+multi-field output. The schema is a JSON Schema object:
+
+```json
+{{"type": "object", "properties": {{"avg_temp_celsius": {{"type": "number", "description": "Average annual temperature in Celsius"}}, "data_source": {{"type": "string", "description": "Source of the data"}}}}, "required": ["avg_temp_celsius", "data_source"]}}
+```
+
+- Use descriptive field names with units (e.g. `population_millions`, `revenue_usd`)
+- Mark fields as `required` unless the data may legitimately be unavailable for some rows
+- Do NOT describe the desired output columns only in the `task` prompt — the schema \
+is what controls the output structure
 
 ## Workflow
 1. **Ingest data** — pass `data` (inline list of dicts) or an `artifact_id` \
