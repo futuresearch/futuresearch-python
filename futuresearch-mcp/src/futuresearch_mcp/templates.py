@@ -124,6 +124,11 @@ body.fullscreen .resize-handle{display:none}
 .copy-modal-box textarea{width:100%;height:300px;font-family:inherit;font-size:11px;border:1px solid var(--border);border-radius:4px;padding:8px;background:var(--input-bg);color:var(--text);resize:vertical}
 .copy-modal-box .modal-btns{display:flex;gap:8px;justify-content:flex-end}
 .copy-modal-box button{padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:var(--btn-bg);color:var(--btn-text);cursor:pointer;font-size:11px;font-family:inherit}
+.done-banner{position:fixed;top:0;left:0;right:0;background:var(--seg-done);color:#fff;padding:10px 16px;z-index:250;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,.15);transform:translateY(-100%);transition:transform .3s ease}
+.done-banner.show{transform:translateY(0)}
+.done-banner .banner-text{flex:1}
+.done-banner .banner-close{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;opacity:.8}
+.done-banner .banner-close:hover{opacity:1}
 .session-link{margin-bottom:6px;font-size:11px;display:flex;align-items:center;gap:8px}
 .session-link a{font-weight:500}
 .session-link .spacer{flex:1}
@@ -181,6 +186,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 </div><!-- close widget-frame -->
 
 <div id="pop" class="popover"><div class="pop-hdr"></div><div class="pop-body"></div></div>
+<div id="doneBanner" class="done-banner"><span class="banner-text">Task complete — ask Claude to get the results.</span><button class="banner-close" id="closeBanner">&times;</button></div>
 <div id="toast" class="toast">Copied!</div>
 <div id="copyModal" class="copy-modal"><div class="copy-modal-box"><div style="font-weight:600;font-size:13px">Select all and copy (Cmd+C / Ctrl+C)</div><textarea id="copyArea" readonly></textarea><div class="modal-btns"><button id="closeCopyModal">Close</button></div></div></div>
 <script type="module">
@@ -222,7 +228,7 @@ const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},glo
 
 /* ── progress state ── */
 let pollUrl=null,pollTimer=null,wasDone=false,pollCursor=null;
-let progressMode=false,resultsFetched=false,notifiedClaude=false;
+let progressMode=false,resultsFetched=false;
 let currentTaskId=null;
 const aggHistory=[];  /* [{aggregate,micros:[{text,row_index}],ts}] */
 let activeTab="activity";
@@ -371,21 +377,16 @@ function renderProgress(d){
     progressSection.classList.add("flash");
     /* auto-fetch results on completion */
     if(!resultsFetched)autoFetchResults();
-    /* notify Claude so it can present results in the conversation */
-    notifyClaude(d);
+    showDoneBanner();
   }
   if(done&&pollTimer){clearInterval(pollTimer);pollTimer=null;}
 }
 
 
-/* ── notify Claude on completion so it can present results ── */
-async function notifyClaude(d){
-  if(notifiedClaude||!currentTaskId)return;
-  notifiedClaude=true;
-  try{
-    await app.sendMessage({role:"user",content:[{type:"text",text:"The task is now done. Get the results."}]});
-  }catch(e){console.error("[notify] sendMessage failed:",e);}
-}
+/* ── show completion banner ── */
+const doneBanner=document.getElementById("doneBanner");
+document.getElementById("closeBanner").addEventListener("click",()=>doneBanner.classList.remove("show"));
+function showDoneBanner(){doneBanner.classList.add("show");}
 
 /* ── auto-fetch results on completion ── */
 async function autoFetchResults(){
@@ -731,12 +732,12 @@ function showPopover(td){
   popHdr.textContent="research."+col.replace(/^research\\./,"");
   popBody.innerHTML=linkify(text);
   const rect=td.getBoundingClientRect();
-  let left=rect.left,top=rect.bottom+4;
+  let left=rect.left,top=rect.bottom-8;
   pop.classList.add("visible");popVisible=true;
   const pw=pop.offsetWidth,ph=pop.offsetHeight;
   if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
   if(left<8)left=8;
-  if(top+ph>window.innerHeight-8)top=rect.top-ph-4;
+  if(top+ph>window.innerHeight-8)top=rect.top-ph+8;
   pop.style.left=left+"px";pop.style.top=top+"px";
 }
 function hidePopover(){pop.classList.remove("visible");popVisible=false;popTarget=null;}
@@ -750,7 +751,7 @@ document.addEventListener("mouseover",e=>{
     popTarget=td;popTimer=setTimeout(()=>showPopover(td),300);
   }else{
     clearTimeout(popTimer);popTarget=null;
-    if(popVisible)popTimer=setTimeout(()=>{if(!pop.matches(":hover"))hidePopover();},150);
+    if(popVisible)popTimer=setTimeout(()=>{if(!pop.matches(":hover"))hidePopover();},400);
   }
 });
 pop.addEventListener("mouseleave",()=>{clearTimeout(popTimer);hidePopover();});

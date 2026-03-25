@@ -1092,7 +1092,7 @@ async def futuresearch_status(
             - Do NOT proactively call futuresearch_results — the widget loads results automatically when the task completes. Only call it if the user asks to see or discuss the results.
             - Do NOT call futuresearch_progress — the widget polls automatically.
             - Do NOT call futuresearch_status again.
-            - Wait for the user to tell you what to do next.
+            - You will NOT be notified when the task completes. The widget will notify the user directly. Tell the user: "The widget above is tracking progress. When it's done, it will let you know — just ask me to get the results when you're ready."
             """)
 
     return CallToolResult(
