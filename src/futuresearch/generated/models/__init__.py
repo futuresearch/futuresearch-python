@@ -58,6 +58,7 @@ from .task_result_response_data_type_0_item import TaskResultResponseDataType0It
 from .task_result_response_data_type_1 import TaskResultResponseDataType1
 from .task_status import TaskStatus
 from .task_status_response import TaskStatusResponse
+from .update_session import UpdateSession
 from .upload_complete_response import UploadCompleteResponse
 from .upload_data_artifacts_upload_post_files_body import UploadDataArtifactsUploadPostFilesBody
 from .upload_data_artifacts_upload_post_json_body import UploadDataArtifactsUploadPostJsonBody
@@ -129,6 +130,7 @@ __all__ = (
     "TaskResultResponseDataType1",
     "TaskStatus",
     "TaskStatusResponse",
+    "UpdateSession",
     "UploadCompleteResponse",
     "UploadDataArtifactsUploadPostFilesBody",
     "UploadDataArtifactsUploadPostJsonBody",

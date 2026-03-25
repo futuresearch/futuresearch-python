@@ -1635,14 +1635,16 @@ class TestSessionParams:
         )
         assert params.session_name == "My Session"
 
-    def test_single_source_rejects_both_session_params(self):
-        with pytest.raises(ValidationError, match="mutually exclusive"):
-            AgentInput(
-                task="test",
-                artifact_id=str(uuid4()),
-                session_id=str(uuid4()),
-                session_name="conflict",
-            )
+    def test_single_source_accepts_both_session_params(self):
+        sid = str(uuid4())
+        params = AgentInput(
+            task="test",
+            artifact_id=str(uuid4()),
+            session_id=sid,
+            session_name="also-provided",
+        )
+        assert params.session_id == sid
+        assert params.session_name == "also-provided"
 
     def test_single_source_rejects_invalid_session_id(self):
         with pytest.raises(ValidationError, match="session_id must be a valid UUID"):
@@ -1661,15 +1663,17 @@ class TestSessionParams:
         )
         assert params.session_id is not None
 
-    def test_merge_rejects_both_session_params(self):
-        with pytest.raises(ValidationError, match="mutually exclusive"):
-            MergeInput(
-                task="match",
-                left_data=[{"a": 1}],
-                right_data=[{"b": 2}],
-                session_id=str(uuid4()),
-                session_name="conflict",
-            )
+    def test_merge_accepts_both_session_params(self):
+        sid = str(uuid4())
+        params = MergeInput(
+            task="match",
+            left_data=[{"a": 1}],
+            right_data=[{"b": 2}],
+            session_id=sid,
+            session_name="also-provided",
+        )
+        assert params.session_id == sid
+        assert params.session_name == "also-provided"
 
     def test_single_agent_accepts_session_id(self):
         params = SingleAgentInput(task="test", session_id=str(uuid4()))
@@ -1692,13 +1696,15 @@ class TestSessionParams:
         assert params.iteration_budget == 5
         assert params.include_reasoning is True
 
-    def test_single_agent_rejects_both_session_params(self):
-        with pytest.raises(ValidationError, match="mutually exclusive"):
-            SingleAgentInput(
-                task="test",
-                session_id=str(uuid4()),
-                session_name="conflict",
-            )
+    def test_single_agent_accepts_both_session_params(self):
+        sid = str(uuid4())
+        params = SingleAgentInput(
+            task="test",
+            session_id=sid,
+            session_name="also-provided",
+        )
+        assert params.session_id == sid
+        assert params.session_name == "also-provided"
 
     def test_upload_data_accepts_session_id(self):
         params = UploadDataInput(
@@ -1706,13 +1712,15 @@ class TestSessionParams:
         )
         assert params.session_id is not None
 
-    def test_upload_data_rejects_both_session_params(self):
-        with pytest.raises(ValidationError, match="mutually exclusive"):
-            UploadDataInput(
-                source="https://example.com/data.csv",
-                session_id=str(uuid4()),
-                session_name="conflict",
-            )
+    def test_upload_data_accepts_both_session_params(self):
+        sid = str(uuid4())
+        params = UploadDataInput(
+            source="https://example.com/data.csv",
+            session_id=sid,
+            session_name="also-provided",
+        )
+        assert params.session_id == sid
+        assert params.session_name == "also-provided"
 
     # ── Tool invocations ─────────────────────────────────────
 

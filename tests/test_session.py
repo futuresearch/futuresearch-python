@@ -333,15 +333,30 @@ class TestCreateSessionResumption:
             assert isinstance(session.session_id, UUID)
 
     @pytest.mark.asyncio
-    async def test_resume_rejects_both_session_id_and_name(self):
-        """Providing both session_id and name raises ValueError."""
+    async def test_resume_with_name_renames_session(self, mocker):
+        """When both session_id and name are provided, the session is renamed."""
         mock_client = MagicMock()
+        sid = uuid.uuid4()
 
-        with pytest.raises(ValueError, match="mutually exclusive"):
-            async with create_session(
-                client=mock_client, session_id=uuid.uuid4(), name="My Session"
-            ):
-                pass  # pragma: no cover
+        mock_create = mocker.patch(
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
+            new_callable=AsyncMock,
+        )
+        mock_update = mocker.patch(
+            "futuresearch.session.update_session_endpoint_sessions_session_id_patch.asyncio",
+            new_callable=AsyncMock,
+        )
+
+        async with create_session(
+            client=mock_client, session_id=sid, name="New Name"
+        ) as session:
+            assert session.session_id == sid
+
+        mock_create.assert_not_called()
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        assert call_args[0][0] == sid
+        assert call_args[1]["body"].name == "New Name"
 
     @pytest.mark.asyncio
     async def test_resume_with_auto_created_client(self, mocker):

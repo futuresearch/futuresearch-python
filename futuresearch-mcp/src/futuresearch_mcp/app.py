@@ -116,10 +116,11 @@ Do NOT add commentary between progress calls — just call again immediately.
 
 ## Session and artifact reuse
 
-Every operation creates a session. After your first operation or upload, pass the \
-returned `session_id` to subsequent operations to keep tasks grouped. When an \
-operation completes, its `artifact_id` can be passed directly to the next operation \
-instead of re-uploading data.
+Every operation creates a session. After your first operation or upload, **always pass \
+the returned `session_id`** to subsequent operations to keep tasks grouped. You may \
+pass `session_id` together with `session_name` — the session is resumed and renamed \
+to the given name. When an operation completes, its `artifact_id` can be passed \
+directly to the next operation instead of re-uploading data.
 
 ## Key rules
 - Be concise. Keep summaries to 1-2 sentences. Do not output markdown tables, \

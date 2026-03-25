@@ -10,9 +10,11 @@ from futuresearch.constants import DEFAULT_EVERYROW_APP_URL
 from futuresearch.generated.api.sessions import (
     create_session_endpoint_sessions_post,
     list_sessions_endpoint_sessions_get,
+    update_session_endpoint_sessions_session_id_patch,
 )
 from futuresearch.generated.client import AuthenticatedClient
 from futuresearch.generated.models.create_session import CreateSession
+from futuresearch.generated.models.update_session import UpdateSession
 
 
 def get_session_url(session_id: UUID) -> str:
@@ -69,16 +71,17 @@ async def create_session(
                 automatically using the FUTURESEARCH_API_KEY environment variable (or legacy FUTURESEARCH_API_KEY) and
                 managed within this context manager.
         name: Name for a *new* session. If not provided, defaults to
-              "futuresearch-sdk-session-{timestamp}". Mutually exclusive with
-              ``session_id``.
+              "futuresearch-sdk-session-{timestamp}". When ``session_id``
+              is also provided, the existing session is renamed to this
+              value.
         session_id: UUID (or string) of an existing session to resume.
                     When provided, no ``POST /sessions`` call is made —
                     the context manager yields a ``Session`` pointing at the
-                    given ID directly. Mutually exclusive with ``name``.
+                    given ID directly. If ``name`` is also provided, the
+                    session is renamed.
 
     Raises:
-        ValueError: If both ``session_id`` and ``name`` are provided, or if
-                    ``session_id`` is not a valid UUID.
+        ValueError: If ``session_id`` is not a valid UUID.
 
     Example:
         # Create a new session
@@ -89,12 +92,6 @@ async def create_session(
         async with create_session(client=client, session_id="...") as session:
             ...
     """
-    if session_id is not None and name is not None:
-        raise ValueError(
-            "session_id and name are mutually exclusive — "
-            "pass session_id to resume an existing session, "
-            "or name to create a new one."
-        )
 
     owns_client = client is None
     if owns_client:
@@ -105,6 +102,10 @@ async def create_session(
         if session_id is not None:
             if not isinstance(session_id, UUID):
                 session_id = UUID(str(session_id))
+            if name is not None:
+                await update_session_endpoint_sessions_session_id_patch.asyncio(
+                    session_id, client=client, body=UpdateSession(name=name)
+                )
             session = Session(client=client, session_id=session_id)
         else:
             response = await create_session_endpoint_sessions_post.asyncio(

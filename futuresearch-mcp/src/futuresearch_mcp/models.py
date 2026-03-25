@@ -134,18 +134,6 @@ def _validate_session_id(v: str | None) -> str | None:
     return v
 
 
-def _check_session_exclusivity(
-    session_id: str | None, session_name: str | None
-) -> None:
-    """Raise if both session_id and session_name are provided."""
-    if session_id is not None and session_name is not None:
-        raise ValueError(
-            "session_id and session_name are mutually exclusive — "
-            "pass session_id to resume an existing session, "
-            "or session_name to create a new one."
-        )
-
-
 class _SingleSourceInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
@@ -159,11 +147,11 @@ class _SingleSourceInput(BaseModel):
     )
     session_id: str | None = Field(
         default=None,
-        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+        description="Session ID (UUID) to add to an existing session. If session_name is also provided, the session is renamed.",
     )
     session_name: str | None = Field(
         default=None,
-        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+        description="Human-readable name for a new session. If session_id is also provided, renames the existing session.",
     )
 
     @field_validator("artifact_id")
@@ -202,7 +190,6 @@ class _SingleSourceInput(BaseModel):
             field_names=("artifact_id", "data"),
             label="Input",
         )
-        _check_session_exclusivity(self.session_id, self.session_name)
         return self
 
     @property
@@ -377,11 +364,11 @@ class MergeInput(BaseModel):
 
     session_id: str | None = Field(
         default=None,
-        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+        description="Session ID (UUID) to add to an existing session. If session_name is also provided, the session is renamed.",
     )
     session_name: str | None = Field(
         default=None,
-        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+        description="Human-readable name for a new session. If session_id is also provided, renames the existing session.",
     )
 
     @field_validator("left_artifact_id", "right_artifact_id")
@@ -425,7 +412,6 @@ class MergeInput(BaseModel):
             field_names=("right_artifact_id", "right_data"),
             label="Right table",
         )
-        _check_session_exclusivity(self.session_id, self.session_name)
         return self
 
     @property
@@ -524,11 +510,11 @@ class UploadDataInput(BaseModel):
     )
     session_id: str | None = Field(
         default=None,
-        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+        description="Session ID (UUID) to add to an existing session. If session_name is also provided, the session is renamed.",
     )
     session_name: str | None = Field(
         default=None,
-        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+        description="Human-readable name for a new session. If session_id is also provided, renames the existing session.",
     )
 
     @field_validator("source")
@@ -552,11 +538,6 @@ class UploadDataInput(BaseModel):
     @classmethod
     def validate_session_id(cls, v: str | None) -> str | None:
         return _validate_session_id(v)
-
-    @model_validator(mode="after")
-    def check_session_exclusivity(self) -> "UploadDataInput":
-        _check_session_exclusivity(self.session_id, self.session_name)
-        return self
 
 
 class SingleAgentInput(BaseModel):
@@ -604,11 +585,11 @@ class SingleAgentInput(BaseModel):
     )
     session_id: str | None = Field(
         default=None,
-        description="Session ID (UUID) to resume. Mutually exclusive with session_name.",
+        description="Session ID (UUID) to add to an existing session. If session_name is also provided, the session is renamed.",
     )
     session_name: str | None = Field(
         default=None,
-        description="Human-readable name for a new session. Mutually exclusive with session_id.",
+        description="Human-readable name for a new session. If session_id is also provided, renames the existing session.",
     )
 
     @field_validator("response_schema")
@@ -622,11 +603,6 @@ class SingleAgentInput(BaseModel):
     @classmethod
     def validate_session_id(cls, v: str | None) -> str | None:
         return _validate_session_id(v)
-
-    @model_validator(mode="after")
-    def check_session_exclusivity(self) -> "SingleAgentInput":
-        _check_session_exclusivity(self.session_id, self.session_name)
-        return self
 
 
 def _validate_task_id(v: str) -> str:
