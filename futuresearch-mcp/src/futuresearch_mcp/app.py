@@ -124,9 +124,12 @@ is what controls the output structure
 2. **Submit** — call a processing tool (futuresearch_agent, futuresearch_classify, \
 futuresearch_rank, futuresearch_dedupe, futuresearch_merge, futuresearch_forecast). \
 It returns a task_id immediately.
-3. **Poll** — call `futuresearch_progress(task_id)` repeatedly until the task completes. \
-Do NOT add commentary between progress calls — just call again immediately.
-4. **Results** — call `futuresearch_results(task_id)` to retrieve the output.
+3. **Poll** — follow the instruction in the submission response. It will tell you \
+exactly which tool to call next (`futuresearch_status` or `futuresearch_progress`). \
+Do NOT override that instruction — use the tool it specifies.
+4. **Results** — follow the instruction from the polling tool. If it says results \
+are in the widget, do NOT call futuresearch_results. Otherwise, call \
+`futuresearch_results(task_id)` to retrieve the output.
 
 ## Session and artifact reuse
 
@@ -174,7 +177,9 @@ then execute the returned curl command, then use the artifact_id from the respon
 - Do NOT pass local file paths to `futuresearch_upload_data` — it will fail in remote mode.
 
 ## Results
-- Always call `futuresearch_results(task_id, page_size=N)` immediately when the task completes. \
+- Follow the instruction from the polling tool. If it says results are in the widget, \
+do NOT call futuresearch_results — the widget handles display automatically.
+- Otherwise, call `futuresearch_results(task_id, page_size=N)` when the task completes. \
 For small tasks ({threshold} or fewer rows), set page_size to the total. \
 For larger tasks, set page_size to {threshold} to load the first batch.
 - The user always has access to all rows via the table view and download link.
