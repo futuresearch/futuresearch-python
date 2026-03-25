@@ -107,10 +107,10 @@ tr:nth-child(even) .row-num{background:var(--bg-alt)}
 .hdr-row .row-num{z-index:4;font-weight:600;color:var(--text-sec);cursor:default;background:var(--bg-toolbar)}
 .flt-row .row-num{z-index:4;cursor:default;background:var(--bg-toolbar)}
 tr.selected .row-num{background:var(--bg-selected)!important}
-.popover{position:fixed;background:var(--pop-bg);border:1px solid var(--border);border-radius:4px;box-shadow:var(--pop-shadow);max-width:420px;min-width:200px;z-index:100;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s;pointer-events:none}
+.popover{position:fixed;background:var(--pop-bg);border:1px solid var(--border);border-radius:4px;box-shadow:var(--pop-shadow);max-width:min(720px,90vw);min-width:280px;max-height:min(500px,70vh);z-index:100;overflow:hidden;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s;pointer-events:none;display:flex;flex-direction:column}
 .popover.visible{opacity:1;transform:translateY(0);pointer-events:auto}
 .pop-hdr{padding:8px 12px;font-size:10px;font-weight:600;color:var(--text-sec);border-bottom:1px solid var(--border-light);background:var(--bg-alt);text-transform:uppercase;letter-spacing:0.03em}
-.pop-body{padding:10px 12px;font-size:11px;line-height:1.5;white-space:pre-wrap;max-height:300px;overflow-y:auto;color:var(--text)}
+.pop-body{padding:10px 12px;font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-y:auto;color:var(--text);flex:1}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--toast-bg);color:var(--toast-text);padding:6px 16px;border-radius:4px;font-size:11px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:200}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .resize-handle{height:4px;background:var(--border-light);cursor:ns-resize;border-radius:0 0 4px 4px;transition:background .15s;margin-top:-1px;border:1px solid var(--border);border-top:none}
@@ -132,10 +132,10 @@ body.fullscreen .resize-handle{display:none}
 body.col-resizing,body.col-resizing *{cursor:col-resize!important;user-select:none!important}
 body.row-resizing,body.row-resizing *{cursor:row-resize!important;user-select:none!important}
 .cell-text{display:inline}
-.cell-more,.cell-less{cursor:pointer;color:var(--accent);font-size:10px;margin-left:2px;white-space:nowrap;font-weight:500}
-.cell-more:hover,.cell-less:hover{text-decoration:underline;text-underline-offset:2px}
+.cell-more,.cell-less{cursor:pointer;color:var(--accent);font-size:10px;margin-left:4px;white-space:nowrap;font-weight:500;padding:1px 4px;border-radius:3px;background:rgba(77,79,189,0.08)}
+.cell-more:hover,.cell-less:hover{text-decoration:underline;text-underline-offset:2px;background:rgba(77,79,189,0.15)}
 .export-btns{display:inline-flex;gap:2px}
-.export-btns button{padding:3px 8px;font-size:10px}
+.export-btns a{font-family:inherit}
 #globalSearch{padding:4px 8px;border:1px solid var(--input-border);border-radius:4px;font-size:11px;background:var(--input-bg);color:var(--text);outline:none;width:160px;transition:border-color .15s ease,width .2s ease;font-family:inherit}
 #globalSearch:focus{border-color:var(--input-focus);width:220px}
 #globalSearch::placeholder{color:var(--text-dim)}
@@ -143,15 +143,6 @@ body.row-resizing,body.row-resizing *{cursor:row-resize!important;user-select:no
 body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none!important}
 .hdr-row th.drag-over-left{box-shadow:inset 3px 0 0 var(--accent)}
 .hdr-row th.drag-over-right{box-shadow:inset -3px 0 0 var(--accent)}
-.settings-wrap{position:relative;display:inline-block}
-#settingsBtn{font-size:14px;padding:5px 8px}
-.settings-drop{position:absolute;top:100%;right:0;margin-top:4px;background:var(--pop-bg);border:1px solid var(--border);border-radius:4px;box-shadow:var(--pop-shadow);padding:8px 0;z-index:100;min-width:130px;display:none}
-.settings-drop.show{display:block}
-.settings-drop .drop-hdr{padding:2px 12px;font-size:10px;font-weight:600;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.03em}
-.settings-drop label{display:flex;align-items:center;gap:6px;padding:4px 12px;font-size:11px;cursor:pointer;white-space:nowrap}
-.settings-drop label:hover{background:var(--bg-hover)}
-.settings-drop input[type="radio"]{margin:0}
-.settings-drop .drop-sep{border-top:1px solid var(--border-light);margin:4px 0}
 /* ── Widget frame ── */
 .widget-frame{border:1px solid var(--border);border-radius:4px;margin:4px;overflow:hidden}
 </style></head><body>
@@ -182,8 +173,7 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
   <span id="sum">Loading...</span>
   <button id="selAllBtn">Select all</button>
   <button id="copyBtn" disabled>Copy CSV (0)</button>
-  <span class="export-btns"><button id="exportLink" title="Copy CSV download link to clipboard">Copy link</button></span>
-  <span class="settings-wrap"><button id="settingsBtn" title="Settings">Settings</button><div id="settingsDrop" class="settings-drop"><div class="drop-hdr">Copy format</div><label><input type="radio" name="cfmt" value="csv" checked> CSV</label><label><input type="radio" name="cfmt" value="tsv"> TSV (tabs)</label><label><input type="radio" name="cfmt" value="json"> JSON</label></div></span>
+  <span class="export-btns"><button id="exportLink" title="Copy CSV download link to clipboard">Download CSV</button></span>
 </div>
 <div class="wrap" id="wrap" style="max-height:520px"><table id="tbl"></table></div>
 <div class="resize-handle" id="resizeHandle"></div>
@@ -226,15 +216,14 @@ const resultsTab=document.getElementById("resultsTab");
 let sessionUrl="",csvUrl="",pollToken="",downloadUrl="";
 const TRUNC=200;
 let didDrag=false;
-let copyFmt="csv";
+const copyFmt="csv";
 let widgetActive=false;
-const settingsBtn=document.getElementById("settingsBtn");
-const settingsDrop=document.getElementById("settingsDrop");
 const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},globalQuery:"",selected:new Set(),lastClick:null,isFullscreen:false,focusedCell:null};
 
 /* ── progress state ── */
 let pollUrl=null,pollTimer=null,wasDone=false,pollCursor=null;
-let progressMode=false,resultsFetched=false;
+let progressMode=false,resultsFetched=false,notifiedClaude=false;
+let currentTaskId=null;
 const aggHistory=[];  /* [{aggregate,micros:[{text,row_index}],ts}] */
 let activeTab="activity";
 
@@ -382,10 +371,21 @@ function renderProgress(d){
     progressSection.classList.add("flash");
     /* auto-fetch results on completion */
     if(!resultsFetched)autoFetchResults();
+    /* notify Claude so it can present results in the conversation */
+    notifyClaude(d);
   }
   if(done&&pollTimer){clearInterval(pollTimer);pollTimer=null;}
 }
 
+
+/* ── notify Claude on completion so it can present results ── */
+async function notifyClaude(d){
+  if(notifiedClaude||!currentTaskId)return;
+  notifiedClaude=true;
+  try{
+    await app.sendMessage({role:"user",content:[{type:"text",text:"The task is now done. Get the results."}]});
+  }catch(e){console.error("[notify] sendMessage failed:",e);}
+}
 
 /* ── auto-fetch results on completion ── */
 async function autoFetchResults(){
@@ -430,6 +430,9 @@ function enterProgressMode(d){
   activityTab.style.display="block";
   resultsTab.style.display="none";
   sessionUrl=d.session_url||sessionUrl;
+  if(d.task_id)currentTaskId=d.task_id;
+  /* Extract task_id from progress_url as fallback */
+  if(!currentTaskId&&d.progress_url){const m=d.progress_url.match(/progress\\/([0-9a-f-]+)/);if(m)currentTaskId=m[1];}
   if(d.poll_token)pollToken=d.poll_token;
   if(d.download_url)downloadUrl=d.download_url;
   renderProgress(d);
@@ -707,21 +710,16 @@ copyBtn.addEventListener("click",async()=>{
   if(!S.selected.size)return;
   const text=buildCopyText();
   const msg="Copied "+S.selected.size+" row"+(S.selected.size>1?"s":"")+" as "+copyFmt.toUpperCase();
+  /* Clipboard API often fails in sandboxed iframes — try it first,
+     fall back to execCommand, then show modal for manual copy. */
   try{await navigator.clipboard.writeText(text);showToast(msg);return;}catch{}
-  if(execCopy(text)){showToast(msg);return;}
+  try{if(execCopy(text)){showToast(msg);return;}}catch{}
   showCopyModal(text);
 });
 closeCopyModal.addEventListener("click",()=>copyModal.classList.remove("show"));
 copyModal.addEventListener("click",e=>{if(e.target===copyModal)copyModal.classList.remove("show");});
 function showToast(msg){toast.textContent=msg;toast.classList.add("show");setTimeout(()=>toast.classList.remove("show"),2000);}
 
-/* --- settings dropdown --- */
-settingsBtn.addEventListener("click",e=>{e.stopPropagation();settingsDrop.classList.toggle("show");});
-document.addEventListener("click",()=>settingsDrop.classList.remove("show"));
-settingsDrop.addEventListener("click",e=>e.stopPropagation());
-settingsDrop.querySelectorAll('input[name="cfmt"]').forEach(r=>{
-  r.addEventListener("change",()=>{copyFmt=r.value;updateCopyBtn();});
-});
 
 /* --- popover --- */
 let popTimer=null,popTarget=null,popVisible=false;
@@ -938,7 +936,7 @@ function updateDownloadLink(){updateSessionLink();}
 document.getElementById("exportLink")?.addEventListener("click",()=>{
   const url=getDownloadUrl();
   if(!url){showToast("No download link yet");return;}
-  copyToClipboard(url).then(ok=>{if(ok)showToast("Link copied");});
+  app.openLink({url}).catch(()=>showCopyModal(url));
 });
 
 /* --- row resize (drag bottom border) --- */

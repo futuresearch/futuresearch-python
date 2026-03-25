@@ -1005,8 +1005,9 @@ async def futuresearch_status(
 
     Returns a progress widget that auto-updates via REST polling.
     The widget handles both progress tracking and result display.
-    After calling this once, do NOT call futuresearch_progress or
-    futuresearch_results — the widget handles everything automatically.
+    After calling this once, do NOT call futuresearch_progress — the
+    widget polls automatically. Only call futuresearch_results if the
+    user explicitly asks to see or discuss the results in the chat.
     """
     logger.debug("futuresearch_status: task_id=%s", params.task_id)
     task_id = params.task_id
@@ -1067,7 +1068,8 @@ async def futuresearch_status(
         text = dedent(f"""\
             Completed: {ts.completed}/{ts.total} ({ts.failed} failed) in {ts.elapsed_s}s.
             Results are loading in the widget above.
-            Do NOT call futuresearch_results — the widget displays all results.
+            Do NOT proactively call futuresearch_results — the widget displays results automatically.
+            If the user asks to see, discuss, or analyze the results, call futuresearch_results(task_id='{task_id}') to load them into the conversation.
             Wait for the user to tell you what to do next.""")
     else:
         fail_part = f", {ts.failed} failed" if ts.failed else ""
@@ -1076,7 +1078,7 @@ async def futuresearch_status(
             Progress and results are handled by the widget above.
 
             Important:
-            - Do NOT call futuresearch_results — the widget loads results automatically when the task completes.
+            - Do NOT proactively call futuresearch_results — the widget loads results automatically when the task completes. Only call it if the user asks to see or discuss the results.
             - Do NOT call futuresearch_progress — the widget polls automatically.
             - Do NOT call futuresearch_status again.
             - Wait for the user to tell you what to do next.
