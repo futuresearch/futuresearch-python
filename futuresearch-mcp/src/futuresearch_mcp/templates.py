@@ -1002,30 +1002,65 @@ function fetchFullResults(url,opts,hasPreview,total){
 }
 
 /* ── fetch last aggregate summary (for re-mount when task already done) ── */
-async function backfillSummaries(){
-  if(!pollUrl||!pollToken)return;
-  try{
-    const opts=pollToken?{headers:{"Authorization":"Bearer "+pollToken}}:{};
-    const r=await fetch(pollUrl,opts);
-    if(!r.ok)return;
-    const d=await r.json();
-    if(d.aggregate_summary||d.summaries)renderProgress(d);
-  }catch{}
+async function backfillSummaries(prefetched){
+
+  let d=prefetched;
+  if(!d){
+    if(!pollUrl||!pollToken)return;
+    try{
+      const opts=pollToken?{headers:{"Authorization":"Bearer "+pollToken}}:{};
+      const r=await fetch(pollUrl,opts);
+      if(!r.ok)return;
+      d=await r.json();
+    }catch{return;}
+  }
+  /* Timeline rehydration: stored aggregates with their micro-summaries */
+  if(d.timeline&&d.timeline.length){
+    for(const entry of d.timeline){
+      const ts=new Date(entry.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+      const micros=(entry.micro_summaries||[]).map(s=>({text:s.summary||String(s),row_indices:s.row_indices||null,row_index:s.row_index}));
+      aggHistory.push({aggregate:entry.summary,micros,ts});
+    }
+    if(d.cursor)pollCursor=d.cursor;
+    if(aggHistory.length>30)aggHistory.splice(0,aggHistory.length-30);
+
+  }
+  /* Render current state (progress bar + activity list) */
+  renderProgress(d);
 }
 
 /* ── ontoolresult: unified entry point ── */
 app.ontoolresult=({content,structuredContent})=>{
+
   /* Entry 1: structuredContent from futuresearch_status (widget data) */
   if(structuredContent&&structuredContent.progress_url){
     enterProgressMode(structuredContent);
-    /* If task already completed on re-mount, backfill summaries then fetch results */
-    const done=["completed","failed","revoked"].includes(structuredContent.status);
-    if(done){
-      wasDone=true;
-      backfillSummaries().then(()=>{if(!resultsFetched)autoFetchResults();});
-    } else if(!pollTimer){
-      pollUrl=structuredContent.progress_url;startPoll();
-    }
+    pollUrl=structuredContent.progress_url;
+    /* Claude.ai caches the original tool result — structuredContent.status
+       may be stale (e.g. "running" even though the task completed).
+       Always do a one-off fetch to get current status before deciding path. */
+    (async()=>{
+      try{
+        const opts=structuredContent.poll_token?{headers:{"Authorization":"Bearer "+structuredContent.poll_token}}:{};
+        const r=await fetch(pollUrl,opts);
+        if(!r.ok){if(!pollTimer)startPoll();return;}
+        const d=await r.json();
+        const currentStatus=d.status||structuredContent.status;
+        const done=["completed","failed","revoked"].includes(currentStatus);
+
+        /* Always backfill stored timeline on mount (covers mid-execution re-mount too) */
+        await backfillSummaries(d);
+        if(done){
+          wasDone=true;
+          if(!resultsFetched)autoFetchResults();
+        } else if(!pollTimer){
+          startPoll();
+        }
+      }catch(e){
+
+        if(!pollTimer)startPoll();
+      }
+    })();
     return;
   }
 
@@ -1037,13 +1072,27 @@ app.ontoolresult=({content,structuredContent})=>{
         const d=JSON.parse(t.text);
         if(d.progress_url){
           enterProgressMode(d);
-          const done=["completed","failed","revoked"].includes(d.status);
-          if(done){
-            wasDone=true;
-            backfillSummaries().then(()=>{if(!resultsFetched)autoFetchResults();});
-          } else if(!pollTimer){
-            pollUrl=d.progress_url;startPoll();
-          }
+          pollUrl=d.progress_url;
+          /* Same live-check as Entry 1 — cached status may be stale */
+          (async()=>{
+            try{
+              const opts=d.poll_token?{headers:{"Authorization":"Bearer "+d.poll_token}}:{};
+              const r2=await fetch(pollUrl,opts);
+              if(!r2.ok){if(!pollTimer)startPoll();return;}
+              const d2=await r2.json();
+              const currentStatus=d2.status||d.status;
+              const done2=["completed","failed","revoked"].includes(currentStatus);
+              await backfillSummaries(d2);
+              if(done2){
+                wasDone=true;
+                if(!resultsFetched)autoFetchResults();
+              } else if(!pollTimer){
+                startPoll();
+              }
+            }catch(e2){
+              if(!pollTimer)startPoll();
+            }
+          })();
           return;
         }
       }catch{}
