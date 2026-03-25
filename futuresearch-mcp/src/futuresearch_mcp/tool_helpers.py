@@ -20,6 +20,7 @@ from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
 from futuresearch.generated.types import Unset
+from futuresearch.session import create_session
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import TextContent
@@ -58,6 +59,26 @@ FuturesearchContext = Context[ServerSession, SessionContext]
 def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
     """Get an FutureSearch API client from the FastMCP lifespan context."""
     return ctx.request_context.lifespan_context.client_factory()
+
+
+def _get_conversation_id() -> str | None:
+    """Get the conversation ID from the current HTTP request context, if any."""
+    try:
+        from futuresearch_mcp.http_config import get_conversation_id  # noqa: PLC0415
+
+        val = get_conversation_id()
+        return val if val else None
+    except Exception:
+        return None
+
+
+def create_linked_session(
+    client: AuthenticatedClient,
+    **kwargs: Any,
+):
+    """Wrapper around SDK create_session that passes conversation_id from HTTP context."""
+    conv_id = _get_conversation_id()
+    return create_session(client=client, conversation_id=conv_id, **kwargs)
 
 
 def log_client_info(ctx: FuturesearchContext, tool_name: str) -> None:

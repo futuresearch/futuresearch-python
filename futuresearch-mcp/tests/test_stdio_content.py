@@ -206,7 +206,7 @@ def _submit_patches(mock_op_path: str):
         ctx,
         patch(mock_op_path, new_callable=AsyncMock, return_value=mock_task),
         patch(
-            "futuresearch_mcp.tools.create_session",
+            "futuresearch_mcp.tools.create_linked_session",
             return_value=_make_async_cm(mock_session),
         ),
     )

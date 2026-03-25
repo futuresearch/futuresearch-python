@@ -43,10 +43,19 @@ _user_agent_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "user_agent", default=""
 )
 
+_conversation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "conversation_id", default=""
+)
+
 
 def get_user_agent() -> str:
     """Return the User-Agent of the current HTTP request (empty in stdio mode)."""
     return _user_agent_var.get()
+
+
+def get_conversation_id() -> str:
+    """Return the X-Conversation-Id of the current HTTP request (empty if absent)."""
+    return _conversation_id_var.get()
 
 
 def configure_http_mode(
@@ -210,6 +219,9 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Propagate User-Agent so downstream tool code can detect the client
         # even in stateless HTTP mode (no MCP initialize → no client_params).
         ua_token = _user_agent_var.set(request.headers.get("user-agent", ""))
+        cc_token = _conversation_id_var.set(
+            request.headers.get("x-conversation-id", "")
+        )
         try:
             start = _time.monotonic()
             response = await call_next(request)
@@ -236,6 +248,7 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
             return response
         finally:
             _user_agent_var.reset(ua_token)
+            _conversation_id_var.reset(cc_token)
 
 
 def _add_middleware(

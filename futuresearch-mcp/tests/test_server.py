@@ -317,7 +317,7 @@ class TestAgent:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -356,7 +356,7 @@ class TestSingleAgent:
                 "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -386,7 +386,7 @@ class TestSingleAgent:
                 "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -421,7 +421,7 @@ class TestSingleAgent:
                 "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -1023,7 +1023,7 @@ class TestAgentInlineInput:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -1062,7 +1062,7 @@ class TestAgentInlineInput:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -1197,7 +1197,7 @@ class TestUploadData:
                 return_value=mock_df,
             ),
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch(
@@ -1235,7 +1235,7 @@ class TestUploadData:
 
         with (
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch(
@@ -1296,7 +1296,7 @@ class TestUploadData:
                 return_value=mock_df,
             ),
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch(
@@ -1476,7 +1476,7 @@ class TestStdioVsHttpGating:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -1507,7 +1507,7 @@ class TestStdioVsHttpGating:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch.object(redis_store, "get_redis_client", return_value=fake_redis),
@@ -1737,7 +1737,7 @@ class TestSessionParams:
             patch(
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
-            patch("futuresearch_mcp.tools.create_session") as mock_cs,
+            patch("futuresearch_mcp.tools.create_linked_session") as mock_cs,
         ):
             mock_cs.return_value = _make_async_context_manager(mock_session)
             mock_op.return_value = mock_task
@@ -1767,7 +1767,7 @@ class TestSessionParams:
             patch(
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
-            patch("futuresearch_mcp.tools.create_session") as mock_cs,
+            patch("futuresearch_mcp.tools.create_linked_session") as mock_cs,
         ):
             mock_cs.return_value = _make_async_context_manager(mock_session)
             mock_op.return_value = mock_task
@@ -1805,7 +1805,7 @@ class TestSessionParams:
                 new_callable=AsyncMock,
                 return_value=mock_df,
             ),
-            patch("futuresearch_mcp.tools.create_session") as mock_cs,
+            patch("futuresearch_mcp.tools.create_linked_session") as mock_cs,
             patch(
                 "futuresearch_mcp.tools.create_table_artifact",
                 new_callable=AsyncMock,
@@ -1840,7 +1840,7 @@ class TestSessionParams:
                 "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
             ) as mock_op,
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
@@ -1884,7 +1884,7 @@ class TestUseList:
                 return_value=mock_result,
             ),
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch(
@@ -1931,7 +1931,7 @@ class TestUseList:
                 return_value=mock_result,
             ),
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
             patch(
@@ -1968,7 +1968,7 @@ class TestUseList:
 
         with (
             patch(
-                "futuresearch_mcp.tools.create_session",
+                "futuresearch_mcp.tools.create_linked_session",
                 side_effect=EveryrowError("connection failed"),
             ),
         ):

@@ -239,7 +239,7 @@ class TestMcpProtocol:
                     return_value=mock_task,
                 ),
                 patch(
-                    "futuresearch_mcp.tools.create_session",
+                    "futuresearch_mcp.tools.create_linked_session",
                     side_effect=fake_create_session,
                 ),
             ):

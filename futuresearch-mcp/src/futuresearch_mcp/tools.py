@@ -26,7 +26,7 @@ from futuresearch.ops import (
     rank_async,
     single_agent_async,
 )
-from futuresearch.session import create_session, list_sessions
+from futuresearch.session import list_sessions
 from futuresearch.task import cancel_task
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
@@ -65,6 +65,7 @@ from futuresearch_mcp.tool_helpers import (
     _fetch_task_result,
     _get_client,
     _record_task_ownership,
+    create_linked_session,
     create_tool_response,
     dedupe_summaries,
     log_client_info,
@@ -177,7 +178,7 @@ async def futuresearch_use_list(
     client = _get_client(ctx)
 
     try:
-        async with create_session(client=client) as session:
+        async with create_linked_session(client=client) as session:
             result = await use_built_in_list(
                 artifact_id=UUID(params.artifact_id),
                 session=session,
@@ -273,7 +274,7 @@ async def futuresearch_agent(
     if params.response_schema:
         response_model = _schema_to_model("AgentResult", params.response_schema)
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -359,7 +360,7 @@ async def futuresearch_single_agent(
         DynamicInput = create_model("DynamicInput", **fields)  # pyright: ignore[reportArgumentType, reportCallIssue]
         input_model = DynamicInput()
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -441,7 +442,7 @@ async def futuresearch_rank(
     if params.response_schema:
         response_model = _schema_to_model("RankResult", params.response_schema)
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -515,7 +516,7 @@ async def futuresearch_dedupe(
 
     input_data = params._aid_or_dataframe
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -607,7 +608,7 @@ async def futuresearch_merge(
     left_input = params._left_aid_or_dataframe
     right_input = params._right_aid_or_dataframe
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -685,7 +686,7 @@ async def futuresearch_forecast(
 
     input_data = params._aid_or_dataframe
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -757,7 +758,7 @@ async def futuresearch_classify(
 
     input_data = params._aid_or_dataframe
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
@@ -827,7 +828,7 @@ async def futuresearch_upload_data(
         if df.empty:
             raise ValueError(f"CSV file is empty: {params.source}")
 
-    async with create_session(
+    async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)

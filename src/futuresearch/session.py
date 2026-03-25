@@ -63,6 +63,7 @@ async def create_session(
     client: AuthenticatedClient | None = None,
     name: str | None = None,
     session_id: UUID | str | None = None,
+    conversation_id: str | None = None,
 ) -> AsyncGenerator[Session, None]:
     """Create a new session — or resume an existing one — and yield it.
 
@@ -108,12 +109,13 @@ async def create_session(
                 )
             session = Session(client=client, session_id=session_id)
         else:
+            body = CreateSession(
+                name=name or f"futuresearch-sdk-session-{datetime.now().isoformat()}",
+                conversation_id=conversation_id,
+            )
             response = await create_session_endpoint_sessions_post.asyncio(
                 client=client,
-                body=CreateSession(
-                    name=name
-                    or f"futuresearch-sdk-session-{datetime.now().isoformat()}"
-                ),
+                body=body,
             )
             response = handle_response(response)
             session = Session(client=client, session_id=response.session_id)
