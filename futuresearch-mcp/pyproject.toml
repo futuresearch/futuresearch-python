@@ -37,6 +37,9 @@ dev = [
     "ruff>=0.9.9",
 ]
 
+[tool.uv]
+exclude-newer = "7 days"
+
 [tool.basedpyright]
 venvPath = ".."
 venv = ".venv"
