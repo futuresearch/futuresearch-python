@@ -49,6 +49,8 @@ class AgentMapOperation:
             affected by other agents. Disables adaptive budget adjustment and straggler management, ensuring agents are not
             hurried or given iteration limits based on other agents' progress. Use this when consistent per-row behavior is
             more important than overall throughput. Default: False.
+        document_query_llm (LLMEnumPublic | None | Unset): LLM to use for the document query tool (QDLLM) that reads and
+            extracts information from web pages. If not provided, defaults to the system default.
     """
 
     input_: AgentMapOperationInputType2 | list[AgentMapOperationInputType1Item] | UUID
@@ -63,6 +65,7 @@ class AgentMapOperation:
     include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     enforce_row_independence: bool | Unset = False
+    document_query_llm: LLMEnumPublic | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -142,6 +145,14 @@ class AgentMapOperation:
 
         enforce_row_independence = self.enforce_row_independence
 
+        document_query_llm: None | str | Unset
+        if isinstance(self.document_query_llm, Unset):
+            document_query_llm = UNSET
+        elif isinstance(self.document_query_llm, LLMEnumPublic):
+            document_query_llm = self.document_query_llm.value
+        else:
+            document_query_llm = self.document_query_llm
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -170,6 +181,8 @@ class AgentMapOperation:
             field_dict["include_research"] = include_research
         if enforce_row_independence is not UNSET:
             field_dict["enforce_row_independence"] = enforce_row_independence
+        if document_query_llm is not UNSET:
+            field_dict["document_query_llm"] = document_query_llm
 
         return field_dict
 
@@ -321,6 +334,23 @@ class AgentMapOperation:
 
         enforce_row_independence = d.pop("enforce_row_independence", UNSET)
 
+        def _parse_document_query_llm(data: object) -> LLMEnumPublic | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                document_query_llm_type_0 = LLMEnumPublic(data)
+
+                return document_query_llm_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LLMEnumPublic | None | Unset, data)
+
+        document_query_llm = _parse_document_query_llm(d.pop("document_query_llm", UNSET))
+
         agent_map_operation = cls(
             input_=input_,
             task=task,
@@ -334,6 +364,7 @@ class AgentMapOperation:
             include_reasoning=include_reasoning,
             include_research=include_research,
             enforce_row_independence=enforce_row_independence,
+            document_query_llm=document_query_llm,
         )
 
         agent_map_operation.additional_properties = d

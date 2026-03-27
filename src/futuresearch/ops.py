@@ -289,6 +289,7 @@ async def agent_map(
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
+    document_query_llm: LLM | None = None,
 ) -> TableResult:
     """Execute an AI agent task on each row of the input table.
 
@@ -302,6 +303,7 @@ async def agent_map(
         iteration_budget: Number of agent iterations per row (0-20). Required when effort_level is None.
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
+        document_query_llm: LLM to use for the document query tool (QDLLM) when scraping web pages.
 
     Returns:
         TableResult containing the agent results merged with input rows.
@@ -320,6 +322,7 @@ async def agent_map(
                 include_reasoning=include_reasoning,
                 enforce_row_independence=enforce_row_independence,
                 response_model=response_model,
+                document_query_llm=document_query_llm,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -335,6 +338,7 @@ async def agent_map(
         include_reasoning=include_reasoning,
         enforce_row_independence=enforce_row_independence,
         response_model=response_model,
+        document_query_llm=document_query_llm,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
@@ -352,6 +356,7 @@ async def agent_map_async(
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
+    document_query_llm: LLM | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit an agent_map task asynchronously."""
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
@@ -372,6 +377,9 @@ async def agent_map_async(
         include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         join_with_input=True,
         enforce_row_independence=enforce_row_independence,
+        document_query_llm=LLMEnumPublic(document_query_llm.value)
+        if document_query_llm is not None
+        else UNSET,
     )
 
     response = await agent_map_operations_agent_map_post.asyncio(
