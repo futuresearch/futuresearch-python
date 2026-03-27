@@ -625,6 +625,7 @@ async def dedupe(
     input: DataFrame | UUID | TableResult | None = None,
     strategy: Literal["identify", "select", "combine"] | None = None,
     strategy_prompt: str | None = None,
+    llm: LLM | None = None,
 ) -> TableResult:
     """Dedupe a table by removing duplicates using AI.
 
@@ -653,6 +654,7 @@ async def dedupe(
             Examples: "Prefer the record with the most complete contact information",
             "For each field, keep the most recent and complete value",
             "Prefer records from the CRM system over spreadsheet imports".
+        llm: LLM to use for dedupe comparisons. If not provided, uses the system default.
 
     Returns:
         TableResult containing the deduped table with cluster metadata columns.
@@ -667,6 +669,7 @@ async def dedupe(
                 equivalence_relation=equivalence_relation,
                 strategy=strategy,
                 strategy_prompt=strategy_prompt,
+                llm=llm,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -678,6 +681,7 @@ async def dedupe(
         equivalence_relation=equivalence_relation,
         strategy=strategy,
         strategy_prompt=strategy_prompt,
+        llm=llm,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
@@ -691,6 +695,7 @@ async def dedupe_async(
     equivalence_relation: str,
     strategy: Literal["identify", "select", "combine"] | None = None,
     strategy_prompt: str | None = None,
+    llm: LLM | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit a dedupe task asynchronously."""
     input_data = _prepare_table_input(input, DedupeOperationInputType1Item)
@@ -701,6 +706,7 @@ async def dedupe_async(
         session_id=session.session_id,
         strategy=DedupeOperationStrategy(strategy) if strategy is not None else UNSET,
         strategy_prompt=strategy_prompt if strategy_prompt is not None else UNSET,
+        llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
     )
 
     response = await dedupe_operations_dedupe_post.asyncio(

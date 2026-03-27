@@ -8,6 +8,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.dedupe_operation_strategy import DedupeOperationStrategy
+from ..models.llm_enum_public import LLMEnumPublic
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ class DedupeOperation:
         strategy (DedupeOperationStrategy | Unset): Strategy for handling duplicates: 'identify' (cluster only),
             'select' (pick best), 'combine' (synthesize combined row) Default: DedupeOperationStrategy.SELECT.
         strategy_prompt (None | str | Unset): Optional instructions guiding how selection or combining is performed
+        llm (LLMEnumPublic | None | Unset): LLM to use for dedupe comparisons. If not provided, uses the system default.
     """
 
     input_: DedupeOperationInputType2 | list[DedupeOperationInputType1Item] | UUID
@@ -39,6 +41,7 @@ class DedupeOperation:
     webhook_url: None | str | Unset = UNSET
     strategy: DedupeOperationStrategy | Unset = DedupeOperationStrategy.SELECT
     strategy_prompt: None | str | Unset = UNSET
+    llm: LLMEnumPublic | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -80,6 +83,14 @@ class DedupeOperation:
         else:
             strategy_prompt = self.strategy_prompt
 
+        llm: None | str | Unset
+        if isinstance(self.llm, Unset):
+            llm = UNSET
+        elif isinstance(self.llm, LLMEnumPublic):
+            llm = self.llm.value
+        else:
+            llm = self.llm
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -96,6 +107,8 @@ class DedupeOperation:
             field_dict["strategy"] = strategy
         if strategy_prompt is not UNSET:
             field_dict["strategy_prompt"] = strategy_prompt
+        if llm is not UNSET:
+            field_dict["llm"] = llm
 
         return field_dict
 
@@ -180,6 +193,23 @@ class DedupeOperation:
 
         strategy_prompt = _parse_strategy_prompt(d.pop("strategy_prompt", UNSET))
 
+        def _parse_llm(data: object) -> LLMEnumPublic | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                llm_type_0 = LLMEnumPublic(data)
+
+                return llm_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LLMEnumPublic | None | Unset, data)
+
+        llm = _parse_llm(d.pop("llm", UNSET))
+
         dedupe_operation = cls(
             input_=input_,
             equivalence_relation=equivalence_relation,
@@ -187,6 +217,7 @@ class DedupeOperation:
             webhook_url=webhook_url,
             strategy=strategy,
             strategy_prompt=strategy_prompt,
+            llm=llm,
         )
 
         dedupe_operation.additional_properties = d
