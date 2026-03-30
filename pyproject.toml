@@ -1,5 +1,6 @@
 [tool.uv]
 exclude-newer = "7 days"
+exclude-newer-package = { futuresearch = false, futuresearch-mcp = false }
 
 [tool.uv.workspace]
 members = ["futuresearch-mcp"]
@@ -9,7 +10,7 @@ futuresearch = { workspace = true }
 
 [project]
 name = "futuresearch"
-version = "0.7.0"
+version = "0.8.0"
 description = "A researcher for every row. Forecast, score, classify, or research entire datasets."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -1,7 +1,7 @@
 {
   "name": "futuresearch",
   "description": "Give Claude Code a research team. Forecast, score, classify, or research every row of a dataset.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "author": {
     "name": "FutureSearch"
   },

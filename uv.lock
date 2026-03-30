@@ -3,8 +3,12 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-03-19T12:49:59.687155Z"
+exclude-newer = "2026-03-23T12:59:58.728977Z"
 exclude-newer-span = "P7D"
+
+[options.exclude-newer-package]
+futuresearch-mcp = false
+futuresearch = false
 
 [manifest]
 members = [
@@ -641,7 +645,7 @@ wheels = [
 
 [[package]]
 name = "futuresearch"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },
@@ -698,7 +702,7 @@ dev = [
 
 [[package]]
 name = "futuresearch-mcp"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "futuresearch-mcp" }
 dependencies = [
     { name = "futuresearch" },
