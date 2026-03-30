@@ -57,6 +57,7 @@ class LLMEnumPublic(str, Enum):
     GPT_5_MINI = "GPT_5_MINI"
     GPT_5_MINIMAL = "GPT_5_MINIMAL"
     GPT_5_NANO = "GPT_5_NANO"
+    GROK_4_20_BETA = "GROK_4_20_BETA"
 
     def __str__(self) -> str:
         return str(self.value)
