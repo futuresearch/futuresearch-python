@@ -645,7 +645,7 @@ wheels = [
 
 [[package]]
 name = "futuresearch"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "attrs" },
@@ -702,7 +702,7 @@ dev = [
 
 [[package]]
 name = "futuresearch-mcp"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "futuresearch-mcp" }
 dependencies = [
     { name = "futuresearch" },
