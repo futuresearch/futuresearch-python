@@ -1,4 +1,5 @@
 import json
+import re
 import tomllib
 
 import httpx
@@ -9,7 +10,7 @@ import futuresearch
 
 
 def test_version_consistency(pytestconfig: pytest.Config):
-    """Check that version is consistent across pyproject.toml, plugin.json, gemini-extension.json, marketplace.json, futuresearch-mcp/pyproject.toml, and futuresearch-mcp/server.json."""
+    """Check that version is consistent across all files that contain the SDK version."""
     root = pytestconfig.rootpath
 
     pyproject_path = root / "pyproject.toml"
@@ -17,60 +18,62 @@ def test_version_consistency(pytestconfig: pytest.Config):
         pyproject = tomllib.load(f)
     pyproject_version = pyproject["project"]["version"]
 
-    plugin_json_path = root / ".claude-plugin" / "plugin.json"
-    with open(plugin_json_path) as f:
-        plugin_json = json.load(f)
-    plugin_version = plugin_json["version"]
+    # Collect all version sources with labels
+    sources: dict[str, str] = {}
 
-    gemini_json_path = root / "gemini-extension.json"
-    with open(gemini_json_path) as f:
-        gemini_json = json.load(f)
-    gemini_version = gemini_json["version"]
+    with open(root / ".claude-plugin" / "plugin.json") as f:
+        sources[".claude-plugin/plugin.json version"] = json.load(f)["version"]
 
-    marketplace_json_path = root / ".claude-plugin" / "marketplace.json"
-    with open(marketplace_json_path) as f:
-        marketplace_json = json.load(f)
-    marketplace_version = marketplace_json["plugins"][0]["version"]
+    with open(root / ".claude-plugin" / "marketplace.json") as f:
+        sources[".claude-plugin/marketplace.json plugins[0].version"] = json.load(f)[
+            "plugins"
+        ][0]["version"]
 
-    mcp_pyproject_path = root / "futuresearch-mcp" / "pyproject.toml"
-    with open(mcp_pyproject_path, "rb") as f:
-        mcp_pyproject = tomllib.load(f)
-    mcp_version = mcp_pyproject["project"]["version"]
+    with open(root / "gemini-extension.json") as f:
+        sources["gemini-extension.json version"] = json.load(f)["version"]
 
-    server_json_path = root / "futuresearch-mcp" / "server.json"
-    with open(server_json_path) as f:
+    with open(root / "futuresearch-mcp" / "pyproject.toml", "rb") as f:
+        sources["futuresearch-mcp/pyproject.toml version"] = tomllib.load(f)["project"][
+            "version"
+        ]
+
+    with open(root / "futuresearch-mcp" / "server.json") as f:
         server_json = json.load(f)
-    server_json_version = server_json["version"]
-    server_json_package_version = server_json["packages"][0]["version"]
+    sources["futuresearch-mcp/server.json version"] = server_json["version"]
+    sources["futuresearch-mcp/server.json packages[0].version"] = server_json[
+        "packages"
+    ][0]["version"]
 
-    manifest_json_path = root / "futuresearch-mcp" / "manifest.json"
-    with open(manifest_json_path) as f:
-        manifest_json = json.load(f)
-    manifest_version = manifest_json["version"]
+    with open(root / "futuresearch-mcp" / "manifest.json") as f:
+        sources["futuresearch-mcp/manifest.json version"] = json.load(f)["version"]
 
-    assert pyproject_version == plugin_version, (
-        f"pyproject.toml version ({pyproject_version}) != plugin.json version ({plugin_version})"
+    citation_text = (root / "CITATION.cff").read_text()
+    citation_match = re.search(r"^version:\s*(.+)$", citation_text, re.MULTILINE)
+    assert citation_match, "Could not find version in CITATION.cff"
+    sources["CITATION.cff version"] = citation_match.group(1).strip()
+
+    readme_text = (root / "README.md").read_text()
+    bibtex_match = re.search(
+        r"@software\{futuresearch,.*?version\s*=\s*\{(.+?)\}", readme_text, re.DOTALL
     )
-    assert pyproject_version == gemini_version, (
-        f"pyproject.toml version ({pyproject_version}) != gemini-extension.json version ({gemini_version})"
-    )
-    assert pyproject_version == marketplace_version, (
-        f"pyproject.toml version ({pyproject_version}) != marketplace.json version ({marketplace_version})"
-    )
-    assert pyproject_version == mcp_version, (
-        f"pyproject.toml version ({pyproject_version}) != futuresearch-mcp/pyproject.toml version ({mcp_version})"
-    )
-    assert pyproject_version == server_json_version, (
-        f"pyproject.toml version ({pyproject_version}) != futuresearch-mcp/server.json version ({server_json_version})"
-    )
-    assert pyproject_version == server_json_package_version, (
-        f"pyproject.toml version ({pyproject_version}) != futuresearch-mcp/server.json packages[0].version ({server_json_package_version})"
-    )
-    assert pyproject_version == manifest_version, (
-        f"pyproject.toml version ({pyproject_version}) != futuresearch-mcp/manifest.json version ({manifest_version})"
-    )
-    assert pyproject_version == futuresearch.__version__, (
-        f"pyproject.toml version ({pyproject_version}) != futuresearch.__version__ ({futuresearch.__version__})"
+    assert bibtex_match, "Could not find BibTeX version in README.md"
+    sources["README.md BibTeX version"] = bibtex_match.group(1)
+
+    with open(root / "stubs" / "everyrow" / "pyproject.toml", "rb") as f:
+        sources["stubs/everyrow/pyproject.toml version"] = tomllib.load(f)["project"][
+            "version"
+        ]
+
+    with open(root / "stubs" / "everyrow-mcp" / "pyproject.toml", "rb") as f:
+        sources["stubs/everyrow-mcp/pyproject.toml version"] = tomllib.load(f)[
+            "project"
+        ]["version"]
+
+    sources["futuresearch.__version__"] = futuresearch.__version__
+
+    mismatches = {label: v for label, v in sources.items() if v != pyproject_version}
+    assert not mismatches, (
+        f"pyproject.toml version is {pyproject_version}, but these differ: {mismatches}"
     )
 
 
