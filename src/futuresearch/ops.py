@@ -28,6 +28,7 @@ from futuresearch.generated.models import (
     DedupeOperationInputType1Item,
     DedupeOperationStrategy,
     ForecastOperation,
+    ForecastOperationForecastType,
     ForecastOperationInputType1Item,
     LLMEnumPublic,
     MergeOperation,
@@ -822,7 +823,7 @@ async def forecast_async(
         input_=input_data,  # type: ignore
         task=task,
         session_id=session.session_id,
-        forecast_type=forecast_type,
+        forecast_type=ForecastOperationForecastType(forecast_type),
         output_field=output_field,
         units=units,
     )

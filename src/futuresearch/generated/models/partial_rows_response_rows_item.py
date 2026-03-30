@@ -6,43 +6,28 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="BillingResponse")
+T = TypeVar("T", bound="PartialRowsResponseRowsItem")
 
 
 @_attrs_define
-class BillingResponse:
-    """
-    Attributes:
-        current_balance_dollars (float):
-    """
+class PartialRowsResponseRowsItem:
+    """ """
 
-    current_balance_dollars: float
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        current_balance_dollars = self.current_balance_dollars
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "current_balance_dollars": current_balance_dollars,
-            }
-        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        current_balance_dollars = d.pop("current_balance_dollars")
+        partial_rows_response_rows_item = cls()
 
-        billing_response = cls(
-            current_balance_dollars=current_balance_dollars,
-        )
-
-        billing_response.additional_properties = d
-        return billing_response
+        partial_rows_response_rows_item.additional_properties = d
+        return partial_rows_response_rows_item
 
     @property
     def additional_keys(self) -> list[str]:

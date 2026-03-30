@@ -38,7 +38,7 @@ class SingleAgentOperation:
             params, not both. If not specified, you must provide all individual parameters (llm, iteration_budget,
             include_reasoning).
         return_list (bool | Unset): If True, treat the output as a list of responses instead of a single response.
-            Default: True.
+            Default: False.
         iteration_budget (int | None | Unset): Number of agent iterations (0-20). Required when effort_level is not set.
         include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.
@@ -53,7 +53,7 @@ class SingleAgentOperation:
     response_schema: None | SingleAgentOperationResponseSchemaType0 | Unset = UNSET
     llm: LLMEnumPublic | None | Unset = UNSET
     effort_level: None | PublicEffortLevel | Unset = UNSET
-    return_list: bool | Unset = True
+    return_list: bool | Unset = False
     iteration_budget: int | None | Unset = UNSET
     include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET

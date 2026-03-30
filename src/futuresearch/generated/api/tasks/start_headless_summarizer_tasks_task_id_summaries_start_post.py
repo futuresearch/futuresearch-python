@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 from uuid import UUID
 
@@ -7,41 +7,43 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.error_response import ErrorResponse
 from ...models.http_validation_error import HTTPValidationError
-from ...models.session_response import SessionResponse
-from ...models.update_session import UpdateSession
 from ...types import Response
 
 
 def _get_kwargs(
-    session_id: UUID,
-    *,
-    body: UpdateSession,
+    task_id: UUID,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
-
     _kwargs: dict[str, Any] = {
-        "method": "patch",
-        "url": "/sessions/{session_id}".format(
-            session_id=quote(str(session_id), safe=""),
+        "method": "post",
+        "url": "/tasks/{task_id}/summaries/start".format(
+            task_id=quote(str(task_id), safe=""),
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> HTTPValidationError | SessionResponse | None:
+) -> Any | ErrorResponse | HTTPValidationError | None:
     if response.status_code == 200:
-        response_200 = SessionResponse.from_dict(response.json())
-
+        response_200 = response.json()
         return response_200
+
+    if response.status_code == 202:
+        response_202 = cast(Any, None)
+        return response_202
+
+    if response.status_code == 204:
+        response_204 = cast(Any, None)
+        return response_204
+
+    if response.status_code == 404:
+        response_404 = ErrorResponse.from_dict(response.json())
+
+        return response_404
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -56,7 +58,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[HTTPValidationError | SessionResponse]:
+) -> Response[Any | ErrorResponse | HTTPValidationError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -66,30 +68,28 @@ def _build_response(
 
 
 def sync_detailed(
-    session_id: UUID,
+    task_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> Response[HTTPValidationError | SessionResponse]:
-    """Update a session
+) -> Response[Any | ErrorResponse | HTTPValidationError]:
+    """Start headless summarizer
 
-     Update an existing session (e.g. rename it).
+     Launch a background summarizer that monitors all rows for this task and writes progress summaries to
+    the database until the task completes. Idempotent — returns 204 if a summarizer is already running.
 
     Args:
-        session_id (UUID):
-        body (UpdateSession):
+        task_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionResponse]
+        Response[Any | ErrorResponse | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
-        session_id=session_id,
-        body=body,
+        task_id=task_id,
     )
 
     response = client.get_httpx_client().request(
@@ -100,59 +100,55 @@ def sync_detailed(
 
 
 def sync(
-    session_id: UUID,
+    task_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> HTTPValidationError | SessionResponse | None:
-    """Update a session
+) -> Any | ErrorResponse | HTTPValidationError | None:
+    """Start headless summarizer
 
-     Update an existing session (e.g. rename it).
+     Launch a background summarizer that monitors all rows for this task and writes progress summaries to
+    the database until the task completes. Idempotent — returns 204 if a summarizer is already running.
 
     Args:
-        session_id (UUID):
-        body (UpdateSession):
+        task_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionResponse
+        Any | ErrorResponse | HTTPValidationError
     """
 
     return sync_detailed(
-        session_id=session_id,
+        task_id=task_id,
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
-    session_id: UUID,
+    task_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> Response[HTTPValidationError | SessionResponse]:
-    """Update a session
+) -> Response[Any | ErrorResponse | HTTPValidationError]:
+    """Start headless summarizer
 
-     Update an existing session (e.g. rename it).
+     Launch a background summarizer that monitors all rows for this task and writes progress summaries to
+    the database until the task completes. Idempotent — returns 204 if a summarizer is already running.
 
     Args:
-        session_id (UUID):
-        body (UpdateSession):
+        task_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionResponse]
+        Response[Any | ErrorResponse | HTTPValidationError]
     """
 
     kwargs = _get_kwargs(
-        session_id=session_id,
-        body=body,
+        task_id=task_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -161,31 +157,29 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    session_id: UUID,
+    task_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> HTTPValidationError | SessionResponse | None:
-    """Update a session
+) -> Any | ErrorResponse | HTTPValidationError | None:
+    """Start headless summarizer
 
-     Update an existing session (e.g. rename it).
+     Launch a background summarizer that monitors all rows for this task and writes progress summaries to
+    the database until the task completes. Idempotent — returns 204 if a summarizer is already running.
 
     Args:
-        session_id (UUID):
-        body (UpdateSession):
+        task_id (UUID):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionResponse
+        Any | ErrorResponse | HTTPValidationError
     """
 
     return (
         await asyncio_detailed(
-            session_id=session_id,
+            task_id=task_id,
             client=client,
-            body=body,
         )
     ).parsed

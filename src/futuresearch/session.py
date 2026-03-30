@@ -111,7 +111,7 @@ async def create_session(
         else:
             body = CreateSession(
                 name=name or f"futuresearch-sdk-session-{datetime.now().isoformat()}",
-                conversation_id=conversation_id,
+                conversation_id=UUID(conversation_id) if conversation_id else None,
             )
             response = await create_session_endpoint_sessions_post.asyncio(
                 client=client,

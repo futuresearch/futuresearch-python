@@ -6,27 +6,42 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="BillingResponse")
+T = TypeVar("T", bound="SubscriptionInfo")
 
 
 @_attrs_define
-class BillingResponse:
+class SubscriptionInfo:
     """
     Attributes:
-        current_balance_dollars (float):
+        id (str):
+        status (str):
+        stripe_price_id (str):
+        period_ends_at (str):
     """
 
-    current_balance_dollars: float
+    id: str
+    status: str
+    stripe_price_id: str
+    period_ends_at: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        current_balance_dollars = self.current_balance_dollars
+        id = self.id
+
+        status = self.status
+
+        stripe_price_id = self.stripe_price_id
+
+        period_ends_at = self.period_ends_at
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "current_balance_dollars": current_balance_dollars,
+                "id": id,
+                "status": status,
+                "stripe_price_id": stripe_price_id,
+                "period_ends_at": period_ends_at,
             }
         )
 
@@ -35,14 +50,23 @@ class BillingResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        current_balance_dollars = d.pop("current_balance_dollars")
+        id = d.pop("id")
 
-        billing_response = cls(
-            current_balance_dollars=current_balance_dollars,
+        status = d.pop("status")
+
+        stripe_price_id = d.pop("stripe_price_id")
+
+        period_ends_at = d.pop("period_ends_at")
+
+        subscription_info = cls(
+            id=id,
+            status=status,
+            stripe_price_id=stripe_price_id,
+            period_ends_at=period_ends_at,
         )
 
-        billing_response.additional_properties = d
-        return billing_response
+        subscription_info.additional_properties = d
+        return subscription_info
 
     @property
     def additional_keys(self) -> list[str]:

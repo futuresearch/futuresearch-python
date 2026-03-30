@@ -1,4 +1,4 @@
-"""A client library for accessing futuresearch API"""
+"""A client library for accessing FutureSearch API"""
 
 from .client import AuthenticatedClient, Client
 

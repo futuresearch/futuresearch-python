@@ -9,37 +9,32 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error_response import ErrorResponse
 from ...models.http_validation_error import HTTPValidationError
-from ...models.task_result_response import TaskResultResponse
+from ...models.partial_rows_response import PartialRowsResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     task_id: UUID,
     *,
-    offset: int | None | Unset = UNSET,
-    limit: int | None | Unset = UNSET,
+    completed_after: None | str | Unset = UNSET,
+    limit: int | Unset = 5,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {}
 
-    json_offset: int | None | Unset
-    if isinstance(offset, Unset):
-        json_offset = UNSET
+    json_completed_after: None | str | Unset
+    if isinstance(completed_after, Unset):
+        json_completed_after = UNSET
     else:
-        json_offset = offset
-    params["offset"] = json_offset
+        json_completed_after = completed_after
+    params["completed_after"] = json_completed_after
 
-    json_limit: int | None | Unset
-    if isinstance(limit, Unset):
-        json_limit = UNSET
-    else:
-        json_limit = limit
-    params["limit"] = json_limit
+    params["limit"] = limit
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/tasks/{task_id}/result".format(
+        "url": "/tasks/{task_id}/partial_rows".format(
             task_id=quote(str(task_id), safe=""),
         ),
         "params": params,
@@ -50,9 +45,9 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ErrorResponse | HTTPValidationError | TaskResultResponse | None:
+) -> ErrorResponse | HTTPValidationError | PartialRowsResponse | None:
     if response.status_code == 200:
-        response_200 = TaskResultResponse.from_dict(response.json())
+        response_200 = PartialRowsResponse.from_dict(response.json())
 
         return response_200
 
@@ -74,7 +69,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ErrorResponse | HTTPValidationError | TaskResultResponse]:
+) -> Response[ErrorResponse | HTTPValidationError | PartialRowsResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -87,32 +82,30 @@ def sync_detailed(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-    offset: int | None | Unset = UNSET,
-    limit: int | None | Unset = UNSET,
-) -> Response[ErrorResponse | HTTPValidationError | TaskResultResponse]:
-    """Get task result data
+    completed_after: None | str | Unset = UNSET,
+    limit: int | Unset = 5,
+) -> Response[ErrorResponse | HTTPValidationError | PartialRowsResponse]:
+    """Get recently completed partial rows
 
-     Get the result data of a completed task. Returns the artifact data as a list of records (for tables)
-    or a single record (for scalars). Optional offset/limit for pagination. Citations are resolved to
-    [title](url) markdown links; internal columns (_source_bank, _row_index, etc.) are stripped
-    automatically. Sets X-Total-Row-Count header.
+     Fetch rows that have completed since the given cursor timestamp. Returns a new cursor for the next
+    call, enabling incremental polling of partial results during task execution.
 
     Args:
         task_id (UUID):
-        offset (int | None | Unset):
-        limit (int | None | Unset):
+        completed_after (None | str | Unset):
+        limit (int | Unset):  Default: 5.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | HTTPValidationError | TaskResultResponse]
+        Response[ErrorResponse | HTTPValidationError | PartialRowsResponse]
     """
 
     kwargs = _get_kwargs(
         task_id=task_id,
-        offset=offset,
+        completed_after=completed_after,
         limit=limit,
     )
 
@@ -127,33 +120,31 @@ def sync(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-    offset: int | None | Unset = UNSET,
-    limit: int | None | Unset = UNSET,
-) -> ErrorResponse | HTTPValidationError | TaskResultResponse | None:
-    """Get task result data
+    completed_after: None | str | Unset = UNSET,
+    limit: int | Unset = 5,
+) -> ErrorResponse | HTTPValidationError | PartialRowsResponse | None:
+    """Get recently completed partial rows
 
-     Get the result data of a completed task. Returns the artifact data as a list of records (for tables)
-    or a single record (for scalars). Optional offset/limit for pagination. Citations are resolved to
-    [title](url) markdown links; internal columns (_source_bank, _row_index, etc.) are stripped
-    automatically. Sets X-Total-Row-Count header.
+     Fetch rows that have completed since the given cursor timestamp. Returns a new cursor for the next
+    call, enabling incremental polling of partial results during task execution.
 
     Args:
         task_id (UUID):
-        offset (int | None | Unset):
-        limit (int | None | Unset):
+        completed_after (None | str | Unset):
+        limit (int | Unset):  Default: 5.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | HTTPValidationError | TaskResultResponse
+        ErrorResponse | HTTPValidationError | PartialRowsResponse
     """
 
     return sync_detailed(
         task_id=task_id,
         client=client,
-        offset=offset,
+        completed_after=completed_after,
         limit=limit,
     ).parsed
 
@@ -162,32 +153,30 @@ async def asyncio_detailed(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-    offset: int | None | Unset = UNSET,
-    limit: int | None | Unset = UNSET,
-) -> Response[ErrorResponse | HTTPValidationError | TaskResultResponse]:
-    """Get task result data
+    completed_after: None | str | Unset = UNSET,
+    limit: int | Unset = 5,
+) -> Response[ErrorResponse | HTTPValidationError | PartialRowsResponse]:
+    """Get recently completed partial rows
 
-     Get the result data of a completed task. Returns the artifact data as a list of records (for tables)
-    or a single record (for scalars). Optional offset/limit for pagination. Citations are resolved to
-    [title](url) markdown links; internal columns (_source_bank, _row_index, etc.) are stripped
-    automatically. Sets X-Total-Row-Count header.
+     Fetch rows that have completed since the given cursor timestamp. Returns a new cursor for the next
+    call, enabling incremental polling of partial results during task execution.
 
     Args:
         task_id (UUID):
-        offset (int | None | Unset):
-        limit (int | None | Unset):
+        completed_after (None | str | Unset):
+        limit (int | Unset):  Default: 5.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ErrorResponse | HTTPValidationError | TaskResultResponse]
+        Response[ErrorResponse | HTTPValidationError | PartialRowsResponse]
     """
 
     kwargs = _get_kwargs(
         task_id=task_id,
-        offset=offset,
+        completed_after=completed_after,
         limit=limit,
     )
 
@@ -200,34 +189,32 @@ async def asyncio(
     task_id: UUID,
     *,
     client: AuthenticatedClient,
-    offset: int | None | Unset = UNSET,
-    limit: int | None | Unset = UNSET,
-) -> ErrorResponse | HTTPValidationError | TaskResultResponse | None:
-    """Get task result data
+    completed_after: None | str | Unset = UNSET,
+    limit: int | Unset = 5,
+) -> ErrorResponse | HTTPValidationError | PartialRowsResponse | None:
+    """Get recently completed partial rows
 
-     Get the result data of a completed task. Returns the artifact data as a list of records (for tables)
-    or a single record (for scalars). Optional offset/limit for pagination. Citations are resolved to
-    [title](url) markdown links; internal columns (_source_bank, _row_index, etc.) are stripped
-    automatically. Sets X-Total-Row-Count header.
+     Fetch rows that have completed since the given cursor timestamp. Returns a new cursor for the next
+    call, enabling incremental polling of partial results during task execution.
 
     Args:
         task_id (UUID):
-        offset (int | None | Unset):
-        limit (int | None | Unset):
+        completed_after (None | str | Unset):
+        limit (int | Unset):  Default: 5.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ErrorResponse | HTTPValidationError | TaskResultResponse
+        ErrorResponse | HTTPValidationError | PartialRowsResponse
     """
 
     return (
         await asyncio_detailed(
             task_id=task_id,
             client=client,
-            offset=offset,
+            completed_after=completed_after,
             limit=limit,
         )
     ).parsed

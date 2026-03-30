@@ -75,9 +75,10 @@ def sync_detailed(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered probability forecast
+    """AI-powered forecast
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
+    (probability) and numeric (percentile) modes.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -109,9 +110,10 @@ def sync(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered probability forecast
+    """AI-powered forecast
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
+    (probability) and numeric (percentile) modes.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -138,9 +140,10 @@ async def asyncio_detailed(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered probability forecast
+    """AI-powered forecast
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
+    (probability) and numeric (percentile) modes.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -170,9 +173,10 @@ async def asyncio(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered probability forecast
+    """AI-powered forecast
 
-     Run 6 parallel research agents per row, then synthesize into a probability forecast with rationale.
+     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
+    (probability) and numeric (percentile) modes.
 
     Args:
         x_cohort_source (None | str | Unset):

@@ -8,6 +8,7 @@ class PublicTaskType(str, Enum):
     FORECAST = "forecast"
     MERGE = "merge"
     RANK = "rank"
+    SCREEN = "screen"
     UPLOAD_CSV = "upload_csv"
     UPLOAD_DATA = "upload_data"
 

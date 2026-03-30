@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
+from uuid import UUID
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -16,19 +17,21 @@ class CreateSession:
     """
     Attributes:
         name (str): Name of the session
-        conversation_id (Union[None, Unset, str]): Optional conversation ID to link this session to
+        conversation_id (None | Unset | UUID): Optional conversation ID to link this session to
     """
 
     name: str
-    conversation_id: None | Unset | str = UNSET
+    conversation_id: None | Unset | UUID = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
-        conversation_id: None | Unset | str
+        conversation_id: None | str | Unset
         if isinstance(self.conversation_id, Unset):
             conversation_id = UNSET
+        elif isinstance(self.conversation_id, UUID):
+            conversation_id = str(self.conversation_id)
         else:
             conversation_id = self.conversation_id
 
@@ -49,12 +52,20 @@ class CreateSession:
         d = dict(src_dict)
         name = d.pop("name")
 
-        def _parse_conversation_id(data: object) -> None | Unset | str:
+        def _parse_conversation_id(data: object) -> None | Unset | UUID:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return str(data)
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                conversation_id_type_0 = UUID(data)
+
+                return conversation_id_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | Unset | UUID, data)
 
         conversation_id = _parse_conversation_id(d.pop("conversation_id", UNSET))
 

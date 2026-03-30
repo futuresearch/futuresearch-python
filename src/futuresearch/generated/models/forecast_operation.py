@@ -7,6 +7,7 @@ from uuid import UUID
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.forecast_operation_forecast_type import ForecastOperationForecastType
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -26,15 +27,22 @@ class ForecastOperation:
             of a list of JSON objects
         task (str): Overall context or instructions for the forecast. Each row in the input should contain the
             question/scenario to forecast.
+        forecast_type (ForecastOperationForecastType): Type of forecast. 'binary': yes/no probability (0-100) for
+            questions like 'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like 'What will the
+            price/value/count be?'. Requires output_field when 'numeric'.
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
         webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
+        output_field (None | str | Unset): Name of the numeric quantity being forecast (e.g. 'price', 'count'). Required
+            when forecast_type is 'numeric'. Output columns will be named {output_field}_p10 through {output_field}_p90.
+        units (None | str | Unset): Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). Required when
+            forecast_type is 'numeric'.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID
     task: str
+    forecast_type: ForecastOperationForecastType
     session_id: None | Unset | UUID = UNSET
     webhook_url: None | str | Unset = UNSET
-    forecast_type: str | Unset = UNSET
     output_field: None | str | Unset = UNSET
     units: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -54,6 +62,8 @@ class ForecastOperation:
 
         task = self.task
 
+        forecast_type = self.forecast_type.value
+
         session_id: None | str | Unset
         if isinstance(self.session_id, Unset):
             session_id = UNSET
@@ -68,40 +78,33 @@ class ForecastOperation:
         else:
             webhook_url = self.webhook_url
 
-        field_dict: dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
-        field_dict.update(
-            {
-                "input": input_,
-                "task": task,
-            }
-        )
-        if session_id is not UNSET:
-            field_dict["session_id"] = session_id
-        if webhook_url is not UNSET:
-            field_dict["webhook_url"] = webhook_url
-
-        forecast_type: str | Unset
-        if isinstance(self.forecast_type, Unset):
-            forecast_type = UNSET
-        else:
-            forecast_type = self.forecast_type
-        if forecast_type is not UNSET:
-            field_dict["forecast_type"] = forecast_type
-
         output_field: None | str | Unset
         if isinstance(self.output_field, Unset):
             output_field = UNSET
         else:
             output_field = self.output_field
-        if output_field is not UNSET:
-            field_dict["output_field"] = output_field
 
         units: None | str | Unset
         if isinstance(self.units, Unset):
             units = UNSET
         else:
             units = self.units
+
+        field_dict: dict[str, Any] = {}
+        field_dict.update(self.additional_properties)
+        field_dict.update(
+            {
+                "input": input_,
+                "task": task,
+                "forecast_type": forecast_type,
+            }
+        )
+        if session_id is not UNSET:
+            field_dict["session_id"] = session_id
+        if webhook_url is not UNSET:
+            field_dict["webhook_url"] = webhook_url
+        if output_field is not UNSET:
+            field_dict["output_field"] = output_field
         if units is not UNSET:
             field_dict["units"] = units
 
@@ -146,6 +149,8 @@ class ForecastOperation:
 
         task = d.pop("task")
 
+        forecast_type = ForecastOperationForecastType(d.pop("forecast_type"))
+
         def _parse_session_id(data: object) -> None | Unset | UUID:
             if data is None:
                 return data
@@ -172,8 +177,6 @@ class ForecastOperation:
 
         webhook_url = _parse_webhook_url(d.pop("webhook_url", UNSET))
 
-        forecast_type = d.pop("forecast_type", UNSET)
-
         def _parse_output_field(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -195,9 +198,9 @@ class ForecastOperation:
         forecast_operation = cls(
             input_=input_,
             task=task,
+            forecast_type=forecast_type,
             session_id=session_id,
             webhook_url=webhook_url,
-            forecast_type=forecast_type,
             output_field=output_field,
             units=units,
         )

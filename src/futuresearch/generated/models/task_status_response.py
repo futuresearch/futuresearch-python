@@ -33,6 +33,10 @@ class TaskStatusResponse:
         progress (None | TaskProgressInfo): Subtask progress counts (available while task is running)
         artifact_id (None | Unset | UUID): Result artifact ID (if the task completed)
         error (None | str | Unset): Error message (if the task failed)
+        label (None | str | Unset): Human-readable task label (LLM-generated)
+        pool_size (int | None | Unset): User's researcher pool size (concurrent task capacity)
+        active_workers (int | None | Unset): Number of semaphore entries currently held by this task
+        user_active_workers (int | None | Unset): Total semaphore entries across all of this user's tasks
     """
 
     task_id: UUID
@@ -44,6 +48,10 @@ class TaskStatusResponse:
     progress: None | TaskProgressInfo
     artifact_id: None | Unset | UUID = UNSET
     error: None | str | Unset = UNSET
+    label: None | str | Unset = UNSET
+    pool_size: int | None | Unset = UNSET
+    active_workers: int | None | Unset = UNSET
+    user_active_workers: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,6 +97,30 @@ class TaskStatusResponse:
         else:
             error = self.error
 
+        label: None | str | Unset
+        if isinstance(self.label, Unset):
+            label = UNSET
+        else:
+            label = self.label
+
+        pool_size: int | None | Unset
+        if isinstance(self.pool_size, Unset):
+            pool_size = UNSET
+        else:
+            pool_size = self.pool_size
+
+        active_workers: int | None | Unset
+        if isinstance(self.active_workers, Unset):
+            active_workers = UNSET
+        else:
+            active_workers = self.active_workers
+
+        user_active_workers: int | None | Unset
+        if isinstance(self.user_active_workers, Unset):
+            user_active_workers = UNSET
+        else:
+            user_active_workers = self.user_active_workers
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -106,6 +138,14 @@ class TaskStatusResponse:
             field_dict["artifact_id"] = artifact_id
         if error is not UNSET:
             field_dict["error"] = error
+        if label is not UNSET:
+            field_dict["label"] = label
+        if pool_size is not UNSET:
+            field_dict["pool_size"] = pool_size
+        if active_workers is not UNSET:
+            field_dict["active_workers"] = active_workers
+        if user_active_workers is not UNSET:
+            field_dict["user_active_workers"] = user_active_workers
 
         return field_dict
 
@@ -193,6 +233,42 @@ class TaskStatusResponse:
 
         error = _parse_error(d.pop("error", UNSET))
 
+        def _parse_label(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        label = _parse_label(d.pop("label", UNSET))
+
+        def _parse_pool_size(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        pool_size = _parse_pool_size(d.pop("pool_size", UNSET))
+
+        def _parse_active_workers(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        active_workers = _parse_active_workers(d.pop("active_workers", UNSET))
+
+        def _parse_user_active_workers(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        user_active_workers = _parse_user_active_workers(d.pop("user_active_workers", UNSET))
+
         task_status_response = cls(
             task_id=task_id,
             session_id=session_id,
@@ -203,6 +279,10 @@ class TaskStatusResponse:
             progress=progress,
             artifact_id=artifact_id,
             error=error,
+            label=label,
+            pool_size=pool_size,
+            active_workers=active_workers,
+            user_active_workers=user_active_workers,
         )
 
         task_status_response.additional_properties = d

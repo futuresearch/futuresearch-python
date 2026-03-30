@@ -1,52 +1,30 @@
 from http import HTTPStatus
 from typing import Any
-from urllib.parse import quote
-from uuid import UUID
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.http_validation_error import HTTPValidationError
-from ...models.session_response import SessionResponse
-from ...models.update_session import UpdateSession
+from ...models.subscription_status_response import SubscriptionStatusResponse
 from ...types import Response
 
 
-def _get_kwargs(
-    session_id: UUID,
-    *,
-    body: UpdateSession,
-) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
-
+def _get_kwargs() -> dict[str, Any]:
     _kwargs: dict[str, Any] = {
-        "method": "patch",
-        "url": "/sessions/{session_id}".format(
-            session_id=quote(str(session_id), safe=""),
-        ),
+        "method": "get",
+        "url": "/billing/subscription",
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> HTTPValidationError | SessionResponse | None:
+) -> SubscriptionStatusResponse | None:
     if response.status_code == 200:
-        response_200 = SessionResponse.from_dict(response.json())
+        response_200 = SubscriptionStatusResponse.from_dict(response.json())
 
         return response_200
-
-    if response.status_code == 422:
-        response_422 = HTTPValidationError.from_dict(response.json())
-
-        return response_422
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -56,7 +34,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[HTTPValidationError | SessionResponse]:
+) -> Response[SubscriptionStatusResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -66,31 +44,22 @@ def _build_response(
 
 
 def sync_detailed(
-    session_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> Response[HTTPValidationError | SessionResponse]:
-    """Update a session
+) -> Response[SubscriptionStatusResponse]:
+    """Get subscription status
 
-     Update an existing session (e.g. rename it).
-
-    Args:
-        session_id (UUID):
-        body (UpdateSession):
+     Get the current subscription tier and details for the authenticated user.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionResponse]
+        Response[SubscriptionStatusResponse]
     """
 
-    kwargs = _get_kwargs(
-        session_id=session_id,
-        body=body,
-    )
+    kwargs = _get_kwargs()
 
     response = client.get_httpx_client().request(
         **kwargs,
@@ -100,60 +69,43 @@ def sync_detailed(
 
 
 def sync(
-    session_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> HTTPValidationError | SessionResponse | None:
-    """Update a session
+) -> SubscriptionStatusResponse | None:
+    """Get subscription status
 
-     Update an existing session (e.g. rename it).
-
-    Args:
-        session_id (UUID):
-        body (UpdateSession):
+     Get the current subscription tier and details for the authenticated user.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionResponse
+        SubscriptionStatusResponse
     """
 
     return sync_detailed(
-        session_id=session_id,
         client=client,
-        body=body,
     ).parsed
 
 
 async def asyncio_detailed(
-    session_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> Response[HTTPValidationError | SessionResponse]:
-    """Update a session
+) -> Response[SubscriptionStatusResponse]:
+    """Get subscription status
 
-     Update an existing session (e.g. rename it).
-
-    Args:
-        session_id (UUID):
-        body (UpdateSession):
+     Get the current subscription tier and details for the authenticated user.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | SessionResponse]
+        Response[SubscriptionStatusResponse]
     """
 
-    kwargs = _get_kwargs(
-        session_id=session_id,
-        body=body,
-    )
+    kwargs = _get_kwargs()
 
     response = await client.get_async_httpx_client().request(**kwargs)
 
@@ -161,31 +113,23 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    session_id: UUID,
     *,
     client: AuthenticatedClient,
-    body: UpdateSession,
-) -> HTTPValidationError | SessionResponse | None:
-    """Update a session
+) -> SubscriptionStatusResponse | None:
+    """Get subscription status
 
-     Update an existing session (e.g. rename it).
-
-    Args:
-        session_id (UUID):
-        body (UpdateSession):
+     Get the current subscription tier and details for the authenticated user.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | SessionResponse
+        SubscriptionStatusResponse
     """
 
     return (
         await asyncio_detailed(
-            session_id=session_id,
             client=client,
-            body=body,
         )
     ).parsed

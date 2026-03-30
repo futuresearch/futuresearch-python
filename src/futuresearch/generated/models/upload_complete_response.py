@@ -12,15 +12,23 @@ T = TypeVar("T", bound="UploadCompleteResponse")
 
 @_attrs_define
 class UploadCompleteResponse:
-    """
-    Attributes:
-        artifact_id (UUID): The ID of the created group artifact
-        session_id (UUID): The session ID
-        rows (int): Number of data rows in the uploaded CSV
-        columns (list[str]): Column names from the CSV header
-        size_bytes (int): Size of the uploaded file in bytes
+    """Response returned by PUT /uploads/{upload_id} after a presigned URL upload.
+
+    CAUTION: This JSON schema is parsed by everyrow-cc's stream_parser.py
+    (parse_upload_response) to extract task_id and trigger the viz pane.
+    If you rename or remove fields, update the parser too:
+        cohort/everyrow-cc/agent/src/stream_parser.py
+
+        Attributes:
+            task_id (UUID): The ID of the upload task
+            artifact_id (UUID): The ID of the created group artifact
+            session_id (UUID): The session ID
+            rows (int): Number of data rows in the uploaded CSV
+            columns (list[str]): Column names from the CSV header
+            size_bytes (int): Size of the uploaded file in bytes
     """
 
+    task_id: UUID
     artifact_id: UUID
     session_id: UUID
     rows: int
@@ -29,6 +37,8 @@ class UploadCompleteResponse:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        task_id = str(self.task_id)
+
         artifact_id = str(self.artifact_id)
 
         session_id = str(self.session_id)
@@ -43,6 +53,7 @@ class UploadCompleteResponse:
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "task_id": task_id,
                 "artifact_id": artifact_id,
                 "session_id": session_id,
                 "rows": rows,
@@ -56,6 +67,8 @@ class UploadCompleteResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        task_id = UUID(d.pop("task_id"))
+
         artifact_id = UUID(d.pop("artifact_id"))
 
         session_id = UUID(d.pop("session_id"))
@@ -67,6 +80,7 @@ class UploadCompleteResponse:
         size_bytes = d.pop("size_bytes")
 
         upload_complete_response = cls(
+            task_id=task_id,
             artifact_id=artifact_id,
             session_id=session_id,
             rows=rows,
