@@ -556,7 +556,9 @@ class SingleAgentInput(BaseModel):
     )
     response_schema: dict[str, Any] | None = Field(
         default=None,
-        description="Optional JSON schema for the agent response.",
+        description="JSON schema for the agent response. Required when return_table=True "
+        "to define the fields for each item in the list. If omitted, results default to "
+        'a single {"answer": string} field.',
     )
     effort_level: EffortLevel | None = Field(
         default=EffortLevel.MEDIUM,
@@ -581,7 +583,9 @@ class SingleAgentInput(BaseModel):
     )
     return_table: bool = Field(
         default=False,
-        description="If true, return results as a multi-row table (one row per item). Use when the task produces a list of items (e.g. 'list all X'). If false (default), return a single result row.",
+        description="MUST be true when the task asks for a list of items (e.g. 'find 15 startups', "
+        "'list all X'). Always pair with response_schema to define the fields per item. "
+        "If false (default), returns a single result row.",
     )
     session_id: str | None = Field(
         default=None,

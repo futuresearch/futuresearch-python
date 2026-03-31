@@ -336,10 +336,17 @@ async def futuresearch_single_agent(
     multi-field output. Do NOT describe desired output columns only in `task`
     — the schema is what controls the output structure.
 
+    **For list generation:** When the task asks for a list of items, set
+    `return_table=True` and provide a `response_schema` defining the fields
+    for each item. This returns a multi-row table instead of a single text blob.
+
     Examples:
     - "Find the current CEO of Apple and their background"
     - "Research the latest funding round for this company" (with input_data: {"company": "Stripe"})
     - "What are the pricing tiers for this product?" (with input_data: {"product": "Snowflake"})
+    - "Find 15 AI startups in healthcare" (with return_table=True and response_schema:
+      {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"},
+       "url": {"type": "string"}}, "required": ["name", "description"]})
 
     This function submits the task and returns immediately with a task_id.
 
