@@ -221,7 +221,7 @@ class TestStdioSubmissionContent:
     @pytest.mark.asyncio
     async def test_agent_content(self):
         task, _session, _client, ctx, *patches = _submit_patches(
-            "futuresearch_mcp.tools.agent_map_async"
+            "futuresearch_mcp.tools._submit_agent_map"
         )
         with patches[0], patches[1]:
             result = await futuresearch_agent(
@@ -237,7 +237,7 @@ class TestStdioSubmissionContent:
     @pytest.mark.asyncio
     async def test_single_agent_content(self):
         task, _session, _client, ctx, *patches = _submit_patches(
-            "futuresearch_mcp.tools.single_agent_async"
+            "futuresearch_mcp.tools._submit_single_agent"
         )
         with patches[0], patches[1]:
             result = await futuresearch_single_agent(
@@ -252,7 +252,7 @@ class TestStdioSubmissionContent:
     @pytest.mark.asyncio
     async def test_rank_content(self):
         _task, _session, _client, ctx, *patches = _submit_patches(
-            "futuresearch_mcp.tools.rank_async"
+            "futuresearch_mcp.tools._submit_rank"
         )
         with patches[0], patches[1]:
             result = await futuresearch_rank(
@@ -541,7 +541,7 @@ class TestHttpModeIncludesWidgets:
     async def test_submit_http_has_widget_json(self, fake_redis):
         """HTTP mode must include widget JSON as the first TextContent."""
         _task, _session, _client, ctx, *patches = _submit_patches(
-            "futuresearch_mcp.tools.agent_map_async"
+            "futuresearch_mcp.tools._submit_agent_map"
         )
         fake_token = MagicMock()
         fake_token.client_id = "test-user-123"

@@ -17,22 +17,12 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    create_model,
     field_validator,
     model_validator,
 )
 
 from futuresearch_mcp.config import settings
 from futuresearch_mcp.utils import is_url, validate_csv_path, validate_url
-
-JSON_TYPE_MAP = {
-    "string": str,
-    "integer": int,
-    "number": float,
-    "boolean": bool,
-    "array": list,
-    "object": dict,
-}
 
 
 class InputDataMode(StrEnum):
@@ -78,37 +68,6 @@ def _validate_response_schema(schema: dict[str, Any] | None) -> dict[str, Any] |
             )
 
     return schema
-
-
-def _schema_to_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
-    """Convert a JSON schema dict to a dynamic Pydantic model.
-
-    This allows the MCP client to pass arbitrary response schemas without
-    needing to define Python classes.
-    """
-    properties = schema["properties"]
-    required = set(schema.get("required", []))
-
-    fields: dict[str, Any] = {}
-    for field_name, field_def in properties.items():
-        if not isinstance(field_def, dict):
-            raise ValueError(
-                f"Invalid property schema for '{field_name}': expected an object."
-            )
-
-        field_type_str = field_def.get("type", "string")
-        python_type = JSON_TYPE_MAP.get(field_type_str, str)
-        description = field_def.get("description", "")
-
-        if field_name in required:
-            fields[field_name] = (python_type, Field(..., description=description))
-        else:
-            fields[field_name] = (
-                python_type | None,
-                Field(default=None, description=description),
-            )
-
-    return create_model(name, **fields)
 
 
 def _check_exactly_one(

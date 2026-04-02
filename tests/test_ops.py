@@ -330,7 +330,7 @@ async def test_rank_model_validation(mock_session) -> None:
 
     with pytest.raises(
         ValueError,
-        match="Field population not in response model ResponseModel",
+        match="field_name 'population' not found in response_schema properties",
     ):
         await rank_async(
             task="Find the population of the given country",

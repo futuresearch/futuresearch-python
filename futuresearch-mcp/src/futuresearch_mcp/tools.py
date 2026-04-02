@@ -17,14 +17,14 @@ from futuresearch.generated.api.billing import get_billing_balance_billing_get
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.ops import (
-    agent_map_async,
+    _submit_agent_map,
+    _submit_rank,
+    _submit_single_agent,
     classify_async,
     create_table_artifact,
     dedupe_async,
     forecast_async,
     merge_async,
-    rank_async,
-    single_agent_async,
 )
 from futuresearch.session import list_sessions
 from futuresearch.task import cancel_task
@@ -51,7 +51,6 @@ from futuresearch_mcp.models import (
     StdioResultsInput,
     UploadDataInput,
     UseListInput,
-    _schema_to_model,
 )
 from futuresearch_mcp.result_store import (
     _build_result_response,
@@ -270,10 +269,6 @@ async def futuresearch_agent(
 
     input_data = params._aid_or_dataframe
 
-    response_model: type[BaseModel] | None = None
-    if params.response_schema:
-        response_model = _schema_to_model("AgentResult", params.response_schema)
-
     async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
@@ -284,8 +279,8 @@ async def futuresearch_agent(
             "input": input_data,
             "enforce_row_independence": params.enforce_row_independence,
         }
-        if response_model:
-            kwargs["response_model"] = response_model
+        if params.response_schema:
+            kwargs["response_schema"] = params.response_schema
         kwargs["effort_level"] = params.effort_level
         if params.effort_level is None:
             if params.llm is not None:
@@ -294,8 +289,8 @@ async def futuresearch_agent(
                 kwargs["iteration_budget"] = params.iteration_budget
             if params.include_reasoning is not None:
                 kwargs["include_reasoning"] = params.include_reasoning
-        cohort_task = await agent_map_async(**kwargs)
-        task_id = str(cohort_task.task_id)
+        submitted = await _submit_agent_map(**kwargs)
+        task_id = str(submitted.task_id)
         total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
     return await create_tool_response(
@@ -356,10 +351,6 @@ async def futuresearch_single_agent(
     log_client_info(ctx, "futuresearch_single_agent")
     client = _get_client(ctx)
 
-    response_model: type[BaseModel] | None = None
-    if params.response_schema:
-        response_model = _schema_to_model("SingleAgentResult", params.response_schema)
-
     # Convert input_data dict to a BaseModel if provided
     input_model: BaseModel | None = None
     if params.input_data:
@@ -378,8 +369,8 @@ async def futuresearch_single_agent(
         }
         if input_model is not None:
             kwargs["input"] = input_model
-        if response_model is not None:
-            kwargs["response_model"] = response_model
+        if params.response_schema:
+            kwargs["response_schema"] = params.response_schema
         kwargs["effort_level"] = params.effort_level
         if params.effort_level is None:
             if params.llm is not None:
@@ -388,8 +379,8 @@ async def futuresearch_single_agent(
                 kwargs["iteration_budget"] = params.iteration_budget
             if params.include_reasoning is not None:
                 kwargs["include_reasoning"] = params.include_reasoning
-        cohort_task = await single_agent_async(**kwargs)
-        task_id = str(cohort_task.task_id)
+        submitted = await _submit_single_agent(**kwargs)
+        task_id = str(submitted.task_id)
 
     return await create_tool_response(
         task_id=task_id,
@@ -445,24 +436,20 @@ async def futuresearch_rank(
 
     input_data = params._aid_or_dataframe
 
-    response_model: type[BaseModel] | None = None
-    if params.response_schema:
-        response_model = _schema_to_model("RankResult", params.response_schema)
-
     async with create_linked_session(
         client=client, session_id=params.session_id, name=params.session_name
     ) as session:
         session_id_str = str(session.session_id)
-        cohort_task = await rank_async(
+        submitted = await _submit_rank(
             task=params.task,
             session=session,
             input=input_data,
             field_name=params.field_name,
             field_type=params.field_type,
-            response_model=response_model,
+            response_schema=params.response_schema,
             ascending_order=params.ascending_order,
         )
-        task_id = str(cohort_task.task_id)
+        task_id = str(submitted.task_id)
         total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
     return await create_tool_response(

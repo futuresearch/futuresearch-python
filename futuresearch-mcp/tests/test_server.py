@@ -50,7 +50,6 @@ from futuresearch_mcp.models import (
     StdioResultsInput,
     UploadDataInput,
     UseListInput,
-    _schema_to_model,
 )
 from futuresearch_mcp.tools import (
     _RESULTS_ANNOTATIONS,
@@ -67,61 +66,6 @@ from futuresearch_mcp.tools import (
 from tests.conftest import make_test_context, override_settings
 
 # CSV fixtures are defined in conftest.py
-
-
-class TestSchemaToModel:
-    """Tests for _schema_to_model helper."""
-
-    def test_simple_schema(self):
-        """Test converting a simple schema."""
-        schema = {
-            "properties": {
-                "score": {"type": "number", "description": "A score"},
-                "name": {"type": "string", "description": "A name"},
-            },
-            "required": ["score"],
-        }
-
-        model = _schema_to_model("TestModel", schema)
-
-        # Check model was created with correct fields
-        assert "score" in model.model_fields
-        assert "name" in model.model_fields
-
-    def test_schema_without_required(self):
-        """Test schema where all fields are optional."""
-        schema = {
-            "properties": {
-                "value": {"type": "integer"},
-            }
-        }
-
-        model = _schema_to_model("OptionalModel", schema)
-        assert "value" in model.model_fields
-
-    def test_all_types(self):
-        """Test all supported JSON schema types."""
-        schema = {
-            "properties": {
-                "str_field": {"type": "string"},
-                "int_field": {"type": "integer"},
-                "float_field": {"type": "number"},
-                "bool_field": {"type": "boolean"},
-            }
-        }
-
-        model = _schema_to_model("AllTypes", schema)
-        assert len(model.model_fields) == 4
-
-    def test_rejects_non_object_property_schema(self):
-        """Property definitions must be JSON Schema objects."""
-        schema = {
-            "type": "object",
-            "properties": {"score": "number"},
-        }
-
-        with pytest.raises(ValueError, match="Invalid property schema"):
-            _schema_to_model("BadSchema", schema)
 
 
 class TestInputValidation:
@@ -314,7 +258,7 @@ class TestAgent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -353,7 +297,7 @@ class TestSingleAgent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -383,7 +327,7 @@ class TestSingleAgent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -401,7 +345,7 @@ class TestSingleAgent:
 
             assert str(mock_task.task_id) in text
 
-            # Verify single_agent_async was called with an input model
+            # Verify _submit_single_agent was called with an input model
             call_kwargs = mock_op.call_args[1]
             assert "input" in call_kwargs
             input_model = call_kwargs["input"]
@@ -410,44 +354,44 @@ class TestSingleAgent:
 
     @pytest.mark.asyncio
     async def test_submit_with_response_schema(self):
-        """Test that response_schema creates a response model."""
-        mock_task = _make_mock_task()
+        """Test that response_schema dict is passed through to _submit_single_agent."""
         mock_session = _make_mock_session()
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
+        mock_submitted = MagicMock()
+        mock_submitted.task_id = uuid4()
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "funding_round": {
+                    "type": "string",
+                    "description": "Latest funding round",
+                },
+            },
+            "required": ["funding_round"],
+        }
 
         with (
             patch(
-                "futuresearch_mcp.tools.single_agent_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
                 return_value=_make_async_context_manager(mock_session),
             ),
         ):
-            mock_op.return_value = mock_task
+            mock_op.return_value = mock_submitted
 
-            params = SingleAgentInput(
-                task="Find funding info",
-                response_schema={
-                    "type": "object",
-                    "properties": {
-                        "funding_round": {
-                            "type": "string",
-                            "description": "Latest funding round",
-                        },
-                    },
-                    "required": ["funding_round"],
-                },
-            )
+            params = SingleAgentInput(task="Find funding info", response_schema=schema)
             result = await futuresearch_single_agent(params, ctx)
             text = result[0].text
 
-            assert str(mock_task.task_id) in text
+            assert str(mock_submitted.task_id) in text
 
-            # Verify response_model was passed
+            # Verify the raw schema dict was passed through without conversion
             call_kwargs = mock_op.call_args[1]
-            assert "response_model" in call_kwargs
+            assert call_kwargs["response_schema"] == schema
 
     def test_input_rejects_empty_task(self):
         """Test that SingleAgentInput rejects an empty task."""
@@ -1020,7 +964,7 @@ class TestAgentInlineInput:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -1059,7 +1003,7 @@ class TestAgentInlineInput:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -1473,7 +1417,7 @@ class TestStdioVsHttpGating:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -1504,7 +1448,7 @@ class TestStdioVsHttpGating:
         with (
             override_settings(transport="streamable-http", upload_secret="test-secret"),
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
@@ -1735,7 +1679,7 @@ class TestSessionParams:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch("futuresearch_mcp.tools.create_linked_session") as mock_cs,
         ):
@@ -1765,7 +1709,7 @@ class TestSessionParams:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch("futuresearch_mcp.tools.create_linked_session") as mock_cs,
         ):
@@ -1837,7 +1781,7 @@ class TestSessionParams:
 
         with (
             patch(
-                "futuresearch_mcp.tools.agent_map_async", new_callable=AsyncMock
+                "futuresearch_mcp.tools._submit_agent_map", new_callable=AsyncMock
             ) as mock_op,
             patch(
                 "futuresearch_mcp.tools.create_linked_session",

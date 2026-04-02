@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal, TypeVar, overload
+from typing import Any, Literal, NamedTuple, TypeVar, overload
 from uuid import UUID
 
 from pandas import DataFrame
@@ -56,6 +56,13 @@ InputData = UUID | list[dict[str, Any]] | dict[str, Any]
 
 
 DEFAULT_EFFORT_LEVEL = EffortLevel.MEDIUM
+
+
+class SubmittedTask(NamedTuple):
+    """Lightweight result from _submit_* helpers — just IDs, no typed model."""
+
+    task_id: UUID
+    session_id: UUID
 
 
 class DefaultAgentResponse(BaseModel):
@@ -232,7 +239,7 @@ async def single_agent[T: BaseModel](
     return await cohort_task.await_result()
 
 
-async def single_agent_async[T: BaseModel](
+async def _submit_single_agent(
     task: str,
     session: Session,
     input: BaseModel | DataFrame | UUID | Result | None = None,
@@ -240,21 +247,20 @@ async def single_agent_async[T: BaseModel](
     llm: LLM | None = None,
     iteration_budget: int | None = None,
     include_reasoning: bool | None = None,
-    response_model: type[T] = DefaultAgentResponse,
+    response_schema: dict | None = None,
     return_table: bool = False,
-) -> EveryrowTask[T]:
-    """Submit a single_agent task asynchronously."""
+) -> SubmittedTask:
+    """Build and submit a single_agent request."""
     input_data = _prepare_single_input(
         input, SingleAgentOperationInputType1Item, SingleAgentOperationInputType2
     )
 
-    # Build the operation body with either preset or custom params
     body = SingleAgentOperation(
         input_=input_data,  # type: ignore
         task=task,
         session_id=session.session_id,
         response_schema=SingleAgentOperationResponseSchemaType0.from_dict(
-            response_model.model_json_schema()
+            response_schema or DefaultAgentResponse.model_json_schema()
         ),
         effort_level=PublicEffortLevel(effort_level.value)
         if effort_level is not None
@@ -269,11 +275,37 @@ async def single_agent_async[T: BaseModel](
         client=session.client, body=body
     )
     response = handle_response(response)
+    return SubmittedTask(response.task_id, response.session_id)
+
+
+async def single_agent_async[T: BaseModel](
+    task: str,
+    session: Session,
+    input: BaseModel | DataFrame | UUID | Result | None = None,
+    effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
+    llm: LLM | None = None,
+    iteration_budget: int | None = None,
+    include_reasoning: bool | None = None,
+    response_model: type[T] = DefaultAgentResponse,
+    return_table: bool = False,
+) -> EveryrowTask[T]:
+    """Submit a single_agent task asynchronously."""
+    submitted = await _submit_single_agent(
+        task=task,
+        session=session,
+        input=input,
+        effort_level=effort_level,
+        llm=llm,
+        iteration_budget=iteration_budget,
+        include_reasoning=include_reasoning,
+        response_schema=response_model.model_json_schema(),
+        return_table=return_table,
+    )
 
     cohort_task: EveryrowTask[T] = EveryrowTask(
         response_model=response_model, is_map=False, is_expand=return_table
     )
-    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task
 
 
@@ -347,7 +379,7 @@ async def agent_map(
     raise EveryrowError("Agent map task did not return a table result")
 
 
-async def agent_map_async(
+async def _submit_agent_map(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
@@ -356,19 +388,18 @@ async def agent_map_async(
     iteration_budget: int | None = None,
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
-    response_model: type[BaseModel] = DefaultAgentResponse,
+    response_schema: dict | None = None,
     document_query_llm: LLM | None = None,
-) -> EveryrowTask[BaseModel]:
-    """Submit an agent_map task asynchronously."""
+) -> SubmittedTask:
+    """Build and submit an agent_map request."""
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
 
-    # Build the operation body with either preset or custom params
     body = AgentMapOperation(
         input_=input_data,  # type: ignore
         task=task,
         session_id=session.session_id,
         response_schema=AgentMapOperationResponseSchemaType0.from_dict(
-            response_model.model_json_schema()
+            response_schema or DefaultAgentResponse.model_json_schema()
         ),
         effort_level=PublicEffortLevel(effort_level.value)
         if effort_level is not None
@@ -387,11 +418,39 @@ async def agent_map_async(
         client=session.client, body=body
     )
     response = handle_response(response)
+    return SubmittedTask(response.task_id, response.session_id)
+
+
+async def agent_map_async(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
+    llm: LLM | None = None,
+    iteration_budget: int | None = None,
+    include_reasoning: bool | None = None,
+    enforce_row_independence: bool = False,
+    response_model: type[BaseModel] = DefaultAgentResponse,
+    document_query_llm: LLM | None = None,
+) -> EveryrowTask[BaseModel]:
+    """Submit an agent_map task asynchronously."""
+    submitted = await _submit_agent_map(
+        task=task,
+        session=session,
+        input=input,
+        effort_level=effort_level,
+        llm=llm,
+        iteration_budget=iteration_budget,
+        include_reasoning=include_reasoning,
+        enforce_row_independence=enforce_row_independence,
+        response_schema=response_model.model_json_schema(),
+        document_query_llm=document_query_llm,
+    )
 
     cohort_task = EveryrowTask(
         response_model=response_model, is_map=True, is_expand=False
     )
-    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task
 
 
@@ -453,41 +512,46 @@ async def rank[T: BaseModel](
     raise EveryrowError("Rank task did not return a table result")
 
 
-async def rank_async[T: BaseModel](
+_JSON_TYPE_MAP_RANK = {
+    "float": "number",
+    "int": "integer",
+    "str": "string",
+    "bool": "boolean",
+}
+
+
+async def _submit_rank(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
     field_name: str,
+    response_schema: dict | None = None,
     field_type: Literal["float", "int", "str", "bool"] = "float",
-    response_model: type[T] | None = None,
     ascending_order: bool = True,
-) -> EveryrowTask[T]:
-    """Submit a rank task asynchronously."""
-    input_data = _prepare_table_input(input, RankOperationInputType1Item)
+) -> SubmittedTask:
+    """Build and submit a rank request.
 
-    if response_model is not None:
-        response_schema = response_model.model_json_schema()
-        # Validate that field_name exists in the model
-        properties = response_schema.get("properties", {})
-        if field_name not in properties:
-            raise ValueError(
-                f"Field {field_name} not in response model {response_model.__name__}"
-            )
-    else:
-        # Build a minimal JSON schema with just the sort field
-        json_type_map = {
-            "float": "number",
-            "int": "integer",
-            "str": "string",
-            "bool": "boolean",
-        }
+    If `response_schema` is None, build a minimal schema from `field_name` and
+    `field_type`.
+    """
+    if response_schema is None:
         response_schema = {
             "type": "object",
             "properties": {
-                field_name: {"type": json_type_map.get(field_type, field_type)}
+                field_name: {"type": _JSON_TYPE_MAP_RANK.get(field_type, field_type)}
             },
             "required": [field_name],
         }
+
+    # Validate that the sort field exists in the schema
+    properties = response_schema.get("properties", {})
+    if field_name not in properties:
+        raise ValueError(
+            f"field_name '{field_name}' not found in response_schema properties: "
+            f"{list(properties)}"
+        )
+
+    input_data = _prepare_table_input(input, RankOperationInputType1Item)
 
     body = RankOperation(
         input_=input_data,  # type: ignore
@@ -500,13 +564,39 @@ async def rank_async[T: BaseModel](
 
     response = await rank_operations_rank_post.asyncio(client=session.client, body=body)
     response = handle_response(response)
+    return SubmittedTask(response.task_id, response.session_id)
+
+
+async def rank_async[T: BaseModel](
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    field_name: str,
+    field_type: Literal["float", "int", "str", "bool"] = "float",
+    response_model: type[T] | None = None,
+    ascending_order: bool = True,
+) -> EveryrowTask[T]:
+    """Submit a rank task asynchronously."""
+    response_schema: dict | None = None
+    if response_model is not None:
+        response_schema = response_model.model_json_schema()
+
+    submitted = await _submit_rank(
+        task=task,
+        session=session,
+        input=input,
+        field_name=field_name,
+        response_schema=response_schema,
+        field_type=field_type,
+        ascending_order=ascending_order,
+    )
 
     cohort_task: EveryrowTask[T] = EveryrowTask(
         response_model=response_model or BaseModel,  # type: ignore[arg-type]
         is_map=True,
         is_expand=False,
     )
-    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task
 
 

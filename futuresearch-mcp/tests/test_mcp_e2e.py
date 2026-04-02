@@ -234,7 +234,7 @@ class TestMcpProtocol:
                     return_value=MagicMock(token="fake-token"),
                 ),
                 patch(
-                    "futuresearch_mcp.tools.agent_map_async",
+                    "futuresearch_mcp.tools._submit_agent_map",
                     new_callable=AsyncMock,
                     return_value=mock_task,
                 ),
