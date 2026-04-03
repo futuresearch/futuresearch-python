@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextvars
 import logging
 import os
 import time as _time
@@ -28,34 +27,12 @@ from futuresearch_mcp.middleware import (
     SecurityHeadersMiddleware,
 )
 from futuresearch_mcp.redis_store import get_redis_client
+from futuresearch_mcp.request_context import request_context
 from futuresearch_mcp.routes import api_download, api_progress
 from futuresearch_mcp.templates import UNIFIED_HTML
 from futuresearch_mcp.uploads import proxy_upload
 
 logger = logging.getLogger(__name__)
-
-# ── User-Agent propagation ────────────────────────────────────────────
-# In stateless HTTP mode there is no MCP initialize handshake, so
-# ctx.session.client_params is always None.  We propagate the HTTP
-# User-Agent header via a ContextVar so tool functions can still
-# distinguish clients (e.g. Claude Code vs Claude.ai).
-_user_agent_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "user_agent", default=""
-)
-
-_conversation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "conversation_id", default=""
-)
-
-
-def get_user_agent() -> str:
-    """Return the User-Agent of the current HTTP request (empty in stdio mode)."""
-    return _user_agent_var.get()
-
-
-def get_conversation_id() -> str:
-    """Return the X-Conversation-Id of the current HTTP request (empty if absent)."""
-    return _conversation_id_var.get()
 
 
 def configure_http_mode(
@@ -216,13 +193,10 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health":
             return await call_next(request)
 
-        # Propagate User-Agent so downstream tool code can detect the client
-        # even in stateless HTTP mode (no MCP initialize → no client_params).
-        ua_token = _user_agent_var.set(request.headers.get("user-agent", ""))
-        cc_token = _conversation_id_var.set(
-            request.headers.get("x-conversation-id", "")
-        )
-        try:
+        with request_context(
+            user_agent=request.headers.get("user-agent", ""),
+            conversation_id=request.headers.get("x-conversation-id", ""),
+        ):
             start = _time.monotonic()
             response = await call_next(request)
             elapsed_ms = (_time.monotonic() - start) * 1000
@@ -246,9 +220,6 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
                 request.headers.get("user-agent", "-"),
             )
             return response
-        finally:
-            _user_agent_var.reset(ua_token)
-            _conversation_id_var.reset(cc_token)
 
 
 def _add_middleware(

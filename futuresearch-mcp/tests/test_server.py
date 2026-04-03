@@ -169,6 +169,7 @@ def _make_mock_client():
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=None)
     client.token = "fake-token"
+    client.with_headers = MagicMock(return_value=client)
     return client
 
 

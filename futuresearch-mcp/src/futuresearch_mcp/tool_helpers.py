@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.config import settings
+from futuresearch_mcp.request_context import get_conversation_id, get_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -57,19 +58,33 @@ FuturesearchContext = Context[ServerSession, SessionContext]
 
 
 def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
-    """Get an FutureSearch API client from the FastMCP lifespan context."""
-    return ctx.request_context.lifespan_context.client_factory()
+    """Get a FutureSearch API client with MCP client identity headers."""
+    client = ctx.request_context.lifespan_context.client_factory()
+    extra_headers = _extract_client_headers(ctx)
+    logger.debug(f"Setting extra headers to {extra_headers}")
+    if extra_headers:
+        client = client.with_headers(extra_headers)
+    return client
+
+
+def _extract_client_headers(ctx: FuturesearchContext) -> dict[str, str]:
+    """Build X-MCP-Client-* headers from MCP client params or User-Agent."""
+    headers: dict[str, str] = {}
+    cp = ctx.session.client_params
+    if cp and cp.clientInfo:
+        if cp.clientInfo.name:
+            headers["X-MCP-Client-Name"] = cp.clientInfo.name
+        if cp.clientInfo.version:
+            headers["X-MCP-Client-Version"] = cp.clientInfo.version
+    elif user_agent := get_user_agent():
+        headers["X-MCP-Client-Name"] = user_agent
+    return headers
 
 
 def _get_conversation_id() -> str | None:
     """Get the conversation ID from the current HTTP request context, if any."""
-    try:
-        from futuresearch_mcp.http_config import get_conversation_id  # noqa: PLC0415
-
-        val = get_conversation_id()
-        return val if val else None
-    except Exception:
-        return None
+    val = get_conversation_id()
+    return val if val else None
 
 
 def create_linked_session(
@@ -88,8 +103,6 @@ def log_client_info(ctx: FuturesearchContext, tool_name: str) -> None:
         if not cp:
             # Stateless HTTP mode — no MCP initialize handshake.
             # Fall back to User-Agent from the HTTP request.
-            from futuresearch_mcp.http_config import get_user_agent  # noqa: PLC0415
-
             ua = get_user_agent()
             logger.info(
                 "[%s] client_params=None (stateless) ua=%s",
@@ -180,8 +193,6 @@ def _widgets_from_user_agent() -> bool:
     Only clients we have confirmed can render widgets get them; unknown UAs
     default to text-only to avoid wasting context tokens on unsupported UIs.
     """
-    from futuresearch_mcp.http_config import get_user_agent  # noqa: PLC0415
-
     ua = get_user_agent().lower()
 
     # Whitelist of UA substrings for clients that support widgets.
@@ -203,8 +214,6 @@ def _widgets_from_user_agent() -> bool:
 
 def is_internal_client() -> bool:
     """Return True if the request comes from FutureSearch's own app."""
-    from futuresearch_mcp.http_config import get_user_agent  # noqa: PLC0415
-
     return "futuresearch" in get_user_agent().lower()
 
 

@@ -2,6 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 
 from futuresearch.api_utils import create_client as _create_sdk_client
 from futuresearch.generated.api.billing.get_billing_balance_billing_get import (
@@ -41,6 +42,8 @@ async def http_lifespan(_server: FastMCP):
     redis_client = get_redis_client()
     await redis_client.ping()  # pyright: ignore[reportGeneralTypeIssues]
 
+    sdk_version = version("futuresearch")
+
     def _http_client_factory() -> AuthenticatedClient:
         access_token = get_access_token()
         if access_token is None:
@@ -48,6 +51,7 @@ async def http_lifespan(_server: FastMCP):
         return AuthenticatedClient(
             base_url=settings.futuresearch_api_url,
             token=access_token.token,
+            headers={"X-SDK-Version": f"futuresearch-python/{sdk_version}"},
             raise_on_unexpected_status=True,
             follow_redirects=True,
         )

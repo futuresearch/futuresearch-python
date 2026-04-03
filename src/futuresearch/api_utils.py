@@ -1,4 +1,5 @@
 import os
+from importlib.metadata import version
 from typing import TypeVar
 
 from futuresearch.constants import DEFAULT_FUTURESEARCH_API_URL, FuturesearchError
@@ -35,9 +36,11 @@ def create_client() -> AuthenticatedClient:
         or os.environ.get("EVERYROW_API_URL")
         or DEFAULT_FUTURESEARCH_API_URL
     )
+    sdk_version = version("futuresearch")
     return AuthenticatedClient(
         base_url=api_url,
         token=api_key,
+        headers={"X-SDK-Version": f"futuresearch-python/{sdk_version}"},
         raise_on_unexpected_status=True,
         follow_redirects=True,
     )

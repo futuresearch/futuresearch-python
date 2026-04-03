@@ -6,7 +6,7 @@ import pytest
 
 from futuresearch_mcp.tool_helpers import _widgets_from_user_agent, is_internal_client
 
-_UA_PATCH = "futuresearch_mcp.http_config.get_user_agent"
+_UA_PATCH = "futuresearch_mcp.tool_helpers.get_user_agent"
 
 
 class TestWidgetsFromUserAgent:
