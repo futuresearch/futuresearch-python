@@ -1,10 +1,10 @@
 [project]
 name = "everyrow"
-version = "0.8.2"
+version = "0.8.3"
 description = "Renamed to futuresearch. This package is a compatibility shim."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["futuresearch>=0.8.2"]
+dependencies = ["futuresearch>=0.8.3"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/everyrow"]
