@@ -818,13 +818,13 @@ async def forecast(
     context: str | None = None,
     session: Session | None = None,
     *,
-    forecast_type: Literal["binary", "numeric"],
+    forecast_type: Literal["binary", "numeric", "date"],
     output_field: str | None = None,
     units: str | None = None,
 ) -> TableResult:
     """Forecast questions using deep research and multi-model ensemble.
 
-    Supports two modes:
+    Supports three modes:
 
     - **binary** (default): Forecasts the probability (0-100) of YES/NO questions.
       Output columns: ``probability`` (int) and ``rationale`` (str).
@@ -833,6 +833,11 @@ async def forecast(
       Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
       Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
       ``units`` (str), and ``rationale`` (str).
+
+    - **date**: Forecasts percentile date estimates for timing questions.
+      Requires ``output_field`` (e.g. ``"launch_date"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
+      (YYYY-MM-DD strings) and ``rationale`` (str).
 
     Each row is forecast using 6 parallel research agents followed by a 3-model
     forecaster ensemble, validated against FutureSearch's past-casting environment.
@@ -848,9 +853,9 @@ async def forecast(
             end of 2027").  Leave *None* when the rows are self-contained.
         session: Optional session. If not provided, one will be created automatically.
         forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
-            percentile estimates.
-        output_field: Name of the quantity being forecast (required for numeric,
-            e.g. ``"price"``, ``"count"``).
+            percentile estimates, ``"date"`` for date percentile estimates.
+        output_field: Name of the quantity being forecast (required for numeric
+            and date, e.g. ``"price"``, ``"launch_date"``).
         units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
             Required when *forecast_type* is ``"numeric"``.
 
@@ -890,7 +895,7 @@ async def forecast_async(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
-    forecast_type: Literal["binary", "numeric"],
+    forecast_type: Literal["binary", "numeric", "date"],
     output_field: str | None = None,
     units: str | None = None,
 ) -> EveryrowTask[BaseModel]:
@@ -900,8 +905,9 @@ async def forecast_async(
         task: Context or instructions for the forecast.
         session: Active session.
         input: Input data.
-        forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for percentile estimates.
-        output_field: Name of the numeric quantity (required for numeric).
+        forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for
+            percentile estimates, ``"date"`` for date percentile estimates.
+        output_field: Name of the quantity (required for numeric and date).
         units: Units for numeric forecasts (required for numeric).
 
     Returns:

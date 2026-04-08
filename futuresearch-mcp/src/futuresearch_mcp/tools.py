@@ -647,7 +647,7 @@ async def futuresearch_forecast(
 ) -> list[TextContent]:
     """Forecast questions about the future using deep research and multi-model ensemble.
 
-    Supports two modes:
+    Supports three modes:
 
     - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
       Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
@@ -656,6 +656,11 @@ async def futuresearch_forecast(
       Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
       Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
       ``units`` (str), and ``rationale`` (str).
+
+    - **date**: Forecasts date percentile estimates for timing questions.
+      Requires ``output_field`` (e.g. ``"launch_date"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
+      (YYYY-MM-DD strings) and ``rationale`` (str).
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
     columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
@@ -695,9 +700,12 @@ async def futuresearch_forecast(
         task_id = str(cohort_task.task_id)
         total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    mode_label = (
-        "numeric percentile" if params.forecast_type == "numeric" else "probability"
-    )
+    if params.forecast_type == "date":
+        mode_label = "date"
+    elif params.forecast_type == "numeric":
+        mode_label = "numeric percentile"
+    else:
+        mode_label = "probability"
     return await create_tool_response(
         task_id=task_id,
         label=f"Submitted: {total} rows for {mode_label} forecasting (6 research dimensions + 3 forecasters per batch)."

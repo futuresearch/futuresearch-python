@@ -413,10 +413,12 @@ class ForecastInput(_SingleSourceInput):
         "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
         "Leave empty when the rows are self-contained.",
     )
-    forecast_type: Literal["binary", "numeric"] = Field(
+    forecast_type: Literal["binary", "numeric", "date"] = Field(
         description="Type of forecast. 'binary': yes/no probability (0-100) for questions like "
         "'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like "
-        "'What will the price/value/count be?'. Requires output_field when 'numeric'.",
+        "'What will the price/value/count be?'. 'date': date percentile estimates (p10-p90) "
+        "as YYYY-MM-DD strings for timing questions like 'When will X happen?'. "
+        "Requires output_field when 'numeric' or 'date'.",
     )
     output_field: str | None = Field(
         default=None,
