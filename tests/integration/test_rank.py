@@ -102,7 +102,7 @@ async def test_rank_validates_field_in_response_model():
 
     input_df = pd.DataFrame([{"item": "A"}, {"item": "B"}])
 
-    with pytest.raises(ValueError, match="not in response model"):
+    with pytest.raises(ValueError, match="not found in response_schema properties"):
         await rank(
             task="Rank items",
             input=input_df,
