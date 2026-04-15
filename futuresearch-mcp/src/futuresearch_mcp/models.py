@@ -637,6 +637,19 @@ class CancelInput(BaseModel):
         return _validate_task_id(v)
 
 
+class TaskCostInput(BaseModel):
+    """Input for getting the billed cost of a task."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task_id: str = Field(..., description="The task ID to check the cost for.")
+
+    @field_validator("task_id")
+    @classmethod
+    def validate_task_id(cls, v: str) -> str:
+        return _validate_task_id(v)
+
+
 def _validate_output_path(v: str | None) -> str | None:
     """Validate output_path ends in .csv and parent directory exists."""
     if v is not None:

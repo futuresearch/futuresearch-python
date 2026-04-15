@@ -168,9 +168,10 @@ class TestMcpProtocol:
                     "futuresearch_merge",
                     "futuresearch_progress",
                     "futuresearch_rank",
-                    "futuresearch_status",
                     "futuresearch_results",
                     "futuresearch_single_agent",
+                    "futuresearch_status",
+                    "futuresearch_task_cost",
                     "futuresearch_upload_data",
                     "futuresearch_use_list",
                 ]

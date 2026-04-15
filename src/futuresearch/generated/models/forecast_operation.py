@@ -29,7 +29,8 @@ class ForecastOperation:
             question/scenario to forecast.
         forecast_type (ForecastOperationForecastType): Type of forecast. 'binary': yes/no probability (0-100) for
             questions like 'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like 'What will the
-            price/value/count be?'. Requires output_field when 'numeric'.
+            price/value/count be?'. 'date': date percentile estimates (p10-p90) as YYYY-MM-DD strings for timing questions
+            like 'When will X happen?'. Requires output_field when 'numeric' or 'date'.
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
         webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
         output_field (None | str | Unset): Name of the numeric quantity being forecast (e.g. 'price', 'count'). Required

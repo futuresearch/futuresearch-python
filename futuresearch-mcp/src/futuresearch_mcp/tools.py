@@ -15,6 +15,7 @@ from futuresearch.built_in_lists import list_built_in_datasets, use_built_in_lis
 from futuresearch.constants import FuturesearchError as EveryrowError
 from futuresearch.generated.api.billing import get_billing_balance_billing_get
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
+from futuresearch.generated.models.task_cost_status import TaskCostStatus
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.ops import (
     _submit_agent_map,
@@ -27,7 +28,7 @@ from futuresearch.ops import (
     merge_async,
 )
 from futuresearch.session import list_sessions
-from futuresearch.task import cancel_task
+from futuresearch.task import cancel_task, get_task_cost
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, create_model
 
@@ -49,6 +50,7 @@ from futuresearch_mcp.models import (
     RankInput,
     SingleAgentInput,
     StdioResultsInput,
+    TaskCostInput,
     UploadDataInput,
     UseListInput,
 )
@@ -1333,6 +1335,58 @@ async def futuresearch_balance(ctx: FuturesearchContext) -> list[TextContent]:
         TextContent(
             type="text",
             text=f"Current balance: ${response.current_balance_dollars:.2f}",
+        )
+    ]
+
+
+@mcp.tool(
+    name="futuresearch_task_cost",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Get Task Cost",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+)
+async def futuresearch_task_cost(
+    params: TaskCostInput, ctx: FuturesearchContext
+) -> list[TextContent]:
+    """Get the billed cost of a completed task.
+
+    Returns the amount charged in dollars. There is a delay between task completion and
+    cost calculation. Returns 'pending' if the cost hasn't settled yet.
+    """
+    logger.info("futuresearch_task_cost: task_id=%s", params.task_id)
+    client = _get_client(ctx)
+
+    try:
+        response = await get_task_cost(
+            task_id=UUID(params.task_id),
+            client=client,
+        )
+    except Exception:
+        logger.exception("Failed to get task cost for task %s", params.task_id)
+        return [
+            TextContent(
+                type="text",
+                text=f"Error retrieving cost for task {params.task_id}. Please try again.",
+            )
+        ]
+
+    if response.status == TaskCostStatus.PENDING:
+        return [
+            TextContent(
+                type="text",
+                text=f"Cost for task {params.task_id} is still being calculated. Try again in ~30 seconds.",
+            )
+        ]
+
+    return [
+        TextContent(
+            type="text",
+            text=f"Task {params.task_id} cost: ${response.cost_dollars:.2f}",
         )
     ]
 

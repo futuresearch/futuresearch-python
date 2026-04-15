@@ -15,12 +15,14 @@ class SubscriptionInfo:
     Attributes:
         id (str):
         status (str):
+        stripe_subscription_id (str):
         stripe_price_id (str):
         period_ends_at (str):
     """
 
     id: str
     status: str
+    stripe_subscription_id: str
     stripe_price_id: str
     period_ends_at: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -29,6 +31,8 @@ class SubscriptionInfo:
         id = self.id
 
         status = self.status
+
+        stripe_subscription_id = self.stripe_subscription_id
 
         stripe_price_id = self.stripe_price_id
 
@@ -40,6 +44,7 @@ class SubscriptionInfo:
             {
                 "id": id,
                 "status": status,
+                "stripe_subscription_id": stripe_subscription_id,
                 "stripe_price_id": stripe_price_id,
                 "period_ends_at": period_ends_at,
             }
@@ -54,6 +59,8 @@ class SubscriptionInfo:
 
         status = d.pop("status")
 
+        stripe_subscription_id = d.pop("stripe_subscription_id")
+
         stripe_price_id = d.pop("stripe_price_id")
 
         period_ends_at = d.pop("period_ends_at")
@@ -61,6 +68,7 @@ class SubscriptionInfo:
         subscription_info = cls(
             id=id,
             status=status,
+            stripe_subscription_id=stripe_subscription_id,
             stripe_price_id=stripe_price_id,
             period_ends_at=period_ends_at,
         )

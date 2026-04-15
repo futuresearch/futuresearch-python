@@ -93,6 +93,10 @@
       "description": "Check the current billing balance for the authenticated user."
     },
     {
+      "name": "futuresearch_task_cost",
+      "description": "Get the billed cost of a completed task."
+    },
+    {
       "name": "futuresearch_browse_lists",
       "description": "Browse available reference lists of well-known entities."
     },

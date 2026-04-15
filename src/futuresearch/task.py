@@ -12,12 +12,14 @@ from futuresearch.api_utils import create_client, handle_response
 from futuresearch.constants import EveryrowError
 from futuresearch.generated.api.tasks import (
     cancel_task_tasks_task_id_cancel_post,
+    get_task_cost_tasks_task_id_cost_get,
     get_task_result_tasks_task_id_result_get,
     get_task_status_tasks_task_id_status_get,
 )
 from futuresearch.generated.client import AuthenticatedClient
 from futuresearch.generated.models import (
     LLMEnumPublic,
+    TaskCostResponse,
     TaskProgressInfo,
     TaskResultResponse,
     TaskResultResponseDataType1,
@@ -208,6 +210,26 @@ async def get_task_status(
     task_id: UUID, client: AuthenticatedClient
 ) -> TaskStatusResponse:
     response = await get_task_status_tasks_task_id_status_get.asyncio(
+        task_id=task_id, client=client
+    )
+    response = handle_response(response)
+    return response
+
+
+async def get_task_cost(task_id: UUID, client: AuthenticatedClient) -> TaskCostResponse:
+    """Get the billed cost of a task.
+
+    Returns a response with status 'pending' if the cost hasn't been
+    calculated yet, or 'settled' with the final cost in dollars.
+
+    Args:
+        task_id: The UUID of the task.
+        client: An authenticated client.
+
+    Raises:
+        EveryrowError: If the task is not found or another error occurs.
+    """
+    response = await get_task_cost_tasks_task_id_cost_get.asyncio(
         task_id=task_id, client=client
     )
     response = handle_response(response)

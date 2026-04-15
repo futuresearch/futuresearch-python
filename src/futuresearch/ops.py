@@ -547,8 +547,7 @@ async def _submit_rank(
     properties = response_schema.get("properties", {})
     if field_name not in properties:
         raise ValueError(
-            f"field_name '{field_name}' not found in response_schema properties: "
-            f"{list(properties)}"
+            f"field_name '{field_name}' not found in response_schema properties: {list(properties)}"
         )
 
     input_data = _prepare_table_input(input, RankOperationInputType1Item)

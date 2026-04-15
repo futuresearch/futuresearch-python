@@ -21,7 +21,8 @@ class ProgressSummaryEntry:
         iteration_number (int): Iteration within the trace
         summary (str): LLM-generated progress summary text
         updated_at (str): When this summary was created
-        row_index (int | None | Unset): Input row index this trace covers (if resolved)
+        row_indices (list[int] | Unset): Input row indices this trace covers
+        row_index (int | None | Unset): Deprecated: use row_indices instead
     """
 
     trace_id: UUID
@@ -29,6 +30,7 @@ class ProgressSummaryEntry:
     iteration_number: int
     summary: str
     updated_at: str
+    row_indices: list[int] | Unset = UNSET
     row_index: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -42,6 +44,10 @@ class ProgressSummaryEntry:
         summary = self.summary
 
         updated_at = self.updated_at
+
+        row_indices: list[int] | Unset = UNSET
+        if not isinstance(self.row_indices, Unset):
+            row_indices = self.row_indices
 
         row_index: int | None | Unset
         if isinstance(self.row_index, Unset):
@@ -60,6 +66,8 @@ class ProgressSummaryEntry:
                 "updated_at": updated_at,
             }
         )
+        if row_indices is not UNSET:
+            field_dict["row_indices"] = row_indices
         if row_index is not UNSET:
             field_dict["row_index"] = row_index
 
@@ -78,6 +86,8 @@ class ProgressSummaryEntry:
 
         updated_at = d.pop("updated_at")
 
+        row_indices = cast(list[int], d.pop("row_indices", UNSET))
+
         def _parse_row_index(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -93,6 +103,7 @@ class ProgressSummaryEntry:
             iteration_number=iteration_number,
             summary=summary,
             updated_at=updated_at,
+            row_indices=row_indices,
             row_index=row_index,
         )
 
