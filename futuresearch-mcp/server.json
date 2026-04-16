@@ -9,13 +9,13 @@
     "subfolder": "futuresearch-mcp"
   },
   "websiteUrl": "https://github.com/futuresearch/everyrow-sdk/tree/main/futuresearch-mcp",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "futuresearch-mcp",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

@@ -4,8 +4,8 @@ type: software
 title: "futuresearch"
 abstract: "A researcher for every row. Run web research agents at scale to forecast, score, classify, deduplicate, merge, or enrich entire datasets."
 license: MIT
-version: 0.8.3
-date-released: 2026-04-06
+version: 0.8.4
+date-released: 2026-04-16
 repository-code: "https://github.com/futuresearch/everyrow-sdk"
 url: "https://futuresearch.ai"
 keywords:

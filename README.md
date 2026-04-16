@@ -262,7 +262,7 @@ Built by [FutureSearch](https://futuresearch.ai).
   author       = {FutureSearch},
   title        = {futuresearch},
   url          = {https://github.com/futuresearch/futuresearch-python},
-  version      = {0.8.3},
+  version      = {0.8.4},
   year         = {2026},
   license      = {MIT}
 }
