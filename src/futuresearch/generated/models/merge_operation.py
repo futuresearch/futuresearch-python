@@ -8,25 +8,15 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.llm_enum_public import LLMEnumPublic
-from ..models.merge_operation_relationship_type_type_0 import (
-    MergeOperationRelationshipTypeType0,
-)
-from ..models.merge_operation_use_web_search_type_0 import (
-    MergeOperationUseWebSearchType0,
-)
+from ..models.merge_operation_relationship_type_type_0 import MergeOperationRelationshipTypeType0
+from ..models.merge_operation_use_web_search_type_0 import MergeOperationUseWebSearchType0
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.merge_operation_left_input_type_1_item import (
-        MergeOperationLeftInputType1Item,
-    )
+    from ..models.merge_operation_left_input_type_1_item import MergeOperationLeftInputType1Item
     from ..models.merge_operation_left_input_type_2 import MergeOperationLeftInputType2
-    from ..models.merge_operation_right_input_type_1_item import (
-        MergeOperationRightInputType1Item,
-    )
-    from ..models.merge_operation_right_input_type_2 import (
-        MergeOperationRightInputType2,
-    )
+    from ..models.merge_operation_right_input_type_1_item import MergeOperationRightInputType1Item
+    from ..models.merge_operation_right_input_type_2 import MergeOperationRightInputType2
 
 
 T = TypeVar("T", bound="MergeOperation")
@@ -49,26 +39,20 @@ class MergeOperation:
         relationship_type (MergeOperationRelationshipTypeType0 | None | Unset): Control merge relationship behavior:
             'many_to_one' (default) allows multiple left rows to match the same right row, 'one_to_one' enforces unique
             matches and resolves clashes Default: MergeOperationRelationshipTypeType0.MANY_TO_ONE.
-        llm (LLMEnumPublic | None | Unset): LLM to use for the merge operation (both initial LLM matching and web
-            search agent). If not provided, uses system defaults.
-        document_query_llm (LLMEnumPublic | None | Unset): LLM to use for the document query tool (QDLLM) that reads
-            and extracts information from web pages. If not provided, defaults to the system default.
+        llm (LLMEnumPublic | None | Unset): LLM to use for the merge operation (both initial LLM matching and web search
+            agent). If not provided, uses system defaults.
+        document_query_llm (LLMEnumPublic | None | Unset): LLM to use for the document query tool (QDLLM) that reads and
+            extracts information from web pages. If not provided, defaults to the system default.
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
         webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
     """
 
-    left_input: (
-        list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
-    )
-    right_input: (
-        list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID
-    )
+    left_input: list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
+    right_input: list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID
     task: str
     left_key: None | str | Unset = UNSET
     right_key: None | str | Unset = UNSET
-    use_web_search: MergeOperationUseWebSearchType0 | None | Unset = (
-        MergeOperationUseWebSearchType0.AUTO
-    )
+    use_web_search: MergeOperationUseWebSearchType0 | None | Unset = MergeOperationUseWebSearchType0.AUTO
     relationship_type: MergeOperationRelationshipTypeType0 | None | Unset = (
         MergeOperationRelationshipTypeType0.MANY_TO_ONE
     )
@@ -193,26 +177,16 @@ class MergeOperation:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.merge_operation_left_input_type_1_item import (
-            MergeOperationLeftInputType1Item,
-        )
-        from ..models.merge_operation_left_input_type_2 import (
-            MergeOperationLeftInputType2,
-        )
-        from ..models.merge_operation_right_input_type_1_item import (
-            MergeOperationRightInputType1Item,
-        )
-        from ..models.merge_operation_right_input_type_2 import (
-            MergeOperationRightInputType2,
-        )
+        from ..models.merge_operation_left_input_type_1_item import MergeOperationLeftInputType1Item
+        from ..models.merge_operation_left_input_type_2 import MergeOperationLeftInputType2
+        from ..models.merge_operation_right_input_type_1_item import MergeOperationRightInputType1Item
+        from ..models.merge_operation_right_input_type_2 import MergeOperationRightInputType2
 
         d = dict(src_dict)
 
         def _parse_left_input(
             data: object,
-        ) -> (
-            list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
-        ):
+        ) -> list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
@@ -227,9 +201,7 @@ class MergeOperation:
                 left_input_type_1 = []
                 _left_input_type_1 = data
                 for left_input_type_1_item_data in _left_input_type_1:
-                    left_input_type_1_item = MergeOperationLeftInputType1Item.from_dict(
-                        left_input_type_1_item_data
-                    )
+                    left_input_type_1_item = MergeOperationLeftInputType1Item.from_dict(left_input_type_1_item_data)
 
                     left_input_type_1.append(left_input_type_1_item)
 
@@ -246,11 +218,7 @@ class MergeOperation:
 
         def _parse_right_input(
             data: object,
-        ) -> (
-            list[MergeOperationRightInputType1Item]
-            | MergeOperationRightInputType2
-            | UUID
-        ):
+        ) -> list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
@@ -265,11 +233,7 @@ class MergeOperation:
                 right_input_type_1 = []
                 _right_input_type_1 = data
                 for right_input_type_1_item_data in _right_input_type_1:
-                    right_input_type_1_item = (
-                        MergeOperationRightInputType1Item.from_dict(
-                            right_input_type_1_item_data
-                        )
-                    )
+                    right_input_type_1_item = MergeOperationRightInputType1Item.from_dict(right_input_type_1_item_data)
 
                     right_input_type_1.append(right_input_type_1_item)
 
@@ -304,9 +268,7 @@ class MergeOperation:
 
         right_key = _parse_right_key(d.pop("right_key", UNSET))
 
-        def _parse_use_web_search(
-            data: object,
-        ) -> MergeOperationUseWebSearchType0 | None | Unset:
+        def _parse_use_web_search(data: object) -> MergeOperationUseWebSearchType0 | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -323,9 +285,7 @@ class MergeOperation:
 
         use_web_search = _parse_use_web_search(d.pop("use_web_search", UNSET))
 
-        def _parse_relationship_type(
-            data: object,
-        ) -> MergeOperationRelationshipTypeType0 | None | Unset:
+        def _parse_relationship_type(data: object) -> MergeOperationRelationshipTypeType0 | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -374,9 +334,7 @@ class MergeOperation:
                 pass
             return cast(LLMEnumPublic | None | Unset, data)
 
-        document_query_llm = _parse_document_query_llm(
-            d.pop("document_query_llm", UNSET)
-        )
+        document_query_llm = _parse_document_query_llm(d.pop("document_query_llm", UNSET))
 
         def _parse_session_id(data: object) -> None | Unset | UUID:
             if data is None:

@@ -8,7 +8,6 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.task_cost_status import TaskCostStatus
-from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="TaskCostResponse")
 
@@ -19,12 +18,12 @@ class TaskCostResponse:
     Attributes:
         task_id (UUID): The task ID
         status (TaskCostStatus):
-        cost_dollars (float | None | Unset): The amount charged to the user (null while pending)
+        cost_dollars (float | None): The amount charged to the user (null while pending)
     """
 
     task_id: UUID
     status: TaskCostStatus
-    cost_dollars: float | None | Unset = UNSET
+    cost_dollars: float | None
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,11 +31,8 @@ class TaskCostResponse:
 
         status = self.status.value
 
-        cost_dollars: float | None | Unset
-        if isinstance(self.cost_dollars, Unset):
-            cost_dollars = UNSET
-        else:
-            cost_dollars = self.cost_dollars
+        cost_dollars: float | None
+        cost_dollars = self.cost_dollars
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -44,10 +40,9 @@ class TaskCostResponse:
             {
                 "task_id": task_id,
                 "status": status,
+                "cost_dollars": cost_dollars,
             }
         )
-        if cost_dollars is not UNSET:
-            field_dict["cost_dollars"] = cost_dollars
 
         return field_dict
 
@@ -58,14 +53,12 @@ class TaskCostResponse:
 
         status = TaskCostStatus(d.pop("status"))
 
-        def _parse_cost_dollars(data: object) -> float | None | Unset:
+        def _parse_cost_dollars(data: object) -> float | None:
             if data is None:
                 return data
-            if isinstance(data, Unset):
-                return data
-            return cast(float | None | Unset, data)
+            return cast(float | None, data)
 
-        cost_dollars = _parse_cost_dollars(d.pop("cost_dollars", UNSET))
+        cost_dollars = _parse_cost_dollars(d.pop("cost_dollars"))
 
         task_cost_response = cls(
             task_id=task_id,
