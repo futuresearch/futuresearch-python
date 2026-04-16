@@ -614,6 +614,8 @@ async def merge(
         "many_to_one", "one_to_one", "one_to_many", "many_to_many"
     ]
     | None = None,
+    llm: LLM | None = None,
+    document_query_llm: LLM | None = None,
 ) -> MergeResult:
     """Merge two tables using AI (LEFT JOIN semantics).
 
@@ -626,6 +628,8 @@ async def merge(
         merge_on_right: Only set if you expect exact string matches on this column or want to draw agent attention to it. Auto-detected if omitted.
         use_web_search: Control web search behavior: "auto" (default) tries LLM merge first then conditionally searches, "no" skips web search entirely, "yes" forces web search on every row.
         relationship_type: Control merge relationship type / cardinality between the two tables: "many_to_one" (default) allows multiple left rows to match one right row (e.g. matching reviews to product), "one_to_one" enforces unique matching between left and right rows (e.g. CEO to company), "one_to_many" allows one left row to match multiple right rows (e.g. company to products), "many_to_many" allows multiple left rows to match multiple right rows (e.g. companies to investors). For one_to_many and many_to_many, multiple matches are represented by joining the right-table values with " | " in each added column.
+        llm: LLM to use for the merge operation (both initial LLM matching and web search agent). If not provided, uses system defaults.
+        document_query_llm: LLM to use for the document query tool that reads web pages. If not provided, uses system default.
 
     Returns:
         MergeResult containing the merged table and match breakdown by method (exact, fuzzy, llm, web)
@@ -649,6 +653,8 @@ async def merge(
                 merge_on_right=merge_on_right,
                 use_web_search=use_web_search,
                 relationship_type=relationship_type,
+                llm=llm,
+                document_query_llm=document_query_llm,
             )
             return await merge_task.await_result()
     merge_task = await merge_async(
@@ -660,6 +666,8 @@ async def merge(
         merge_on_right=merge_on_right,
         use_web_search=use_web_search,
         relationship_type=relationship_type,
+        llm=llm,
+        document_query_llm=document_query_llm,
     )
     return await merge_task.await_result()
 
@@ -676,6 +684,8 @@ async def merge_async(
         "many_to_one", "one_to_one", "one_to_many", "many_to_many"
     ]
     | None = None,
+    llm: LLM | None = None,
+    document_query_llm: LLM | None = None,
 ) -> MergeTask:
     """Submit a merge task asynchronously.
 
@@ -693,6 +703,10 @@ async def merge_async(
         right_key=merge_on_right or UNSET,
         use_web_search=use_web_search or UNSET,  # type: ignore
         relationship_type=relationship_type or UNSET,  # type: ignore
+        llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
+        document_query_llm=LLMEnumPublic(document_query_llm.value)
+        if document_query_llm is not None
+        else UNSET,
         session_id=session.session_id,
     )
 

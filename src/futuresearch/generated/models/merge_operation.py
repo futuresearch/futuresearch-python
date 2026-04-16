@@ -7,15 +7,26 @@ from uuid import UUID
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.merge_operation_relationship_type_type_0 import MergeOperationRelationshipTypeType0
-from ..models.merge_operation_use_web_search_type_0 import MergeOperationUseWebSearchType0
+from ..models.llm_enum_public import LLMEnumPublic
+from ..models.merge_operation_relationship_type_type_0 import (
+    MergeOperationRelationshipTypeType0,
+)
+from ..models.merge_operation_use_web_search_type_0 import (
+    MergeOperationUseWebSearchType0,
+)
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.merge_operation_left_input_type_1_item import MergeOperationLeftInputType1Item
+    from ..models.merge_operation_left_input_type_1_item import (
+        MergeOperationLeftInputType1Item,
+    )
     from ..models.merge_operation_left_input_type_2 import MergeOperationLeftInputType2
-    from ..models.merge_operation_right_input_type_1_item import MergeOperationRightInputType1Item
-    from ..models.merge_operation_right_input_type_2 import MergeOperationRightInputType2
+    from ..models.merge_operation_right_input_type_1_item import (
+        MergeOperationRightInputType1Item,
+    )
+    from ..models.merge_operation_right_input_type_2 import (
+        MergeOperationRightInputType2,
+    )
 
 
 T = TypeVar("T", bound="MergeOperation")
@@ -38,19 +49,31 @@ class MergeOperation:
         relationship_type (MergeOperationRelationshipTypeType0 | None | Unset): Control merge relationship behavior:
             'many_to_one' (default) allows multiple left rows to match the same right row, 'one_to_one' enforces unique
             matches and resolves clashes Default: MergeOperationRelationshipTypeType0.MANY_TO_ONE.
+        llm (LLMEnumPublic | None | Unset): LLM to use for the merge operation (both initial LLM matching and web
+            search agent). If not provided, uses system defaults.
+        document_query_llm (LLMEnumPublic | None | Unset): LLM to use for the document query tool (QDLLM) that reads
+            and extracts information from web pages. If not provided, defaults to the system default.
         session_id (None | Unset | UUID): Session ID. If not provided, a new session is auto-created for this task.
         webhook_url (None | str | Unset): Optional URL to receive a POST callback when the task completes or fails.
     """
 
-    left_input: list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
-    right_input: list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID
+    left_input: (
+        list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
+    )
+    right_input: (
+        list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID
+    )
     task: str
     left_key: None | str | Unset = UNSET
     right_key: None | str | Unset = UNSET
-    use_web_search: MergeOperationUseWebSearchType0 | None | Unset = MergeOperationUseWebSearchType0.AUTO
+    use_web_search: MergeOperationUseWebSearchType0 | None | Unset = (
+        MergeOperationUseWebSearchType0.AUTO
+    )
     relationship_type: MergeOperationRelationshipTypeType0 | None | Unset = (
         MergeOperationRelationshipTypeType0.MANY_TO_ONE
     )
+    llm: LLMEnumPublic | None | Unset = UNSET
+    document_query_llm: LLMEnumPublic | None | Unset = UNSET
     session_id: None | Unset | UUID = UNSET
     webhook_url: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -110,6 +133,22 @@ class MergeOperation:
         else:
             relationship_type = self.relationship_type
 
+        llm: None | str | Unset
+        if isinstance(self.llm, Unset):
+            llm = UNSET
+        elif isinstance(self.llm, LLMEnumPublic):
+            llm = self.llm.value
+        else:
+            llm = self.llm
+
+        document_query_llm: None | str | Unset
+        if isinstance(self.document_query_llm, Unset):
+            document_query_llm = UNSET
+        elif isinstance(self.document_query_llm, LLMEnumPublic):
+            document_query_llm = self.document_query_llm.value
+        else:
+            document_query_llm = self.document_query_llm
+
         session_id: None | str | Unset
         if isinstance(self.session_id, Unset):
             session_id = UNSET
@@ -141,6 +180,10 @@ class MergeOperation:
             field_dict["use_web_search"] = use_web_search
         if relationship_type is not UNSET:
             field_dict["relationship_type"] = relationship_type
+        if llm is not UNSET:
+            field_dict["llm"] = llm
+        if document_query_llm is not UNSET:
+            field_dict["document_query_llm"] = document_query_llm
         if session_id is not UNSET:
             field_dict["session_id"] = session_id
         if webhook_url is not UNSET:
@@ -150,16 +193,26 @@ class MergeOperation:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.merge_operation_left_input_type_1_item import MergeOperationLeftInputType1Item
-        from ..models.merge_operation_left_input_type_2 import MergeOperationLeftInputType2
-        from ..models.merge_operation_right_input_type_1_item import MergeOperationRightInputType1Item
-        from ..models.merge_operation_right_input_type_2 import MergeOperationRightInputType2
+        from ..models.merge_operation_left_input_type_1_item import (
+            MergeOperationLeftInputType1Item,
+        )
+        from ..models.merge_operation_left_input_type_2 import (
+            MergeOperationLeftInputType2,
+        )
+        from ..models.merge_operation_right_input_type_1_item import (
+            MergeOperationRightInputType1Item,
+        )
+        from ..models.merge_operation_right_input_type_2 import (
+            MergeOperationRightInputType2,
+        )
 
         d = dict(src_dict)
 
         def _parse_left_input(
             data: object,
-        ) -> list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID:
+        ) -> (
+            list[MergeOperationLeftInputType1Item] | MergeOperationLeftInputType2 | UUID
+        ):
             try:
                 if not isinstance(data, str):
                     raise TypeError()
@@ -174,7 +227,9 @@ class MergeOperation:
                 left_input_type_1 = []
                 _left_input_type_1 = data
                 for left_input_type_1_item_data in _left_input_type_1:
-                    left_input_type_1_item = MergeOperationLeftInputType1Item.from_dict(left_input_type_1_item_data)
+                    left_input_type_1_item = MergeOperationLeftInputType1Item.from_dict(
+                        left_input_type_1_item_data
+                    )
 
                     left_input_type_1.append(left_input_type_1_item)
 
@@ -191,7 +246,11 @@ class MergeOperation:
 
         def _parse_right_input(
             data: object,
-        ) -> list[MergeOperationRightInputType1Item] | MergeOperationRightInputType2 | UUID:
+        ) -> (
+            list[MergeOperationRightInputType1Item]
+            | MergeOperationRightInputType2
+            | UUID
+        ):
             try:
                 if not isinstance(data, str):
                     raise TypeError()
@@ -206,7 +265,11 @@ class MergeOperation:
                 right_input_type_1 = []
                 _right_input_type_1 = data
                 for right_input_type_1_item_data in _right_input_type_1:
-                    right_input_type_1_item = MergeOperationRightInputType1Item.from_dict(right_input_type_1_item_data)
+                    right_input_type_1_item = (
+                        MergeOperationRightInputType1Item.from_dict(
+                            right_input_type_1_item_data
+                        )
+                    )
 
                     right_input_type_1.append(right_input_type_1_item)
 
@@ -241,7 +304,9 @@ class MergeOperation:
 
         right_key = _parse_right_key(d.pop("right_key", UNSET))
 
-        def _parse_use_web_search(data: object) -> MergeOperationUseWebSearchType0 | None | Unset:
+        def _parse_use_web_search(
+            data: object,
+        ) -> MergeOperationUseWebSearchType0 | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -258,7 +323,9 @@ class MergeOperation:
 
         use_web_search = _parse_use_web_search(d.pop("use_web_search", UNSET))
 
-        def _parse_relationship_type(data: object) -> MergeOperationRelationshipTypeType0 | None | Unset:
+        def _parse_relationship_type(
+            data: object,
+        ) -> MergeOperationRelationshipTypeType0 | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -274,6 +341,42 @@ class MergeOperation:
             return cast(MergeOperationRelationshipTypeType0 | None | Unset, data)
 
         relationship_type = _parse_relationship_type(d.pop("relationship_type", UNSET))
+
+        def _parse_llm(data: object) -> LLMEnumPublic | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                llm_type_0 = LLMEnumPublic(data)
+
+                return llm_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LLMEnumPublic | None | Unset, data)
+
+        llm = _parse_llm(d.pop("llm", UNSET))
+
+        def _parse_document_query_llm(data: object) -> LLMEnumPublic | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                document_query_llm_type_0 = LLMEnumPublic(data)
+
+                return document_query_llm_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LLMEnumPublic | None | Unset, data)
+
+        document_query_llm = _parse_document_query_llm(
+            d.pop("document_query_llm", UNSET)
+        )
 
         def _parse_session_id(data: object) -> None | Unset | UUID:
             if data is None:
@@ -309,6 +412,8 @@ class MergeOperation:
             right_key=right_key,
             use_web_search=use_web_search,
             relationship_type=relationship_type,
+            llm=llm,
+            document_query_llm=document_query_llm,
             session_id=session_id,
             webhook_url=webhook_url,
         )
