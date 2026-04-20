@@ -8,6 +8,7 @@ from .aggregate_timeline_entry import AggregateTimelineEntry
 from .aggregate_timeline_response import AggregateTimelineResponse
 from .aggregated_summary_response import AggregatedSummaryResponse
 from .billing_response import BillingResponse
+from .billing_tier import BillingTier
 from .built_in_list_item import BuiltInListItem
 from .built_in_lists_response import BuiltInListsResponse
 from .cancel_task_response import CancelTaskResponse
@@ -62,7 +63,6 @@ from .single_agent_operation_input_type_2 import SingleAgentOperationInputType2
 from .single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
 from .subscription_info import SubscriptionInfo
 from .subscription_status_response import SubscriptionStatusResponse
-from .subscription_tier import SubscriptionTier
 from .task_cost_response import TaskCostResponse
 from .task_cost_status import TaskCostStatus
 from .task_progress_info import TaskProgressInfo
@@ -93,6 +93,7 @@ __all__ = (
     "AggregateTimelineEntry",
     "AggregateTimelineResponse",
     "BillingResponse",
+    "BillingTier",
     "BuiltInListItem",
     "BuiltInListsResponse",
     "CancelTaskResponse",
@@ -147,7 +148,6 @@ __all__ = (
     "SingleAgentOperationResponseSchemaType0",
     "SubscriptionInfo",
     "SubscriptionStatusResponse",
-    "SubscriptionTier",
     "TaskCostResponse",
     "TaskCostStatus",
     "TaskProgressInfo",

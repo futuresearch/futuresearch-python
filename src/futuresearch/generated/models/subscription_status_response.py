@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.subscription_tier import SubscriptionTier
+from ..models.billing_tier import BillingTier
 
 if TYPE_CHECKING:
     from ..models.subscription_info import SubscriptionInfo
@@ -19,11 +19,11 @@ T = TypeVar("T", bound="SubscriptionStatusResponse")
 class SubscriptionStatusResponse:
     """
     Attributes:
-        tier (SubscriptionTier):
+        tier (BillingTier):
         subscription (None | SubscriptionInfo):
     """
 
-    tier: SubscriptionTier
+    tier: BillingTier
     subscription: None | SubscriptionInfo
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -54,7 +54,7 @@ class SubscriptionStatusResponse:
         from ..models.subscription_info import SubscriptionInfo
 
         d = dict(src_dict)
-        tier = SubscriptionTier(d.pop("tier"))
+        tier = BillingTier(d.pop("tier"))
 
         def _parse_subscription(data: object) -> None | SubscriptionInfo:
             if data is None:
