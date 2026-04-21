@@ -9,6 +9,7 @@ import pandas as pd
 from futuresearch.generated.models.dedupe_operation_strategy import (
     DedupeOperationStrategy,
 )
+from futuresearch.generated.models.forecast_effort_level import ForecastEffortLevel
 from futuresearch.generated.models.llm_enum_public import LLMEnumPublic
 from futuresearch.task import EffortLevel
 from jsonschema import SchemaError
@@ -419,6 +420,10 @@ class ForecastInput(_SingleSourceInput):
         "'What will the price/value/count be?'. 'date': date percentile estimates (p10-p90) "
         "as YYYY-MM-DD strings for timing questions like 'When will X happen?'. "
         "Requires output_field when 'numeric' or 'date'.",
+    )
+    effort_level: ForecastEffortLevel | None = Field(
+        default=None,
+        description="Affects accuracy and cost of forecast. Default: low.",
     )
     output_field: str | None = Field(
         default=None,

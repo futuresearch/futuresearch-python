@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ForecastOperationForecastType(str, Enum):
+class ForecastType(str, Enum):
     BINARY = "binary"
     DATE = "date"
     NUMERIC = "numeric"

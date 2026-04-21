@@ -696,6 +696,7 @@ async def futuresearch_forecast(
             session=session,
             input=input_data,
             forecast_type=params.forecast_type,
+            effort_level=params.effort_level,
             output_field=params.output_field,
             units=params.units,
         )

@@ -27,9 +27,10 @@ from futuresearch.generated.models import (
     DedupeOperation,
     DedupeOperationInputType1Item,
     DedupeOperationStrategy,
+    ForecastEffortLevel,
     ForecastOperation,
-    ForecastOperationForecastType,
     ForecastOperationInputType1Item,
+    ForecastType,
     LLMEnumPublic,
     MergeOperation,
     MergeOperationLeftInputType1Item,
@@ -832,6 +833,7 @@ async def forecast(
     session: Session | None = None,
     *,
     forecast_type: Literal["binary", "numeric", "date"],
+    effort_level: ForecastEffortLevel | None = None,
     output_field: str | None = None,
     units: str | None = None,
 ) -> TableResult:
@@ -867,6 +869,7 @@ async def forecast(
         session: Optional session. If not provided, one will be created automatically.
         forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
             percentile estimates, ``"date"`` for date percentile estimates.
+        effort_level: affects accuracy and cost of forecast. Default: low.
         output_field: Name of the quantity being forecast (required for numeric
             and date, e.g. ``"price"``, ``"launch_date"``).
         units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
@@ -883,6 +886,7 @@ async def forecast(
                 session=internal_session,
                 input=input,
                 forecast_type=forecast_type,
+                effort_level=effort_level,
                 output_field=output_field,
                 units=units,
             )
@@ -908,7 +912,9 @@ async def forecast_async(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
+    *,
     forecast_type: Literal["binary", "numeric", "date"],
+    effort_level: ForecastEffortLevel | None = None,
     output_field: str | None = None,
     units: str | None = None,
 ) -> EveryrowTask[BaseModel]:
@@ -920,6 +926,7 @@ async def forecast_async(
         input: Input data.
         forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for
             percentile estimates, ``"date"`` for date percentile estimates.
+        effort_level: affects accuracy and cost of forecast. Default: low.
         output_field: Name of the quantity (required for numeric and date).
         units: Units for numeric forecasts (required for numeric).
 
@@ -929,10 +936,11 @@ async def forecast_async(
     input_data = _prepare_table_input(input, ForecastOperationInputType1Item)
 
     body = ForecastOperation(
-        input_=input_data,  # type: ignore
+        input_=input_data,
         task=task,
         session_id=session.session_id,
-        forecast_type=ForecastOperationForecastType(forecast_type),
+        forecast_type=ForecastType(forecast_type),
+        effort_level=effort_level if effort_level is not None else UNSET,
         output_field=output_field,
         units=units,
     )

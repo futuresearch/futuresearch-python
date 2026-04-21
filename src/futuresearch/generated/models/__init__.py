@@ -23,10 +23,11 @@ from .dedupe_operation_input_type_2 import DedupeOperationInputType2
 from .dedupe_operation_strategy import DedupeOperationStrategy
 from .error_response import ErrorResponse
 from .error_response_details_type_0 import ErrorResponseDetailsType0
+from .forecast_effort_level import ForecastEffortLevel
 from .forecast_operation import ForecastOperation
-from .forecast_operation_forecast_type import ForecastOperationForecastType
 from .forecast_operation_input_type_1_item import ForecastOperationInputType1Item
 from .forecast_operation_input_type_2 import ForecastOperationInputType2
+from .forecast_type import ForecastType
 from .health_response import HealthResponse
 from .http_validation_error import HTTPValidationError
 from .insufficient_balance_response import InsufficientBalanceResponse
@@ -108,10 +109,11 @@ __all__ = (
     "DedupeOperationStrategy",
     "ErrorResponse",
     "ErrorResponseDetailsType0",
+    "ForecastEffortLevel",
     "ForecastOperation",
-    "ForecastOperationForecastType",
     "ForecastOperationInputType1Item",
     "ForecastOperationInputType2",
+    "ForecastType",
     "HealthResponse",
     "HTTPValidationError",
     "InsufficientBalanceResponse",
