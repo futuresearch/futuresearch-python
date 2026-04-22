@@ -35,7 +35,9 @@ class ForecastOperation:
             when forecast_type is 'numeric'. Output columns will be named {output_field}_p10 through {output_field}_p90.
         units (None | str | Unset): Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). Required when
             forecast_type is 'numeric'.
-        effort_level (ForecastEffortLevel | Unset):
+        effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
+            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH' for single-question forecasts
+            and 'LOW' for multi-question forecasts.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID
@@ -45,7 +47,7 @@ class ForecastOperation:
     webhook_url: None | str | Unset = UNSET
     output_field: None | str | Unset = UNSET
     units: None | str | Unset = UNSET
-    effort_level: ForecastEffortLevel | Unset = UNSET
+    effort_level: ForecastEffortLevel | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,9 +93,13 @@ class ForecastOperation:
         else:
             units = self.units
 
-        effort_level: str | Unset = UNSET
-        if not isinstance(self.effort_level, Unset):
+        effort_level: None | str | Unset
+        if isinstance(self.effort_level, Unset):
+            effort_level = UNSET
+        elif isinstance(self.effort_level, ForecastEffortLevel):
             effort_level = self.effort_level.value
+        else:
+            effort_level = self.effort_level
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -202,12 +208,22 @@ class ForecastOperation:
 
         units = _parse_units(d.pop("units", UNSET))
 
-        _effort_level = d.pop("effort_level", UNSET)
-        effort_level: ForecastEffortLevel | Unset
-        if isinstance(_effort_level, Unset):
-            effort_level = UNSET
-        else:
-            effort_level = ForecastEffortLevel(_effort_level)
+        def _parse_effort_level(data: object) -> ForecastEffortLevel | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                effort_level_type_0 = ForecastEffortLevel(data)
+
+                return effort_level_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(ForecastEffortLevel | None | Unset, data)
+
+        effort_level = _parse_effort_level(d.pop("effort_level", UNSET))
 
         forecast_operation = cls(
             input_=input_,

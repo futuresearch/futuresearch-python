@@ -423,7 +423,9 @@ class ForecastInput(_SingleSourceInput):
     )
     effort_level: ForecastEffortLevel | None = Field(
         default=None,
-        description="Affects accuracy and cost of forecast. Default: low.",
+        description="Effort level for the forecast. 'LOW' tends to be faster and cheaper. "
+        "'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH' for "
+        "single-question forecasts and 'LOW' for multi-question forecasts.",
     )
     output_field: str | None = Field(
         default=None,
