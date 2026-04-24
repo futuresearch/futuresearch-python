@@ -34,11 +34,22 @@ All paths are relative to `futuresearch-python/`. Update the version string in e
 10. **`stubs/everyrow/pyproject.toml`** — `project.version` AND `dependencies` (`futuresearch>=X.Y.Z`)
 11. **`stubs/everyrow-mcp/pyproject.toml`** — `project.version` AND `dependencies` (`futuresearch-mcp>=X.Y.Z`)
 
-After editing, regenerate the lock file:
+After editing, regenerate the lock files. Run `uv lock` in `futuresearch-python/` first:
 
 ```bash
 cd futuresearch-python && uv lock
 ```
+
+Then sync transitive lockfiles across the entire monorepo. The CI check
+`check-uv-sync` runs `./uv-all.sh sync --all-extras --dev --all-groups` and
+will fail if any other workspace's `uv.lock` still references the old SDK
+version. Run it from the repo root:
+
+```bash
+cd <repo-root> && ./uv-all.sh sync --all-extras --dev --all-groups
+```
+
+Stage any additional lockfiles it touches alongside the bump.
 
 ## Verification Steps
 
@@ -74,6 +85,7 @@ Version bumps should be in their own PR — do not bundle them with feature or f
 - [ ] `CITATION.cff` date-released set to today
 - [ ] Dependency version floors updated (`futuresearch>=X.Y.Z`, `futuresearch-mcp>=X.Y.Z`)
 - [ ] `uv lock` regenerated
+- [ ] `./uv-all.sh sync --all-extras --dev --all-groups` run from repo root; any updated transitive lockfiles staged
 - [ ] `uv run pytest tests/test_version.py` passes
 - [ ] `rg --hidden "OLD_VERSION"` shows no unexpected hits
 - [ ] PR contains only version bump changes (no other features or fixes)
