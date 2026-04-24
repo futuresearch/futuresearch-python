@@ -263,11 +263,11 @@ async def test_agent_map(mocker, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_agent_map_with_table_output(mocker, mock_session):
+async def test_agent_map_with_return_table_forwards_return_list(mocker, mock_session):
+    """When return_table=True, agent_map sends return_list=True and accepts a fan-out result."""
     task_id = uuid.uuid4()
     artifact_id = uuid.uuid4()
 
-    # Mock operation endpoint
     mock_submit = mocker.patch(
         "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
         new_callable=AsyncMock,
@@ -278,7 +278,6 @@ async def test_agent_map_with_table_output(mocker, mock_session):
         status=TaskStatus.PENDING,
     )
 
-    # Mock get_task_status
     mock_status = mocker.patch(
         "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
         new_callable=AsyncMock,
@@ -287,7 +286,7 @@ async def test_agent_map_with_table_output(mocker, mock_session):
         task_id, mock_session.session_id, artifact_id
     )
 
-    # Mock get_task_result
+    # Two input rows; agent fans each out into 3 cities, so 6 output rows total.
     mock_result = mocker.patch(
         "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
         new_callable=AsyncMock,
@@ -295,8 +294,12 @@ async def test_agent_map_with_table_output(mocker, mock_session):
     mock_result.return_value = _make_table_result(
         task_id,
         [
-            {"country": "India", "city": "Mumbai"},
-            {"country": "USA", "city": "New York"},
+            {"country": "India", "city": "Mumbai", "_expand_index": 0},
+            {"country": "India", "city": "Delhi", "_expand_index": 1},
+            {"country": "India", "city": "Bangalore", "_expand_index": 2},
+            {"country": "USA", "city": "New York", "_expand_index": 0},
+            {"country": "USA", "city": "Los Angeles", "_expand_index": 1},
+            {"country": "USA", "city": "Chicago", "_expand_index": 2},
         ],
         artifact_id,
     )
@@ -306,11 +309,57 @@ async def test_agent_map_with_table_output(mocker, mock_session):
         task="What are the three largest cities in the given country?",
         session=mock_session,
         input=input_df,
+        return_table=True,
     )
 
+    # Body sent to the API carries return_list=True.
+    submit_kwargs = mock_submit.await_args.kwargs
+    assert submit_kwargs["body"].return_list is True
+
     assert isinstance(result, TableResult)
-    assert len(result.data) == 2
+    assert len(result.data) == 6
+    assert "city" in result.data.columns
     assert result.artifact_id == artifact_id
+
+
+@pytest.mark.asyncio
+async def test_agent_map_default_does_not_set_return_list(mocker, mock_session):
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = OperationResponse(
+        task_id=task_id,
+        session_id=mock_session.session_id,
+        status=TaskStatus.PENDING,
+    )
+
+    mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_status_response(
+            task_id, mock_session.session_id, artifact_id
+        ),
+    )
+    mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_table_result(
+            task_id, [{"country": "India", "answer": "New Delhi"}], artifact_id
+        ),
+    )
+
+    await agent_map(
+        task="capital?",
+        session=mock_session,
+        input=pd.DataFrame([{"country": "India"}]),
+    )
+
+    submit_kwargs = mock_submit.await_args.kwargs
+    assert submit_kwargs["body"].return_list is False
 
 
 @pytest.mark.asyncio

@@ -51,6 +51,9 @@ class AgentMapOperation:
             more important than overall throughput. Default: False.
         document_query_llm (LLMEnumPublic | None | Unset): LLM to use for the document query tool (QDLLM) that reads and
             extracts information from web pages. If not provided, defaults to the system default.
+        return_list (bool | Unset): If True, treat each row's agent output as a list of records and emit one output row
+            per item (with an `_expand_index` column). The `response_schema` should describe a single item; the worker wraps
+            it in a list automatically. Do not pre-wrap your schema. Default: False.
     """
 
     input_: AgentMapOperationInputType2 | list[AgentMapOperationInputType1Item] | UUID
@@ -66,6 +69,7 @@ class AgentMapOperation:
     include_research: bool | None | Unset = UNSET
     enforce_row_independence: bool | Unset = False
     document_query_llm: LLMEnumPublic | None | Unset = UNSET
+    return_list: bool | Unset = False
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -153,6 +157,8 @@ class AgentMapOperation:
         else:
             document_query_llm = self.document_query_llm
 
+        return_list = self.return_list
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -183,6 +189,8 @@ class AgentMapOperation:
             field_dict["enforce_row_independence"] = enforce_row_independence
         if document_query_llm is not UNSET:
             field_dict["document_query_llm"] = document_query_llm
+        if return_list is not UNSET:
+            field_dict["return_list"] = return_list
 
         return field_dict
 
@@ -351,6 +359,8 @@ class AgentMapOperation:
 
         document_query_llm = _parse_document_query_llm(d.pop("document_query_llm", UNSET))
 
+        return_list = d.pop("return_list", UNSET)
+
         agent_map_operation = cls(
             input_=input_,
             task=task,
@@ -365,6 +375,7 @@ class AgentMapOperation:
             include_research=include_research,
             enforce_row_independence=enforce_row_independence,
             document_query_llm=document_query_llm,
+            return_list=return_list,
         )
 
         agent_map_operation.additional_properties = d

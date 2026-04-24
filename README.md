@@ -84,6 +84,18 @@ result = await agent_map(
     ]),
 )
 print(result.data.head())
+
+# Same map, but each agent emits a list of records that fan out into extra rows
+# (one row per item, with an `_expand_index` column).
+result = await agent_map(
+    task="List this company's top 5 products",
+    input=DataFrame([
+        {"company": "Anthropic"},
+        {"company": "OpenAI"},
+    ]),
+    return_table=True,
+)
+print(result.data.head())
 ```
 
 See the API [docs](https://futuresearch.ai/docs/reference/RESEARCH), a case study of [labeling data](https://futuresearch.ai/docs/classify-dataframe-rows-llm) or a case study for [researching government data](https://futuresearch.ai/docs/case-studies/research-and-rank-permit-times) at scale.

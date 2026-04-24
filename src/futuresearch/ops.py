@@ -324,6 +324,7 @@ async def agent_map(
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
     document_query_llm: LLM | None = None,
+    return_table: bool = False,
 ) -> TableResult:
     """Execute an AI agent task on each row of the input table.
 
@@ -336,8 +337,12 @@ async def agent_map(
         llm: LLM to use for each agent. Required when effort_level is None.
         iteration_budget: Number of agent iterations per row (0-20). Required when effort_level is None.
         include_reasoning: Include reasoning notes. Required when effort_level is None.
-        response_model: Pydantic model for the response schema.
+        response_model: Pydantic model for the response schema. When ``return_table`` is True,
+            this should describe a single item; the worker wraps it in a list automatically.
         document_query_llm: LLM to use for the document query tool (QDLLM) when scraping web pages.
+        return_table: If True, each per-row agent emits a list of records and the result table
+            contains one row per item (with an ``_expand_index`` column). Output rows can exceed
+            input rows. Default: False (one output row per input row).
 
     Returns:
         TableResult containing the agent results merged with input rows.
@@ -357,6 +362,7 @@ async def agent_map(
                 enforce_row_independence=enforce_row_independence,
                 response_model=response_model,
                 document_query_llm=document_query_llm,
+                return_table=return_table,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -373,6 +379,7 @@ async def agent_map(
         enforce_row_independence=enforce_row_independence,
         response_model=response_model,
         document_query_llm=document_query_llm,
+        return_table=return_table,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
@@ -391,6 +398,7 @@ async def _submit_agent_map(
     enforce_row_independence: bool = False,
     response_schema: dict | None = None,
     document_query_llm: LLM | None = None,
+    return_table: bool = False,
 ) -> SubmittedTask:
     """Build and submit an agent_map request."""
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
@@ -413,6 +421,7 @@ async def _submit_agent_map(
         document_query_llm=LLMEnumPublic(document_query_llm.value)
         if document_query_llm is not None
         else UNSET,
+        return_list=return_table,
     )
 
     response = await agent_map_operations_agent_map_post.asyncio(
@@ -433,6 +442,7 @@ async def agent_map_async(
     enforce_row_independence: bool = False,
     response_model: type[BaseModel] = DefaultAgentResponse,
     document_query_llm: LLM | None = None,
+    return_table: bool = False,
 ) -> EveryrowTask[BaseModel]:
     """Submit an agent_map task asynchronously."""
     submitted = await _submit_agent_map(
@@ -446,10 +456,11 @@ async def agent_map_async(
         enforce_row_independence=enforce_row_independence,
         response_schema=response_model.model_json_schema(),
         document_query_llm=document_query_llm,
+        return_table=return_table,
     )
 
     cohort_task = EveryrowTask(
-        response_model=response_model, is_map=True, is_expand=False
+        response_model=response_model, is_map=True, is_expand=return_table
     )
     cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task
