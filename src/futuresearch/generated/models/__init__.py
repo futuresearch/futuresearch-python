@@ -40,6 +40,10 @@ from .merge_operation_relationship_type_type_0 import MergeOperationRelationship
 from .merge_operation_right_input_type_1_item import MergeOperationRightInputType1Item
 from .merge_operation_right_input_type_2 import MergeOperationRightInputType2
 from .merge_operation_use_web_search_type_0 import MergeOperationUseWebSearchType0
+from .multi_agent_operation import MultiAgentOperation
+from .multi_agent_operation_input_type_1_item import MultiAgentOperationInputType1Item
+from .multi_agent_operation_input_type_2 import MultiAgentOperationInputType2
+from .multi_agent_operation_response_schema_type_0 import MultiAgentOperationResponseSchemaType0
 from .operation_response import OperationResponse
 from .partial_rows_response import PartialRowsResponse
 from .partial_rows_response_rows_item import PartialRowsResponseRowsItem
@@ -126,6 +130,10 @@ __all__ = (
     "MergeOperationRightInputType1Item",
     "MergeOperationRightInputType2",
     "MergeOperationUseWebSearchType0",
+    "MultiAgentOperation",
+    "MultiAgentOperationInputType1Item",
+    "MultiAgentOperationInputType2",
+    "MultiAgentOperationResponseSchemaType0",
     "OperationResponse",
     "PartialRowsResponse",
     "PartialRowsResponseRowsItem",

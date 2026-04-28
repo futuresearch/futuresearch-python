@@ -36,6 +36,9 @@ from futuresearch.generated.models import (
     MergeOperation,
     MergeOperationLeftInputType1Item,
     MergeOperationRightInputType1Item,
+    MultiAgentOperation,
+    MultiAgentOperationInputType1Item,
+    MultiAgentOperationResponseSchemaType0,
     PublicEffortLevel,
     RankOperation,
     RankOperationInputType1Item,
@@ -1075,7 +1078,7 @@ async def multi_agent(
     session: Session | None = None,
     *,
     directions: list[str] | None = None,
-    effort_level: Literal["low", "medium", "high"] | None = "medium",
+    effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
 ) -> TableResult:
@@ -1136,26 +1139,24 @@ async def _submit_multi_agent(
     input: DataFrame | UUID | TableResult,
     *,
     directions: list[str] | None = None,
-    effort_level: str | None = "medium",
+    effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
 ) -> SubmittedTask:
     """Submit a multi-agent task and return task/session IDs (for MCP use)."""
-    input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
+    input_data = _prepare_table_input(input, MultiAgentOperationInputType1Item)
 
-    body: dict[str, Any] = {
-        "input": [item.to_dict() for item in input_data]
-        if isinstance(input_data, list)
-        else str(input_data),
-        "task": task,
-        "session_id": str(session.session_id),
-        "effort_level": effort_level,
-        "join_with_input": join_with_input,
-    }
-    if directions is not None:
-        body["directions"] = directions
-    if response_schema is not None:
-        body["response_schema"] = response_schema
+    body = MultiAgentOperation(
+        input_=input_data,
+        task=task,
+        directions=directions,
+        response_schema=MultiAgentOperationResponseSchemaType0.from_dict(
+            response_schema or DefaultAgentResponse.model_json_schema()
+        ),
+        session_id=session.session_id,
+        effort_level=PublicEffortLevel(effort_level),
+        join_with_input=join_with_input,
+    )
 
     response = await multi_agent_operations_multi_agent_post.asyncio(
         client=session.client, body=body
@@ -1171,7 +1172,7 @@ async def multi_agent_async(
     input: DataFrame | UUID | TableResult,
     *,
     directions: list[str] | None = None,
-    effort_level: str | None = "medium",
+    effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
 ) -> EveryrowTask[BaseModel]:
