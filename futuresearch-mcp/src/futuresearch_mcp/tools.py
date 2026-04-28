@@ -19,6 +19,7 @@ from futuresearch.generated.models.task_cost_status import TaskCostStatus
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.ops import (
     _submit_agent_map,
+    _submit_multi_agent,
     _submit_rank,
     _submit_single_agent,
     classify_async,
@@ -46,6 +47,7 @@ from futuresearch_mcp.models import (
     ListSessionsInput,
     ListSessionTasksInput,
     MergeInput,
+    MultiAgentInput,
     ProgressInput,
     RankInput,
     SingleAgentInput,
@@ -300,6 +302,80 @@ async def futuresearch_agent(
         label=f"Submitted: {total} agents starting."
         if total
         else "Submitted: agents starting (artifact).",
+        token=client.token,
+        total=total,
+        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+        session_id=session_id_str,
+    )
+
+
+@mcp.tool(
+    name="futuresearch_multi_agent",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Multi-Agent Parallel Research",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def futuresearch_multi_agent(
+    params: MultiAgentInput, ctx: FuturesearchContext
+) -> list[TextContent]:
+    """Run multiple AI agents in parallel on different research angles, then synthesize.
+
+    Each row is processed by multiple direction agents, each exploring a different
+    research angle. Their findings are synthesized into a single result per row.
+
+    `directions` allows you to specify up to 6 explicit research angles. Each
+    should be a detailed, self-contained brief — not a short title. Short display
+    labels are generated automatically. If not provided, directions are
+    auto-generated based on effort_level.
+
+    `response_schema` defines the OUTPUT STRUCTURE for the synthesized result.
+    If omitted, results default to a single {"answer": string} field.
+
+    This function submits the task and returns immediately with a task_id.
+    Then immediately follow the instructions in the response to monitor progress.
+    """
+    logger.info(
+        "futuresearch_multi_agent: task=%.80s rows=%s directions=%s",
+        params.task,
+        len(params.data) if params.data else "artifact",
+        len(params.directions) if params.directions else "auto",
+    )
+    log_client_info(ctx, "futuresearch_multi_agent")
+    client = _get_client(ctx)
+
+    input_data = params._aid_or_dataframe
+
+    async with create_linked_session(
+        client=client, session_id=params.session_id, name=params.session_name
+    ) as session:
+        session_id_str = str(session.session_id)
+        kwargs: dict[str, Any] = {
+            "task": params.task,
+            "session": session,
+            "input": input_data,
+        }
+        if params.directions:
+            kwargs["directions"] = params.directions
+        if params.response_schema:
+            kwargs["response_schema"] = params.response_schema
+        kwargs["effort_level"] = (
+            params.effort_level.value if params.effort_level else "medium"
+        )
+
+        submitted = await _submit_multi_agent(**kwargs)
+        task_id = str(submitted.task_id)
+        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+
+    return await create_tool_response(
+        task_id=task_id,
+        label=f"Submitted: multi-agent research starting ({total} rows)."
+        if total
+        else "Submitted: multi-agent research starting (artifact).",
         token=client.token,
         total=total,
         mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,

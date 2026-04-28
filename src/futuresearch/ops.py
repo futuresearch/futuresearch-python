@@ -14,6 +14,7 @@ from futuresearch.generated.api.operations import (
     dedupe_operations_dedupe_post,
     forecast_operations_forecast_post,
     merge_operations_merge_post,
+    multi_agent_operations_multi_agent_post,
     rank_operations_rank_post,
     single_agent_operations_single_agent_post,
 )
@@ -1062,4 +1063,144 @@ async def classify_async(
         response_model=BaseModel, is_map=True, is_expand=False
     )
     cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    return cohort_task
+
+
+# --- Multi-Agent ---
+
+
+async def multi_agent(
+    task: str,
+    input: DataFrame | UUID | TableResult,
+    session: Session | None = None,
+    *,
+    directions: list[str] | None = None,
+    effort_level: Literal["low", "medium", "high"] | None = "medium",
+    response_schema: dict[str, Any] | None = None,
+    join_with_input: bool = True,
+) -> TableResult:
+    """Run multiple AI agents in parallel on different research angles, then synthesize.
+
+    Each row in the input is processed by multiple direction agents exploring
+    different research angles. Their findings are synthesized into a single
+    result per row.
+
+    Args:
+        task: Instructions for the multi-agent research.
+        input: Input data (DataFrame, UUID, or TableResult).
+        session: Optional session. If not provided, one will be created.
+        directions: Up to 6 explicit research directions. If not provided,
+            auto-generated based on effort_level.
+        effort_level: Controls direction count: ``"low"`` (3), ``"medium"`` (4),
+            ``"high"`` (6). Default: ``"medium"``.
+        response_schema: JSON Schema for the synthesized output. If not provided,
+            defaults to ``{answer: string}``.
+        join_with_input: If True, merge output with input row. Default: True.
+
+    Returns:
+        TableResult with synthesized output columns added to each input row.
+    """
+    if session is None:
+        async with create_session() as internal_session:
+            cohort_task = await multi_agent_async(
+                task=task,
+                session=internal_session,
+                input=input,
+                directions=directions,
+                effort_level=effort_level,
+                response_schema=response_schema,
+                join_with_input=join_with_input,
+            )
+            result = await cohort_task.await_result(on_progress=print_progress)
+            if isinstance(result, TableResult):
+                return result
+            raise EveryrowError("Multi-agent task did not return a table result")
+    cohort_task = await multi_agent_async(
+        task=task,
+        session=session,
+        input=input,
+        directions=directions,
+        effort_level=effort_level,
+        response_schema=response_schema,
+        join_with_input=join_with_input,
+    )
+    result = await cohort_task.await_result(on_progress=print_progress)
+    if isinstance(result, TableResult):
+        return result
+    raise EveryrowError("Multi-agent task did not return a table result")
+
+
+async def _submit_multi_agent(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    *,
+    directions: list[str] | None = None,
+    effort_level: str | None = "medium",
+    response_schema: dict[str, Any] | None = None,
+    join_with_input: bool = True,
+) -> SubmittedTask:
+    """Submit a multi-agent task and return task/session IDs (for MCP use)."""
+    input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
+
+    body: dict[str, Any] = {
+        "input": [item.to_dict() for item in input_data]
+        if isinstance(input_data, list)
+        else str(input_data),
+        "task": task,
+        "session_id": str(session.session_id),
+        "effort_level": effort_level,
+        "join_with_input": join_with_input,
+    }
+    if directions is not None:
+        body["directions"] = directions
+    if response_schema is not None:
+        body["response_schema"] = response_schema
+
+    response = await multi_agent_operations_multi_agent_post.asyncio(
+        client=session.client, body=body
+    )
+    response = handle_response(response)
+
+    return SubmittedTask(response.task_id, response.session_id)
+
+
+async def multi_agent_async(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    *,
+    directions: list[str] | None = None,
+    effort_level: str | None = "medium",
+    response_schema: dict[str, Any] | None = None,
+    join_with_input: bool = True,
+) -> EveryrowTask[BaseModel]:
+    """Submit a multi-agent task asynchronously.
+
+    Args:
+        task: Instructions for the multi-agent research.
+        session: Active session.
+        input: Input data.
+        directions: Up to 6 explicit research directions.
+        effort_level: ``"low"`` (3 agents), ``"medium"`` (4), ``"high"`` (6).
+        response_schema: JSON Schema for the synthesized output.
+        join_with_input: If True, merge output with input row.
+
+    Returns:
+        EveryrowTask that resolves to a TableResult.
+    """
+    submitted = await _submit_multi_agent(
+        task=task,
+        session=session,
+        input=input,
+        directions=directions,
+        effort_level=effort_level,
+        response_schema=response_schema,
+        join_with_input=join_with_input,
+    )
+
+    cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
+        response_model=BaseModel, is_map=True, is_expand=False
+    )
+    cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task

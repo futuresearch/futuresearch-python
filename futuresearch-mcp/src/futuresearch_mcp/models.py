@@ -762,3 +762,38 @@ class ListSessionTasksInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     session_id: str = Field(description="The session ID to list tasks for")
+
+
+class MultiAgentInput(_SingleSourceInput):
+    """Input for the multi-agent parallel research operation."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    task: str = Field(
+        ...,
+        description="Instructions for the multi-agent parallel research.",
+        min_length=1,
+    )
+    directions: list[str] | None = Field(
+        default=None,
+        max_length=6,
+        description="Up to 6 explicit research directions. Each should be a detailed, "
+        "self-contained prompt describing the research to carry out — NOT a short "
+        "title. The agent receiving this direction will use it as its full brief. "
+        "Short labels for display are generated automatically. "
+        "If not provided, directions are auto-generated based on effort_level.",
+    )
+    response_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional JSON schema for the synthesized response per row.",
+    )
+    effort_level: EffortLevel | None = Field(
+        default=EffortLevel.MEDIUM,
+        description="Controls the number of parallel direction agents: "
+        '"low" (3 agents), "medium" (4 agents), "high" (6 agents).',
+    )
+
+    @field_validator("response_schema")
+    @classmethod
+    def _check_response_schema(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
+        return _validate_response_schema(v)

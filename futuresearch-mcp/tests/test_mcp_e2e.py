@@ -166,6 +166,7 @@ class TestMcpProtocol:
                     "futuresearch_list_session_tasks",
                     "futuresearch_list_sessions",
                     "futuresearch_merge",
+                    "futuresearch_multi_agent",
                     "futuresearch_progress",
                     "futuresearch_rank",
                     "futuresearch_results",

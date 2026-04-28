@@ -49,6 +49,10 @@
       "description": "Run web research agents on each row of a CSV file."
     },
     {
+      "name": "futuresearch_multi_agent",
+      "description": "Run multiple AI agents in parallel on different research angles, then synthesize."
+    },
+    {
       "name": "futuresearch_forecast",
       "description": "Forecast questions about the future using deep research and multi-model ensemble."
     },

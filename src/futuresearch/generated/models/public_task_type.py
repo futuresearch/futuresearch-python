@@ -6,6 +6,7 @@ class PublicTaskType(str, Enum):
     CLASSIFY = "classify"
     DEDUPE = "dedupe"
     FORECAST = "forecast"
+    MULTI_AGENT = "multi_agent"
     MERGE = "merge"
     RANK = "rank"
     SCREEN = "screen"
