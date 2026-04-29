@@ -323,10 +323,17 @@ async def futuresearch_agent(
 async def futuresearch_multi_agent(
     params: MultiAgentInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Run multiple AI agents in parallel on different research angles, then synthesize.
+    """Deep parallel research: deploys multiple agents on different angles, then synthesizes.
 
-    Each row is processed by multiple direction agents, each exploring a different
-    research angle. Their findings are synthesized into a single result per row.
+    Use this instead of futuresearch_agent or futuresearch_single_agent when the
+    question is hard enough to benefit from parallel investigation — e.g. when
+    the answer depends on genuinely distinct information sources, perspectives,
+    or methodologies that a single agent might miss or weight unevenly. Works on
+    a single question or across many rows of a dataset.
+
+    Each input row is researched by several direction agents in parallel (3-6
+    depending on effort_level), each exploring a different angle. Their findings
+    are then synthesized into a single, well-rounded result per row.
 
     `directions` allows you to specify up to 6 explicit research angles. Each
     should be a detailed, self-contained brief — not a short title. Short display

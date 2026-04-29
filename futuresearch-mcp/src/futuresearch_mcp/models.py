@@ -765,7 +765,7 @@ class ListSessionTasksInput(BaseModel):
 
 
 class MultiAgentInput(_SingleSourceInput):
-    """Input for the multi-agent parallel research operation."""
+    """Deep parallel research: multiple agents investigate different angles, then synthesize."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 

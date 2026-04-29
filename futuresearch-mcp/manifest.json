@@ -50,7 +50,7 @@
     },
     {
       "name": "futuresearch_multi_agent",
-      "description": "Run multiple AI agents in parallel on different research angles, then synthesize."
+      "description": "Deep parallel research: deploys multiple agents on different angles, then synthesizes."
     },
     {
       "name": "futuresearch_forecast",
