@@ -325,11 +325,15 @@ async def futuresearch_multi_agent(
 ) -> list[TextContent]:
     """Deep parallel research: deploys multiple agents on different angles, then synthesizes.
 
-    Use this instead of futuresearch_agent or futuresearch_single_agent when the
-    question is hard enough to benefit from parallel investigation — e.g. when
-    the answer depends on genuinely distinct information sources, perspectives,
-    or methodologies that a single agent might miss or weight unevenly. Works on
-    a single question or across many rows of a dataset.
+    Use this instead of futuresearch_single_agent when either (a) completeness
+    matters — you're trying to find all items matching a criteria (e.g. "all AI
+    startups in Europe") and a single agent will have poor recall, or (b) depth
+    matters — the answer benefits from parallel investigation across genuinely
+    distinct angles (sources, geographies, methodologies) that a single agent
+    would weight unevenly. For list-generation tasks especially, directing agents
+    at different slices (by region, by vertical, by time period) dramatically
+    improves coverage before synthesizing. Works on a single question or across
+    many rows of a dataset.
 
     Each input row is researched by several direction agents in parallel (3-6
     depending on effort_level), each exploring a different angle. Their findings
