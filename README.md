@@ -13,7 +13,7 @@ Requires Google sign in, no credit card required.
 
 ## Quick installation steps:
 
-Claude.ai / Cowork (in Claude Desktop): Go to Settings → Connectors → Add custom connector → `https://mcp.futuresearch.ai/mcp`
+Claude.ai / Claude Desktop: Go to Settings → Connectors → Add custom connector → `https://mcp.futuresearch.ai/mcp`
 
 Claude Code:
 
