@@ -1291,27 +1291,6 @@ class TestResultsInputValidation:
                 output_path=str(tmp_path / "out.txt"),
             )
 
-    def test_http_output_path_optional(self):
-        """Test that HttpResultsInput allows omitting output_path."""
-        params = HttpResultsInput(task_id="00000000-0000-0000-0000-000000000000")
-        assert params.output_path is None
-
-    def test_http_output_path_validated(self, tmp_path: Path):
-        """Test that HttpResultsInput validates output_path when provided."""
-        params = HttpResultsInput(
-            task_id="00000000-0000-0000-0000-000000000000",
-            output_path=str(tmp_path / "out.csv"),
-        )
-        assert params.output_path is not None
-
-    def test_http_output_path_rejects_non_csv(self, tmp_path: Path):
-        """Test that non-CSV output_path is rejected in HTTP mode too."""
-        with pytest.raises(ValidationError, match=r"must end in \.csv"):
-            HttpResultsInput(
-                task_id="00000000-0000-0000-0000-000000000000",
-                output_path=str(tmp_path / "out.txt"),
-            )
-
 
 class TestHttpResultsToolOverride:
     """Verify that the HTTP override replaces the stdio results tool schema."""
@@ -1335,8 +1314,9 @@ class TestHttpResultsToolOverride:
         tool = mcp_app._tool_manager.get_tool("futuresearch_results")
         assert tool is not None
         assert "HttpResultsInput" in tool.parameters["$defs"]
-        assert "output_path" not in tool.parameters["$defs"]["HttpResultsInput"].get(
-            "required", []
+        assert (
+            "output_path"
+            not in tool.parameters["$defs"]["HttpResultsInput"]["properties"]
         )
 
         # Restore stdio default for other tests

@@ -223,17 +223,23 @@ class RankInput(_SingleSourceInput):
         description="Natural language instructions for scoring a single row.",
         min_length=1,
     )
-    field_name: str = Field(..., description="Name of the field to sort by.")
+    field_name: str = Field(
+        ...,
+        description="Name of the output score field to sort by.",
+    )
     field_type: Literal["float", "int", "str", "bool"] = Field(
         default="float",
-        description="Type of the score field: 'float', 'int', 'str', or 'bool'",
+        description="Type of field_name: 'float', 'int', 'str', or 'bool'. "
+        "Only used if response_schema is not specified.",
     )
     ascending_order: bool = Field(
-        default=True, description="Sort ascending (True) or descending (False)."
+        default=True,
+        description="Sort results in ascending (True) or descending (False).",
     )
     response_schema: dict[str, Any] | None = Field(
         default=None,
-        description="Optional JSON schema for the response model.",
+        description="Optional JSON schema for the response model. If provided, "
+        "must contain field_name as a top-level property. Overrides field_type.",
     )
 
     @field_validator("response_schema")
@@ -304,11 +310,11 @@ class MergeInput(BaseModel):
 
     merge_on_left: str | None = Field(
         default=None,
-        description="Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
+        description="Column name in the left table. Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
     )
     merge_on_right: str | None = Field(
         default=None,
-        description="Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
+        description="Column name in the right table. Only set if you expect some exact string matches on the chosen column or want to draw special attention of LLM agents to this particular column. Fine to leave unspecified in all other cases.",
     )
 
     use_web_search: Literal["auto", "yes", "no"] | None = Field(
@@ -410,7 +416,7 @@ class ForecastInput(_SingleSourceInput):
 
     context: str | None = Field(
         default=None,
-        description="Optional batch-level context or instructions that apply to every row "
+        description="Optional table-level context or instructions that apply to every row "
         "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
         "Leave empty when the rows are self-contained.",
     )
@@ -520,7 +526,7 @@ class SingleAgentInput(BaseModel):
     )
     input_data: dict[str, Any] | None = Field(
         default=None,
-        description="Optional context as key-value pairs (e.g. {'company': 'Acme', 'url': 'acme.com'}).",
+        description="Optional context in the form of a JSON object (e.g. {'company': 'Acme', 'url': 'acme.com'}).",
     )
     response_schema: dict[str, Any] | None = Field(
         default=None,
@@ -707,11 +713,6 @@ class HttpResultsInput(BaseModel):
     def validate_task_id(cls, v: str) -> str:
         return _validate_task_id(v)
 
-    output_path: str | None = Field(
-        default=None,
-        description="Full absolute path to the output CSV file (must end in .csv). "
-        "Optional — results are returned as a paginated preview by default.",
-    )
     offset: int = Field(
         default=0,
         description="Row offset for pagination. Default 0 returns the first page.",
@@ -730,16 +731,6 @@ class HttpResultsInput(BaseModel):
         ge=1,
         le=10000,
     )
-
-    @field_validator("output_path")
-    @classmethod
-    def validate_output(cls, v: str | None) -> str | None:
-        # Only check file extension, not parent directory existence.
-        # In HTTP mode the path comes from a remote client whose filesystem
-        # is not visible to the server.
-        if v is not None and not v.lower().endswith(".csv"):
-            raise ValueError("output_path must end in .csv")
-        return v
 
 
 class ListSessionsInput(BaseModel):

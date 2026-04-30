@@ -501,10 +501,11 @@ async def futuresearch_rank(
     table. Conducts research, and can also apply judgment to the results if the
     criteria are qualitative.
 
-    `task` describes WHAT to score in natural language. `response_schema`
-    optionally defines extra output columns as a JSON Schema. If omitted,
-    only the score column is returned. Do NOT describe desired output columns
-    only in `task` — the schema is what controls the output structure.
+    `task` describes how to score each row in natural language.
+    `response_schema` optionally defines extra output columns as a JSON Schema.
+    If omitted, only the score column is returned. Do NOT describe desired
+    output columns only in `task` — the schema is what controls the output
+    structure.
 
     Examples:
     - "Estimate this drug's peak annual sales in billions of dollars"
@@ -645,8 +646,8 @@ async def futuresearch_merge(
     research and judgment to identify which rows from the first table should
     join those in the second.
 
-    left_csv = the table being enriched (ALL its rows appear in the output).
-    right_csv = the lookup/reference table (its columns are appended to matches).
+    left = the table being enriched (ALL its rows appear in the output).
+    right = the lookup/reference table (its columns are appended to matches).
 
     IMPORTANT defaults — omit parameters when unsure:
     - merge_on_left/merge_on_right: only set if you expect exact string matches on
