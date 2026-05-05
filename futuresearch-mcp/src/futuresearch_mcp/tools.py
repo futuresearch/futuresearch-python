@@ -146,6 +146,7 @@ async def futuresearch_browse_lists(
         lines.append(
             f"{i}. {item.name} [{item.category}]\n"
             f"   Fields: {fields_str}\n"
+            f"   Row count: {item.row_count}\n"
             f"   artifact_id: {item.artifact_id}\n"
         )
     lines.append(

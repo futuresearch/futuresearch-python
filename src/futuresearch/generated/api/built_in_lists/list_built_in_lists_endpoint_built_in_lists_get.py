@@ -74,7 +74,7 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: AuthenticatedClient,
+    client: AuthenticatedClient | Client,
     search: None | str | Unset = UNSET,
     category: None | str | Unset = UNSET,
 ) -> Response[BuiltInListsResponse | HTTPValidationError]:
@@ -108,7 +108,7 @@ def sync_detailed(
 
 def sync(
     *,
-    client: AuthenticatedClient,
+    client: AuthenticatedClient | Client,
     search: None | str | Unset = UNSET,
     category: None | str | Unset = UNSET,
 ) -> BuiltInListsResponse | HTTPValidationError | None:
@@ -137,7 +137,7 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: AuthenticatedClient,
+    client: AuthenticatedClient | Client,
     search: None | str | Unset = UNSET,
     category: None | str | Unset = UNSET,
 ) -> Response[BuiltInListsResponse | HTTPValidationError]:
@@ -169,7 +169,7 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: AuthenticatedClient,
+    client: AuthenticatedClient | Client,
     search: None | str | Unset = UNSET,
     category: None | str | Unset = UNSET,
 ) -> BuiltInListsResponse | HTTPValidationError | None:

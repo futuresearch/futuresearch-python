@@ -16,6 +16,7 @@ class BuiltInListItem:
     artifact_id: UUID
     category: str
     fields: list[str]
+    row_count: int
 
 
 @dataclass
@@ -63,6 +64,7 @@ async def list_built_in_datasets(
             artifact_id=UUID(item["artifact_id"]),
             category=item["category"],
             fields=item["fields"],
+            row_count=item["row_count"],
         )
         for item in data.get("lists", [])
     ]

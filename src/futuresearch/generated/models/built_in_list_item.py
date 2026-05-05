@@ -18,12 +18,14 @@ class BuiltInListItem:
         artifact_id (UUID): Artifact ID to use with the /use endpoint
         category (str): Category for grouping lists
         fields (list[str]): Column names available in this list
+        row_count (int): Number of rows in this list
     """
 
     name: str
     artifact_id: UUID
     category: str
     fields: list[str]
+    row_count: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -35,6 +37,8 @@ class BuiltInListItem:
 
         fields = self.fields
 
+        row_count = self.row_count
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -43,6 +47,7 @@ class BuiltInListItem:
                 "artifact_id": artifact_id,
                 "category": category,
                 "fields": fields,
+                "row_count": row_count,
             }
         )
 
@@ -59,11 +64,14 @@ class BuiltInListItem:
 
         fields = cast(list[str], d.pop("fields"))
 
+        row_count = d.pop("row_count")
+
         built_in_list_item = cls(
             name=name,
             artifact_id=artifact_id,
             category=category,
             fields=fields,
+            row_count=row_count,
         )
 
         built_in_list_item.additional_properties = d
