@@ -181,11 +181,11 @@ async def test_print_progress_output_format(
 
 
 @pytest.mark.asyncio
-async def test_failed_task_raises(
+async def test_failed_task_returns_status(
     mocker,
     mock_client,
 ):
-    """A task that ends in FAILED raises EveryrowError."""
+    """A task that ends in FAILED returns the status (doesn't raise) so callers can fetch partial results."""
     task_id = uuid.uuid4()
 
     mocker.patch(
@@ -194,8 +194,9 @@ async def test_failed_task_raises(
         return_value=_make_status(TaskStatus.FAILED, error="Something went wrong"),
     )
 
-    with pytest.raises(EveryrowError, match="Task failed"):
-        await await_task_completion(task_id, mock_client)
+    result = await await_task_completion(task_id, mock_client)
+    assert result.status == TaskStatus.FAILED
+    assert result.error == "Something went wrong"
 
 
 @pytest.mark.asyncio

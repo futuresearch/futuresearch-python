@@ -110,15 +110,19 @@ class EveryrowTask[T: BaseModel]:
             self.task_id, client, on_progress=on_progress
         )
 
+        error = (
+            final_status.error if not isinstance(final_status.error, Unset) else None
+        )
+
         result_response = await get_task_result(self.task_id, client)
         artifact_id = result_response.artifact_id
 
         if isinstance(artifact_id, Unset) or artifact_id is None:
+            if final_status.status == TaskStatus.FAILED:
+                raise EveryrowError(
+                    f"Task failed with no results: {error or 'Unknown error'}"
+                )
             raise EveryrowError("Task result has no artifact ID")
-
-        error = (
-            final_status.error if not isinstance(final_status.error, Unset) else None
-        )
 
         if self._is_map or self._is_expand:
             data = _extract_table_data(result_response)
@@ -173,14 +177,6 @@ async def await_task_completion(
         ):
             break
         await asyncio.sleep(2)
-
-    if status_response.status == TaskStatus.FAILED:
-        error_msg = (
-            status_response.error
-            if not isinstance(status_response.error, Unset)
-            else "Unknown error"
-        )
-        raise EveryrowError(f"Task failed: {error_msg}")
 
     if status_response.status == TaskStatus.REVOKED:
         raise EveryrowError("Task was revoked")
@@ -348,15 +344,19 @@ class MergeTask:
             )
         final_status = await await_task_completion(self.task_id, client)
 
+        error = (
+            final_status.error if not isinstance(final_status.error, Unset) else None
+        )
+
         result_response = await get_task_result(self.task_id, client)
         artifact_id = result_response.artifact_id
 
         if isinstance(artifact_id, Unset) or artifact_id is None:
+            if final_status.status == TaskStatus.FAILED:
+                raise EveryrowError(
+                    f"Task failed with no results: {error or 'Unknown error'}"
+                )
             raise EveryrowError("Task result has no artifact ID")
-
-        error = (
-            final_status.error if not isinstance(final_status.error, Unset) else None
-        )
 
         data = _extract_table_data(result_response)
         breakdown = _extract_merge_breakdown(result_response)
@@ -394,7 +394,7 @@ async def fetch_task_data(
 
     status_response = await get_task_status(task_id, client)
 
-    if status_response.status != TaskStatus.COMPLETED:
+    if status_response.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
         raise EveryrowError(
             f"Task {task_id} is not completed (status: {status_response.status.value})."
         )

@@ -481,6 +481,21 @@ class TaskState(BaseModel):
             return round((end - created).total_seconds())
         return round((datetime.now(UTC) - created).total_seconds())
 
+    def _error_terminal_message(self, task_id: str) -> str:
+        """Build the message for a terminal task that has an error."""
+        msg = f"Task {self.status.value}: {self.error}"
+        if self.completed > 0:
+            msg += f"\n{self.completed}/{self.total} rows completed successfully — results are available."
+            if settings.is_http:
+                page_size = min(self.completed, settings.auto_page_size_threshold)
+                msg += f"\nCall futuresearch_results(task_id='{task_id}', page_size={max(page_size, 1)}) to load the available results."
+            else:
+                msg += f"\nCall futuresearch_results(task_id='{task_id}', output_path='<path>.csv') to save the available results."
+            msg += "\nFailed rows have _status='failed' and _error columns explaining the reason (e.g. content policy violation)."
+        else:
+            msg += "\nNo rows completed successfully. Report the error to the user."
+        return msg
+
     def progress_message(
         self,
         task_id: str,
@@ -491,7 +506,7 @@ class TaskState(BaseModel):
     ) -> str:
         if self.is_terminal:
             if self.error:
-                return f"Task {self.status.value}: {self.error}"
+                return self._error_terminal_message(task_id)
             if self.status == TaskStatus.COMPLETED:
                 completed_msg = f"Completed: {self.completed}/{self.total} ({self.failed} failed) in {self.elapsed_s}s."
                 if settings.is_http:
@@ -596,11 +611,8 @@ async def _fetch_task_result(
     ):
         raise TaskNotReady(status_response.status.value)
 
-    if status_response.status != TaskStatus.COMPLETED:
-        raise ValueError(
-            f"Task {task_id} ended with status {status_response.status.value}; "
-            "no results available."
-        )
+    if status_response.status == TaskStatus.REVOKED:
+        raise ValueError(f"Task {task_id} was revoked; no results available.")
 
     session_id = str(status_response.session_id) if status_response.session_id else ""
 
