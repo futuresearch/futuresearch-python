@@ -11,11 +11,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/futuresearch/everyrow-sdk.git"
+    "url": "https://github.com/futuresearch/futuresearch-python.git"
   },
   "homepage": "https://futuresearch.ai",
   "documentation": "https://futuresearch.ai/docs",
-  "support": "https://github.com/futuresearch/everyrow-sdk/issues",
+  "support": "https://github.com/futuresearch/futuresearch-python/issues",
   "icon": "images/future-search-logo-128.png",
   "server": {
     "type": "uv",

@@ -9,7 +9,7 @@ FutureSearch gives Claude a research team for your data. Use this skill when wri
 
 > **Documentation**: For detailed guides, case studies, and API reference, see:
 > - Docs site: [futuresearch.ai/docs](https://futuresearch.ai/docs)
-> - GitHub: [github.com/futuresearch/everyrow-sdk](https://github.com/futuresearch/everyrow-sdk)
+> - GitHub: [github.com/futuresearch/futuresearch-python](https://github.com/futuresearch/futuresearch-python)
 
 **Operations:**
 - Classify rows into predefined categories
