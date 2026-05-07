@@ -5,15 +5,24 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from futuresearch.constants import EveryrowError
 from futuresearch.generated.models import (
     PublicTaskType,
     TaskProgressInfo,
+    TaskResultResponse,
+    TaskResultResponseDataType0Item,
     TaskStatus,
     TaskStatusResponse,
 )
-from futuresearch.task import await_task_completion, print_progress
+from futuresearch.result import TableResult
+from futuresearch.task import (
+    EveryrowTask,
+    await_task_completion,
+    fetch_task_data,
+    print_progress,
+)
 
 
 def _make_status(
@@ -292,3 +301,139 @@ async def test_no_output_without_callback(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert captured.out == ""
+
+
+# ── Partial failure tests (await_result / fetch_task_data) ────────────
+
+
+def _make_result_response(
+    *,
+    artifact_id: uuid.UUID | None = None,
+    status: TaskStatus = TaskStatus.COMPLETED,
+    data: list[dict] | None = None,
+    error: str | None = None,
+) -> TaskResultResponse:
+    """Build a TaskResultResponse with table data."""
+    items = None
+    if data is not None:
+        items = []
+        for row in data:
+            item = TaskResultResponseDataType0Item()
+            item.additional_properties = row
+            items.append(item)
+    return TaskResultResponse(
+        task_id=uuid.uuid4(),
+        status=status,
+        artifact_id=artifact_id,
+        data=items,
+        error=error,
+    )
+
+
+class DummyModel(BaseModel):
+    """Minimal stand-in for a Pydantic response model."""
+
+    pass
+
+
+@pytest.mark.asyncio
+async def test_await_result_partial_failure_returns_data(mocker, mock_client):
+    """FAILED task with an artifact returns TableResult with error set (no exception)."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_status(TaskStatus.FAILED, error="3/10 rows failed"),
+    )
+    mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_result_response(
+            artifact_id=artifact_id,
+            status=TaskStatus.FAILED,
+            data=[
+                {"name": "A", "_status": "completed", "_error": None},
+                {"name": "B", "_status": "failed", "_error": "Content policy violation"},
+            ],
+            error="3/10 rows failed",
+        ),
+    )
+
+    task = EveryrowTask(response_model=DummyModel, is_map=True, is_expand=False)
+    task.set_submitted(task_id, uuid.uuid4(), mock_client)
+
+    result = await task.await_result()
+    assert isinstance(result, TableResult)
+    assert result.error == "3/10 rows failed"
+    assert result.artifact_id == artifact_id
+    assert len(result.data) == 2
+
+
+@pytest.mark.asyncio
+async def test_await_result_total_failure_no_artifact_raises(mocker, mock_client):
+    """FAILED task with no artifact raises EveryrowError."""
+    task_id = uuid.uuid4()
+
+    mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_status(TaskStatus.FAILED, error="10/10 rows failed"),
+    )
+    mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_result_response(
+            artifact_id=None,
+            status=TaskStatus.FAILED,
+            error="10/10 rows failed",
+        ),
+    )
+
+    task = EveryrowTask(response_model=DummyModel, is_map=True, is_expand=False)
+    task.set_submitted(task_id, uuid.uuid4(), mock_client)
+
+    with pytest.raises(EveryrowError, match="Task failed with no results"):
+        await task.await_result()
+
+
+@pytest.mark.asyncio
+async def test_fetch_task_data_allows_failed_status(mocker):
+    """fetch_task_data works for FAILED tasks (not just COMPLETED)."""
+    task_id = uuid.uuid4()
+
+    mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_status(TaskStatus.FAILED, error="2/5 rows failed"),
+    )
+    mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_result_response(
+            artifact_id=uuid.uuid4(),
+            data=[{"col": "val", "_status": "completed", "_error": None}],
+        ),
+    )
+
+    mock_client = MagicMock()
+    df = await fetch_task_data(task_id, client=mock_client)
+    assert len(df) == 1
+    assert "col" in df.columns
+
+
+@pytest.mark.asyncio
+async def test_fetch_task_data_rejects_running_status(mocker):
+    """fetch_task_data raises for non-terminal statuses."""
+    task_id = uuid.uuid4()
+
+    mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        new_callable=AsyncMock,
+        return_value=_make_status(TaskStatus.PENDING),
+    )
+
+    mock_client = MagicMock()
+    with pytest.raises(EveryrowError, match="not completed"):
+        await fetch_task_data(task_id, client=mock_client)

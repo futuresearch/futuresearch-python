@@ -228,3 +228,63 @@ class TestProgressMessageActiveWorkers:
         assert "active_workers" not in msg
         assert "user_active_workers" not in msg
         assert "pool_size 30" in msg
+
+
+class TestErrorTerminalMessage:
+    """Tests for _error_terminal_message — partial vs total failure messaging."""
+
+    def test_partial_failure_stdio_mode(self):
+        """Partial failure in stdio mode directs to futuresearch_results with output_path."""
+        p = MagicMock()
+        p.completed = 7
+        p.failed = 3
+        p.running = 0
+        p.total = 10
+        resp = _make_status_response(
+            status=TaskStatus.FAILED,
+            error="3/10 rows failed",
+            progress=p,
+        )
+        ts = TaskState(resp)
+        msg = ts.progress_message("task-pf")
+        assert "Task failed: 3/10 rows failed" in msg
+        assert "7/10 rows completed successfully" in msg
+        assert "futuresearch_results" in msg
+        assert "output_path=" in msg
+        assert "_status='failed'" in msg
+
+    def test_partial_failure_http_mode(self):
+        """Partial failure in HTTP mode directs to futuresearch_results with page_size."""
+        p = MagicMock()
+        p.completed = 7
+        p.failed = 3
+        p.running = 0
+        p.total = 10
+        resp = _make_status_response(
+            status=TaskStatus.FAILED,
+            error="3/10 rows failed",
+            progress=p,
+        )
+        ts = TaskState(resp)
+        with override_settings(transport="streamable-http"):
+            msg = ts.progress_message("task-pf-http")
+        assert "7/10 rows completed successfully" in msg
+        assert "page_size=" in msg
+        assert "futuresearch_results" in msg
+
+    def test_total_failure_no_completed_rows(self):
+        """Total failure (0 completed) shows 'no rows completed' message."""
+        p = MagicMock()
+        p.completed = 0
+        p.failed = 10
+        p.running = 0
+        p.total = 10
+        resp = _make_status_response(
+            status=TaskStatus.FAILED,
+            error="10/10 rows failed",
+            progress=p,
+        )
+        ts = TaskState(resp)
+        msg = ts.progress_message("task-tf")
+        assert "No rows completed successfully" in msg
+        assert "futuresearch_results" not in msg
