@@ -355,7 +355,11 @@ async def test_await_result_partial_failure_returns_data(mocker, mock_client):
             status=TaskStatus.FAILED,
             data=[
                 {"name": "A", "_status": "completed", "_error": None},
-                {"name": "B", "_status": "failed", "_error": "Content policy violation"},
+                {
+                    "name": "B",
+                    "_status": "failed",
+                    "_error": "Content policy violation",
+                },
             ],
             error="3/10 rows failed",
         ),

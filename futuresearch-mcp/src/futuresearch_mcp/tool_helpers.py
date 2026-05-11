@@ -61,6 +61,9 @@ def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
     """Get a FutureSearch API client with MCP client identity headers."""
     client = ctx.request_context.lifespan_context.client_factory()
     extra_headers = _extract_client_headers(ctx)
+    conv_id = _get_conversation_id()
+    if conv_id:
+        extra_headers["X-Cc-Conversation-Id"] = conv_id
     logger.debug(f"Setting extra headers to {extra_headers}")
     if extra_headers:
         client = client.with_headers(extra_headers)
