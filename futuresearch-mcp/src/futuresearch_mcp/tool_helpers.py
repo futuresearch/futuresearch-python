@@ -108,7 +108,7 @@ def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
     extra_headers = _extract_client_headers(ctx)
     conv_id = _get_conversation_id()
     if conv_id:
-        extra_headers["X-Cc-Conversation-Id"] = conv_id
+        extra_headers["x-conversation-id"] = conv_id
     logger.debug(f"Setting extra headers to {extra_headers}")
     if extra_headers:
         client = client.with_headers(extra_headers)
