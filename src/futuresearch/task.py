@@ -8,8 +8,8 @@ from uuid import UUID
 from pandas import DataFrame
 from pydantic.main import BaseModel
 
-from futuresearch.api_utils import create_client, handle_response
-from futuresearch.constants import EveryrowError
+from futuresearch.api_utils import create_client
+from futuresearch.errors import FuturesearchError, _call_and_check
 from futuresearch.generated.api.tasks import (
     cancel_task_tasks_task_id_cancel_post,
     get_task_cost_tasks_task_id_cost_get,
@@ -76,20 +76,20 @@ class EveryrowTask[T: BaseModel]:
         self, client: AuthenticatedClient | None = None
     ) -> TaskStatusResponse:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before fetching status")
+            raise FuturesearchError("Task must be submitted before fetching status")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         return await get_task_status(self.task_id, client)
 
     async def cancel(self, client: AuthenticatedClient | None = None) -> None:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before cancelling")
+            raise FuturesearchError("Task must be submitted before cancelling")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         await cancel_task(self.task_id, client)
@@ -100,10 +100,10 @@ class EveryrowTask[T: BaseModel]:
         on_progress: Callable[[TaskProgressInfo], None] | None = None,
     ) -> TableResult | ScalarResult[T]:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before awaiting result")
+            raise FuturesearchError("Task must be submitted before awaiting result")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         final_status = await await_task_completion(
@@ -119,10 +119,10 @@ class EveryrowTask[T: BaseModel]:
 
         if isinstance(artifact_id, Unset) or artifact_id is None:
             if final_status.status == TaskStatus.FAILED:
-                raise EveryrowError(
+                raise FuturesearchError(
                     f"Task failed with no results: {error or 'Unknown error'}"
                 )
-            raise EveryrowError("Task result has no artifact ID")
+            raise FuturesearchError("Task result has no artifact ID")
 
         if self._is_map or self._is_expand:
             data = _extract_table_data(result_response)
@@ -154,7 +154,7 @@ async def await_task_completion(
             status_response = await get_task_status(task_id, client)
         except Exception as e:
             if retries >= max_retries:
-                raise EveryrowError(
+                raise FuturesearchError(
                     f"Failed to get task status after {max_retries} retries"
                 ) from e
             retries += 1
@@ -179,7 +179,7 @@ async def await_task_completion(
         await asyncio.sleep(2)
 
     if status_response.status == TaskStatus.REVOKED:
-        raise EveryrowError("Task was revoked")
+        raise FuturesearchError("Task was revoked")
 
     return status_response
 
@@ -192,24 +192,23 @@ async def cancel_task(task_id: UUID, client: AuthenticatedClient) -> None:
         client: An authenticated client.
 
     Raises:
-        EveryrowError: If the task is not found, already in a terminal state, or another error occurs.
+        FuturesearchError: If the task is not found, already in a terminal state, or another error occurs.
     """
-    response = await cancel_task_tasks_task_id_cancel_post.asyncio_detailed(
-        task_id=task_id, client=client
+    await _call_and_check(
+        cancel_task_tasks_task_id_cancel_post.asyncio_detailed(
+            task_id=task_id, client=client
+        )
     )
-    if response.status_code == 200:
-        return
-    handle_response(response.parsed)
 
 
 async def get_task_status(
     task_id: UUID, client: AuthenticatedClient
 ) -> TaskStatusResponse:
-    response = await get_task_status_tasks_task_id_status_get.asyncio(
-        task_id=task_id, client=client
+    return await _call_and_check(
+        get_task_status_tasks_task_id_status_get.asyncio_detailed(
+            task_id=task_id, client=client
+        )
     )
-    response = handle_response(response)
-    return response
 
 
 async def get_task_cost(task_id: UUID, client: AuthenticatedClient) -> TaskCostResponse:
@@ -223,30 +222,30 @@ async def get_task_cost(task_id: UUID, client: AuthenticatedClient) -> TaskCostR
         client: An authenticated client.
 
     Raises:
-        EveryrowError: If the task is not found or another error occurs.
+        FuturesearchError: If the task is not found or another error occurs.
     """
-    response = await get_task_cost_tasks_task_id_cost_get.asyncio(
-        task_id=task_id, client=client
+    return await _call_and_check(
+        get_task_cost_tasks_task_id_cost_get.asyncio_detailed(
+            task_id=task_id, client=client
+        )
     )
-    response = handle_response(response)
-    return response
 
 
 async def get_task_result(
     task_id: UUID, client: AuthenticatedClient
 ) -> TaskResultResponse:
-    response = await get_task_result_tasks_task_id_result_get.asyncio(
-        task_id=task_id, client=client
+    return await _call_and_check(
+        get_task_result_tasks_task_id_result_get.asyncio_detailed(
+            task_id=task_id, client=client
+        )
     )
-    response = handle_response(response)
-    return response
 
 
 def _extract_table_data(result: TaskResultResponse) -> DataFrame:
     if isinstance(result.data, list):
         records = [item.additional_properties for item in result.data]
         return DataFrame(records)
-    raise EveryrowError(
+    raise FuturesearchError(
         "Expected table result (list of records), but got scalar or null"
     )
 
@@ -258,7 +257,7 @@ def _extract_scalar_data[T: BaseModel](
         return response_model(**result.data.additional_properties)
     if isinstance(result.data, list) and len(result.data) == 1:
         return response_model(**result.data[0].additional_properties)
-    raise EveryrowError("Expected scalar result, but got table or null")
+    raise FuturesearchError("Expected scalar result, but got table or null")
 
 
 def _extract_merge_breakdown(result: TaskResultResponse) -> MergeBreakdown:
@@ -314,20 +313,20 @@ class MergeTask:
         self, client: AuthenticatedClient | None = None
     ) -> TaskStatusResponse:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before fetching status")
+            raise FuturesearchError("Task must be submitted before fetching status")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         return await get_task_status(self.task_id, client)
 
     async def cancel(self, client: AuthenticatedClient | None = None) -> None:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before cancelling")
+            raise FuturesearchError("Task must be submitted before cancelling")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         await cancel_task(self.task_id, client)
@@ -336,10 +335,10 @@ class MergeTask:
         self, client: AuthenticatedClient | None = None
     ) -> MergeResult:
         if self.task_id is None:
-            raise EveryrowError("Task must be submitted before awaiting result")
+            raise FuturesearchError("Task must be submitted before awaiting result")
         client = client or self._client
         if client is None:
-            raise EveryrowError(
+            raise FuturesearchError(
                 "No client available. Provide a client or use the task within a session context."
             )
         final_status = await await_task_completion(self.task_id, client)
@@ -353,10 +352,10 @@ class MergeTask:
 
         if isinstance(artifact_id, Unset) or artifact_id is None:
             if final_status.status == TaskStatus.FAILED:
-                raise EveryrowError(
+                raise FuturesearchError(
                     f"Task failed with no results: {error or 'Unknown error'}"
                 )
-            raise EveryrowError("Task result has no artifact ID")
+            raise FuturesearchError("Task result has no artifact ID")
 
         data = _extract_table_data(result_response)
         breakdown = _extract_merge_breakdown(result_response)
@@ -384,7 +383,7 @@ async def fetch_task_data(
         A pandas DataFrame containing the task result data.
 
     Raises:
-        EveryrowError: If the task has not completed, failed, or has no artifact.
+        FuturesearchError: If the task has not completed, failed, or has no artifact.
     """
     if isinstance(task_id, str):
         task_id = UUID(task_id)
@@ -395,7 +394,7 @@ async def fetch_task_data(
     status_response = await get_task_status(task_id, client)
 
     if status_response.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
-        raise EveryrowError(
+        raise FuturesearchError(
             f"Task {task_id} is not completed (status: {status_response.status.value})."
         )
 

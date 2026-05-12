@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from futuresearch.constants import EveryrowError
+from futuresearch.errors import FuturesearchError
 from futuresearch.generated.client import AuthenticatedClient
 from futuresearch.session import Session
 
@@ -55,7 +55,7 @@ async def list_built_in_datasets(
         params=params,
     )
     if response.status_code != 200:
-        raise EveryrowError(f"Failed to list built-in datasets: {response.text}")
+        raise FuturesearchError(f"Failed to list built-in datasets: {response.text}")
 
     data = response.json()
     return [
@@ -96,7 +96,7 @@ async def use_built_in_list(
         json=body,
     )
     if response.status_code != 200:
-        raise EveryrowError(f"Failed to use built-in list: {response.text}")
+        raise FuturesearchError(f"Failed to use built-in list: {response.text}")
 
     data = response.json()
     return UseBuiltInListResult(

@@ -5,8 +5,7 @@ from uuid import UUID
 from pandas import DataFrame
 from pydantic import BaseModel
 
-from futuresearch.api_utils import handle_response
-from futuresearch.constants import EveryrowError
+from futuresearch.errors import FuturesearchError, _call_and_check
 from futuresearch.generated.api.artifacts import upload_data_artifacts_upload_post
 from futuresearch.generated.api.operations import (
     agent_map_operations_agent_map_post,
@@ -129,10 +128,11 @@ async def create_scalar_artifact(input: BaseModel, session: Session) -> UUID:
         ),
         session_id=session.session_id,
     )
-    response = await upload_data_artifacts_upload_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        upload_data_artifacts_upload_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
     return response.artifact_id
 
 
@@ -151,10 +151,11 @@ async def create_table_artifact(
         ],
         session_id=session.session_id,
     )
-    response = await upload_data_artifacts_upload_post.asyncio(
-        client=session.client, body=body
+    return await _call_and_check(
+        upload_data_artifacts_upload_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    return handle_response(response)
 
 
 # --- Single Agent ---
@@ -276,10 +277,11 @@ async def _submit_single_agent(
         return_list=return_table,
     )
 
-    response = await single_agent_operations_single_agent_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        single_agent_operations_single_agent_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
     return SubmittedTask(response.task_id, response.session_id)
 
 
@@ -352,7 +354,7 @@ async def agent_map(
         TableResult containing the agent results merged with input rows.
     """
     if input is None:
-        raise EveryrowError("input is required for agent_map")
+        raise FuturesearchError("input is required for agent_map")
     if session is None:
         async with create_session() as internal_session:
             cohort_task = await agent_map_async(
@@ -371,7 +373,7 @@ async def agent_map(
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Agent map task did not return a table result")
+            raise FuturesearchError("Agent map task did not return a table result")
     cohort_task = await agent_map_async(
         task=task,
         session=session,
@@ -388,7 +390,7 @@ async def agent_map(
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Agent map task did not return a table result")
+    raise FuturesearchError("Agent map task did not return a table result")
 
 
 async def _submit_agent_map(
@@ -428,10 +430,11 @@ async def _submit_agent_map(
         return_list=return_table,
     )
 
-    response = await agent_map_operations_agent_map_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        agent_map_operations_agent_map_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
     return SubmittedTask(response.task_id, response.session_id)
 
 
@@ -497,7 +500,7 @@ async def rank[T: BaseModel](
         TableResult containing the ranked table
     """
     if input is None or field_name is None:
-        raise EveryrowError("input and field_name are required for rank")
+        raise FuturesearchError("input and field_name are required for rank")
     if session is None:
         async with create_session() as internal_session:
             cohort_task = await rank_async(
@@ -512,7 +515,7 @@ async def rank[T: BaseModel](
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Rank task did not return a table result")
+            raise FuturesearchError("Rank task did not return a table result")
     cohort_task = await rank_async(
         task=task,
         session=session,
@@ -525,7 +528,7 @@ async def rank[T: BaseModel](
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Rank task did not return a table result")
+    raise FuturesearchError("Rank task did not return a table result")
 
 
 _JSON_TYPE_MAP_RANK = {
@@ -577,8 +580,9 @@ async def _submit_rank(
         ascending=ascending_order,
     )
 
-    response = await rank_operations_rank_post.asyncio(client=session.client, body=body)
-    response = handle_response(response)
+    response = await _call_and_check(
+        rank_operations_rank_post.asyncio_detailed(client=session.client, body=body)
+    )
     return SubmittedTask(response.task_id, response.session_id)
 
 
@@ -657,7 +661,7 @@ async def merge(
         print(f"Unmatched left rows: {result.breakdown.unmatched_left}")
     """
     if left_table is None or right_table is None:
-        raise EveryrowError("left_table and right_table are required for merge")
+        raise FuturesearchError("left_table and right_table are required for merge")
     if session is None:
         async with create_session() as internal_session:
             merge_task = await merge_async(
@@ -726,10 +730,9 @@ async def merge_async(
         session_id=session.session_id,
     )
 
-    response = await merge_operations_merge_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        merge_operations_merge_post.asyncio_detailed(client=session.client, body=body)
     )
-    response = handle_response(response)
 
     merge_task = MergeTask()
     merge_task.set_submitted(response.task_id, response.session_id, session.client)
@@ -780,7 +783,7 @@ async def dedupe(
         TableResult containing the deduped table with cluster metadata columns.
     """
     if input is None:
-        raise EveryrowError("input is required for dedupe")
+        raise FuturesearchError("input is required for dedupe")
     if session is None:
         async with create_session() as internal_session:
             cohort_task = await dedupe_async(
@@ -794,7 +797,7 @@ async def dedupe(
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Dedupe task did not return a table result")
+            raise FuturesearchError("Dedupe task did not return a table result")
     cohort_task = await dedupe_async(
         session=session,
         input=input,
@@ -806,7 +809,7 @@ async def dedupe(
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Dedupe task did not return a table result")
+    raise FuturesearchError("Dedupe task did not return a table result")
 
 
 async def dedupe_async(
@@ -829,10 +832,9 @@ async def dedupe_async(
         llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
     )
 
-    response = await dedupe_operations_dedupe_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        dedupe_operations_dedupe_post.asyncio_detailed(client=session.client, body=body)
     )
-    response = handle_response(response)
 
     cohort_task = EveryrowTask(response_model=BaseModel, is_map=True, is_expand=False)
     cohort_task.set_submitted(response.task_id, response.session_id, session.client)
@@ -909,7 +911,7 @@ async def forecast(
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Forecast task did not return a table result")
+            raise FuturesearchError("Forecast task did not return a table result")
     cohort_task = await forecast_async(
         task=task,
         session=session,
@@ -921,7 +923,7 @@ async def forecast(
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Forecast task did not return a table result")
+    raise FuturesearchError("Forecast task did not return a table result")
 
 
 async def forecast_async(
@@ -962,10 +964,11 @@ async def forecast_async(
         units=units,
     )
 
-    response = await forecast_operations_forecast_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        forecast_operations_forecast_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
 
     cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
         response_model=BaseModel, is_map=True, is_expand=False
@@ -1020,7 +1023,7 @@ async def classify(
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Classify task did not return a table result")
+            raise FuturesearchError("Classify task did not return a table result")
     cohort_task = await classify_async(
         task=task,
         categories=categories,
@@ -1032,7 +1035,7 @@ async def classify(
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Classify task did not return a table result")
+    raise FuturesearchError("Classify task did not return a table result")
 
 
 async def classify_async(
@@ -1059,10 +1062,11 @@ async def classify_async(
         include_reasoning=include_reasoning,
     )
 
-    response = await classify_operations_classify_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        classify_operations_classify_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
 
     cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
         response_model=BaseModel, is_map=True, is_expand=False
@@ -1119,7 +1123,7 @@ async def multi_agent(
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
                 return result
-            raise EveryrowError("Multi-agent task did not return a table result")
+            raise FuturesearchError("Multi-agent task did not return a table result")
     cohort_task = await multi_agent_async(
         task=task,
         session=session,
@@ -1132,7 +1136,7 @@ async def multi_agent(
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
         return result
-    raise EveryrowError("Multi-agent task did not return a table result")
+    raise FuturesearchError("Multi-agent task did not return a table result")
 
 
 async def _submit_multi_agent(
@@ -1160,11 +1164,11 @@ async def _submit_multi_agent(
         join_with_input=join_with_input,
     )
 
-    response = await multi_agent_operations_multi_agent_post.asyncio(
-        client=session.client, body=body
+    response = await _call_and_check(
+        multi_agent_operations_multi_agent_post.asyncio_detailed(
+            client=session.client, body=body
+        )
     )
-    response = handle_response(response)
-
     return SubmittedTask(response.task_id, response.session_id)
 
 

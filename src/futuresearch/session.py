@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from futuresearch.api_utils import create_client, handle_response
+from futuresearch.api_utils import create_client
 from futuresearch.constants import DEFAULT_EVERYROW_APP_URL
+from futuresearch.errors import _call_and_check
 from futuresearch.generated.api.sessions import (
     create_session_endpoint_sessions_post,
     list_sessions_endpoint_sessions_get,
@@ -104,8 +105,10 @@ async def create_session(
             if not isinstance(session_id, UUID):
                 session_id = UUID(str(session_id))
             if name is not None:
-                await update_session_endpoint_sessions_session_id_patch.asyncio(
-                    session_id, client=client, body=UpdateSession(name=name)
+                await _call_and_check(
+                    update_session_endpoint_sessions_session_id_patch.asyncio_detailed(
+                        session_id, client=client, body=UpdateSession(name=name)
+                    )
                 )
             session = Session(client=client, session_id=session_id)
         else:
@@ -113,11 +116,12 @@ async def create_session(
                 name=name or f"futuresearch-sdk-session-{datetime.now().isoformat()}",
                 conversation_id=UUID(conversation_id) if conversation_id else None,
             )
-            response = await create_session_endpoint_sessions_post.asyncio(
-                client=client,
-                body=body,
+            response = await _call_and_check(
+                create_session_endpoint_sessions_post.asyncio_detailed(
+                    client=client,
+                    body=body,
+                )
             )
-            response = handle_response(response)
             session = Session(client=client, session_id=response.session_id)
         yield session
     finally:
@@ -147,10 +151,11 @@ async def list_sessions(
         await client.__aenter__()
 
     try:
-        response = await list_sessions_endpoint_sessions_get.asyncio(
-            client=client, offset=offset, limit=limit
+        response = await _call_and_check(
+            list_sessions_endpoint_sessions_get.asyncio_detailed(
+                client=client, offset=offset, limit=limit
+            )
         )
-        response = handle_response(response)
         return SessionListResult(
             sessions=[
                 SessionInfo(

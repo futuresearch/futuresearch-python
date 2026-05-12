@@ -10,9 +10,8 @@ from typing import Any
 from uuid import UUID
 
 import pandas as pd
-from futuresearch.api_utils import handle_response
 from futuresearch.built_in_lists import list_built_in_datasets, use_built_in_list
-from futuresearch.constants import FuturesearchError as EveryrowError
+from futuresearch.errors import FuturesearchError, _call_and_check
 from futuresearch.generated.api.billing import get_billing_balance_billing_get
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from futuresearch.generated.models.task_cost_status import TaskCostStatus
@@ -65,25 +64,19 @@ from futuresearch_mcp.tool_helpers import (
     FuturesearchContext,
     TaskNotReady,
     TaskState,
+    _error_result,
     _fetch_task_result,
     _get_client,
     _record_task_ownership,
     create_linked_session,
     create_tool_response,
     dedupe_summaries,
+    format_sdk_error,
     log_client_info,
 )
 from futuresearch_mcp.utils import fetch_csv_from_url, is_url, save_result_to_csv
 
 logger = logging.getLogger(__name__)
-
-
-def _error_result(text: str) -> CallToolResult:
-    """Build an error CallToolResult with a single text message."""
-    return CallToolResult(
-        content=[TextContent(type="text", text=text)],
-        isError=True,
-    )
 
 
 @mcp.tool(
@@ -126,8 +119,19 @@ async def futuresearch_browse_lists(
         results = await list_built_in_datasets(
             client, search=params.search, category=params.category
         )
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error browsing built-in lists: {e!r}")]
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_browse_lists failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="browsing built-in lists"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_browse_lists failed")
+        return [
+            TextContent(type="text", text="Unexpected error browsing built-in lists.")
+        ]
 
     if not results:
         search_desc = f" matching '{params.search}'" if params.search else ""
@@ -204,8 +208,19 @@ async def futuresearch_use_list(
                 csv_path = Path.cwd() / f"built-in-list-{result.artifact_id}.csv"
                 df.to_csv(csv_path, index=False, quoting=csv.QUOTE_ALL)
                 csv_line = f"CSV saved to: {csv_path}\n"
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error importing built-in list: {e!r}")]
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_use_list failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="importing built-in list"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_use_list failed")
+        return [
+            TextContent(type="text", text="Unexpected error importing built-in list.")
+        ]
 
     logger.info(
         "futuresearch_use_list: imported artifact_id=%s rows=%d",
@@ -274,40 +289,54 @@ async def futuresearch_agent(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        kwargs: dict[str, Any] = {
-            "task": params.task,
-            "session": session,
-            "input": input_data,
-            "enforce_row_independence": params.enforce_row_independence,
-        }
-        if params.response_schema:
-            kwargs["response_schema"] = params.response_schema
-        kwargs["effort_level"] = params.effort_level
-        if params.effort_level is None:
-            if params.llm is not None:
-                kwargs["llm"] = params.llm
-            if params.iteration_budget is not None:
-                kwargs["iteration_budget"] = params.iteration_budget
-            if params.include_reasoning is not None:
-                kwargs["include_reasoning"] = params.include_reasoning
-        submitted = await _submit_agent_map(**kwargs)
-        task_id = str(submitted.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            kwargs: dict[str, Any] = {
+                "task": params.task,
+                "session": session,
+                "input": input_data,
+                "enforce_row_independence": params.enforce_row_independence,
+            }
+            if params.response_schema:
+                kwargs["response_schema"] = params.response_schema
+            kwargs["effort_level"] = params.effort_level
+            if params.effort_level is None:
+                if params.llm is not None:
+                    kwargs["llm"] = params.llm
+                if params.iteration_budget is not None:
+                    kwargs["iteration_budget"] = params.iteration_budget
+                if params.include_reasoning is not None:
+                    kwargs["include_reasoning"] = params.include_reasoning
+            submitted = await _submit_agent_map(**kwargs)
+            task_id = str(submitted.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} agents starting."
-        if total
-        else "Submitted: agents starting (artifact).",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} agents starting."
+            if total
+            else "Submitted: agents starting (artifact).",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_agent failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting agent task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_agent failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting agent task.")
+        ]
 
 
 @mcp.tool(
@@ -362,37 +391,53 @@ async def futuresearch_multi_agent(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        kwargs: dict[str, Any] = {
-            "task": params.task,
-            "session": session,
-            "input": input_data,
-        }
-        if params.directions:
-            kwargs["directions"] = params.directions
-        if params.response_schema:
-            kwargs["response_schema"] = params.response_schema
-        kwargs["effort_level"] = (
-            params.effort_level.value if params.effort_level else "medium"
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            kwargs: dict[str, Any] = {
+                "task": params.task,
+                "session": session,
+                "input": input_data,
+            }
+            if params.directions:
+                kwargs["directions"] = params.directions
+            if params.response_schema:
+                kwargs["response_schema"] = params.response_schema
+            kwargs["effort_level"] = (
+                params.effort_level.value if params.effort_level else "medium"
+            )
+
+            submitted = await _submit_multi_agent(**kwargs)
+            task_id = str(submitted.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: multi-agent research starting ({total} rows)."
+            if total
+            else "Submitted: multi-agent research starting (artifact).",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
         )
-
-        submitted = await _submit_multi_agent(**kwargs)
-        task_id = str(submitted.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
-
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: multi-agent research starting ({total} rows)."
-        if total
-        else "Submitted: multi-agent research starting (artifact).",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_multi_agent failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting multi-agent task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_multi_agent failed")
+        return [
+            TextContent(
+                type="text", text="Unexpected error submitting multi-agent task."
+            )
+        ]
 
 
 @mcp.tool(
@@ -448,38 +493,54 @@ async def futuresearch_single_agent(
         DynamicInput = create_model("DynamicInput", **fields)  # pyright: ignore[reportArgumentType, reportCallIssue]
         input_model = DynamicInput()
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        kwargs: dict[str, Any] = {
-            "task": params.task,
-            "session": session,
-            "return_table": params.return_table,
-        }
-        if input_model is not None:
-            kwargs["input"] = input_model
-        if params.response_schema:
-            kwargs["response_schema"] = params.response_schema
-        kwargs["effort_level"] = params.effort_level
-        if params.effort_level is None:
-            if params.llm is not None:
-                kwargs["llm"] = params.llm
-            if params.iteration_budget is not None:
-                kwargs["iteration_budget"] = params.iteration_budget
-            if params.include_reasoning is not None:
-                kwargs["include_reasoning"] = params.include_reasoning
-        submitted = await _submit_single_agent(**kwargs)
-        task_id = str(submitted.task_id)
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            kwargs: dict[str, Any] = {
+                "task": params.task,
+                "session": session,
+                "return_table": params.return_table,
+            }
+            if input_model is not None:
+                kwargs["input"] = input_model
+            if params.response_schema:
+                kwargs["response_schema"] = params.response_schema
+            kwargs["effort_level"] = params.effort_level
+            if params.effort_level is None:
+                if params.llm is not None:
+                    kwargs["llm"] = params.llm
+                if params.iteration_budget is not None:
+                    kwargs["iteration_budget"] = params.iteration_budget
+                if params.include_reasoning is not None:
+                    kwargs["include_reasoning"] = params.include_reasoning
+            submitted = await _submit_single_agent(**kwargs)
+            task_id = str(submitted.task_id)
 
-    return await create_tool_response(
-        task_id=task_id,
-        label="Submitted: single agent starting.",
-        token=client.token,
-        total=1,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label="Submitted: single agent starting.",
+            token=client.token,
+            total=1,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_single_agent failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting single-agent task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_single_agent failed")
+        return [
+            TextContent(
+                type="text", text="Unexpected error submitting single-agent task."
+            )
+        ]
 
 
 @mcp.tool(
@@ -527,32 +588,44 @@ async def futuresearch_rank(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        submitted = await _submit_rank(
-            task=params.task,
-            session=session,
-            input=input_data,
-            field_name=params.field_name,
-            field_type=params.field_type,
-            response_schema=params.response_schema,
-            ascending_order=params.ascending_order,
-        )
-        task_id = str(submitted.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            submitted = await _submit_rank(
+                task=params.task,
+                session=session,
+                input=input_data,
+                field_name=params.field_name,
+                field_type=params.field_type,
+                response_schema=params.response_schema,
+                ascending_order=params.ascending_order,
+            )
+            task_id = str(submitted.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} rows for ranking."
-        if total
-        else "Submitted: artifact for ranking.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} rows for ranking."
+            if total
+            else "Submitted: artifact for ranking.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_rank failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting rank task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_rank failed")
+        return [TextContent(type="text", text="Unexpected error submitting rank task.")]
 
 
 @mcp.tool(
@@ -601,30 +674,44 @@ async def futuresearch_dedupe(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        cohort_task = await dedupe_async(
-            equivalence_relation=params.equivalence_relation,
-            session=session,
-            input=input_data,
-            strategy=params.strategy.value if params.strategy is not None else None,  # type: ignore[arg-type]
-            strategy_prompt=params.strategy_prompt,
-        )
-        task_id = str(cohort_task.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await dedupe_async(
+                equivalence_relation=params.equivalence_relation,
+                session=session,
+                input=input_data,
+                strategy=params.strategy.value if params.strategy is not None else None,  # type: ignore[arg-type]
+                strategy_prompt=params.strategy_prompt,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} rows for deduplication."
-        if total
-        else "Submitted: artifact for deduplication.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} rows for deduplication."
+            if total
+            else "Submitted: artifact for deduplication.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_dedupe failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting dedupe task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_dedupe failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting dedupe task.")
+        ]
 
 
 @mcp.tool(
@@ -693,33 +780,47 @@ async def futuresearch_merge(
     left_input = params._left_aid_or_dataframe
     right_input = params._right_aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        cohort_task = await merge_async(
-            task=params.task,
-            session=session,
-            left_table=left_input,
-            right_table=right_input,
-            merge_on_left=params.merge_on_left,
-            merge_on_right=params.merge_on_right,
-            use_web_search=params.use_web_search,
-            relationship_type=params.relationship_type,
-        )
-        task_id = str(cohort_task.task_id)
-        total = len(left_input) if isinstance(left_input, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await merge_async(
+                task=params.task,
+                session=session,
+                left_table=left_input,
+                right_table=right_input,
+                merge_on_left=params.merge_on_left,
+                merge_on_right=params.merge_on_right,
+                use_web_search=params.use_web_search,
+                relationship_type=params.relationship_type,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(left_input) if isinstance(left_input, pd.DataFrame) else 0
 
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} left rows for merging."
-        if total
-        else "Submitted: artifacts for merging.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} left rows for merging."
+            if total
+            else "Submitted: artifacts for merging.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_merge failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting merge task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_merge failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting merge task.")
+        ]
 
 
 @mcp.tool(
@@ -776,38 +877,52 @@ async def futuresearch_forecast(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        cohort_task = await forecast_async(
-            task=params.context or "",
-            session=session,
-            input=input_data,
-            forecast_type=params.forecast_type,
-            effort_level=params.effort_level,
-            output_field=params.output_field,
-            units=params.units,
-        )
-        task_id = str(cohort_task.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await forecast_async(
+                task=params.context or "",
+                session=session,
+                input=input_data,
+                forecast_type=params.forecast_type,
+                effort_level=params.effort_level,
+                output_field=params.output_field,
+                units=params.units,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    if params.forecast_type == "date":
-        mode_label = "date"
-    elif params.forecast_type == "numeric":
-        mode_label = "numeric percentile"
-    else:
-        mode_label = "probability"
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} rows for {mode_label} forecasting (6 research dimensions + 3 forecasters per batch)."
-        if total
-        else f"Submitted: artifact for {mode_label} forecasting.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        if params.forecast_type == "date":
+            mode_label = "date"
+        elif params.forecast_type == "numeric":
+            mode_label = "numeric percentile"
+        else:
+            mode_label = "probability"
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} rows for {mode_label} forecasting (6 research dimensions + 3 forecasters per batch)."
+            if total
+            else f"Submitted: artifact for {mode_label} forecasting.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_forecast failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting forecast task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_forecast failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting forecast task.")
+        ]
 
 
 @mcp.tool(
@@ -852,31 +967,45 @@ async def futuresearch_classify(
 
     input_data = params._aid_or_dataframe
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        cohort_task = await classify_async(
-            task=params.task,
-            categories=params.categories,
-            session=session,
-            input=input_data,
-            classification_field=params.classification_field,
-            include_reasoning=params.include_reasoning,
-        )
-        task_id = str(cohort_task.task_id)
-        total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await classify_async(
+                task=params.task,
+                categories=params.categories,
+                session=session,
+                input=input_data,
+                classification_field=params.classification_field,
+                include_reasoning=params.include_reasoning,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-    return await create_tool_response(
-        task_id=task_id,
-        label=f"Submitted: {total} rows for classification into {len(params.categories)} categories."
-        if total
-        else f"Submitted: artifact for classification into {len(params.categories)} categories.",
-        token=client.token,
-        total=total,
-        mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-        session_id=session_id_str,
-    )
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} rows for classification into {len(params.categories)} categories."
+            if total
+            else f"Submitted: artifact for classification into {len(params.categories)} categories.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_classify failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting classify task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_classify failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting classify task.")
+        ]
 
 
 @mcp.tool(
@@ -915,38 +1044,50 @@ async def futuresearch_upload_data(
     log_client_info(ctx, "futuresearch_upload_data")
     client = _get_client(ctx)
 
-    if is_url(params.source):
-        df = await fetch_csv_from_url(params.source)
-    else:
-        df = pd.read_csv(params.source)
-        if df.empty:
-            raise ValueError(f"CSV file is empty: {params.source}")
+    try:
+        if is_url(params.source):
+            df = await fetch_csv_from_url(params.source)
+        else:
+            df = pd.read_csv(params.source)
+            if df.empty:
+                raise ValueError(f"CSV file is empty: {params.source}")
 
-    async with create_linked_session(
-        client=client, session_id=params.session_id, name=params.session_name
-    ) as session:
-        session_id_str = str(session.session_id)
-        upload_response = await create_table_artifact(df, session)
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            upload_response = await create_table_artifact(df, session)
 
-    # Register a poll token so futuresearch_results can build download URLs.
-    if settings.is_http and isinstance(upload_response.task_id, UUID):
-        await _record_task_ownership(str(upload_response.task_id), client.token)
+        # Register a poll token so futuresearch_results can build download URLs.
+        if settings.is_http and isinstance(upload_response.task_id, UUID):
+            await _record_task_ownership(str(upload_response.task_id), client.token)
 
-    result: dict[str, Any] = {
-        "artifact_id": str(upload_response.artifact_id),
-        "session_id": session_id_str,
-        "rows": len(df),
-        "columns": list(df.columns),
-    }
-    if isinstance(upload_response.task_id, UUID):
-        result["task_id"] = str(upload_response.task_id)
+        result: dict[str, Any] = {
+            "artifact_id": str(upload_response.artifact_id),
+            "session_id": session_id_str,
+            "rows": len(df),
+            "columns": list(df.columns),
+        }
+        if isinstance(upload_response.task_id, UUID):
+            result["task_id"] = str(upload_response.task_id)
 
-    return [
-        TextContent(
-            type="text",
-            text=json.dumps(result),
-        )
-    ]
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps(result),
+            )
+        ]
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_upload_data failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="uploading data"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_upload_data failed")
+        return [TextContent(type="text", text="Unexpected error uploading data.")]
 
 
 async def _fetch_partial_rows(
@@ -1032,19 +1173,27 @@ async def futuresearch_progress(
     await asyncio.sleep(redis_store.PROGRESS_POLL_DELAY)
 
     try:
-        status_response = handle_response(
-            await get_task_status_tasks_task_id_status_get.asyncio(
+        status_response = await _call_and_check(
+            get_task_status_tasks_task_id_status_get.asyncio_detailed(
                 task_id=UUID(task_id),
                 client=client,
             )
         )
+    except FuturesearchError as e:
+        logger.warning(f"Failed to poll task {task_id}: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing=f"polling task {task_id}"),
+            )
+        ]
     except Exception:
         logger.exception("Failed to poll task %s", task_id)
         return [
             TextContent(
                 type="text",
                 text=dedent(f"""\
-                    Error polling task {task_id}. Please try again.
+                    Unexpected error polling task {task_id}.
                     Retry: call futuresearch_progress(task_id='{task_id}')."""),
             )
         ]
@@ -1121,16 +1270,19 @@ async def futuresearch_status(
     # One status check so we can return current state
     client = _get_client(ctx)
     try:
-        status_response = handle_response(
-            await get_task_status_tasks_task_id_status_get.asyncio(
+        status_response = await _call_and_check(
+            get_task_status_tasks_task_id_status_get.asyncio_detailed(
                 task_id=UUID(task_id),
                 client=client,
             )
         )
+    except FuturesearchError as e:
+        logger.warning(f"Failed to check task {task_id}: {e!r}")
+        return _error_result(format_sdk_error(e, doing=f"checking task {task_id}"))
     except Exception:
         logger.exception("Failed to check task %s", task_id)
         return _error_result(
-            f"Error checking task {task_id}. Please try calling futuresearch_status again."
+            f"Unexpected error checking task {task_id}. Please try calling futuresearch_status again."
         )
 
     ts = TaskState(status_response)
@@ -1222,12 +1374,22 @@ async def futuresearch_results_stdio(
             Call futuresearch_progress(task_id='{task_id}') to check again."""),
             )
         ]
+    except FuturesearchError as e:
+        logger.warning(f"Failed to retrieve results for task {task_id}: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(
+                    e, doing=f"retrieving results for task {task_id}"
+                ),
+            )
+        ]
     except Exception:
         logger.exception("Failed to retrieve results for task %s", task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error retrieving results for task {task_id}. Please try again.",
+                text=f"Unexpected error retrieving results for task {task_id}.",
             )
         ]
 
@@ -1281,11 +1443,14 @@ async def futuresearch_results_http(
             Task status is {e.status}. Cannot fetch results yet.
             Call futuresearch_progress(task_id='{task_id}') to check again.""")
         )
+    except FuturesearchError as e:
+        logger.warning(f"Failed to retrieve results for task {task_id}: {e!r}")
+        return _error_result(
+            format_sdk_error(e, doing=f"retrieving results for task {task_id}")
+        )
     except Exception:
         logger.exception("Failed to retrieve results for task %s", task_id)
-        return _error_result(
-            f"Error retrieving results for task {task_id}. Please try again."
-        )
+        return _error_result(f"Unexpected error retrieving results for task {task_id}.")
 
     # Clamp page to LLM token budget
     preview_records, effective_page_size = clamp_page_to_budget(
@@ -1346,8 +1511,14 @@ async def futuresearch_list_sessions(
         result = await list_sessions(
             client=client, offset=params.offset, limit=params.limit
         )
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error listing sessions: {e!r}")]
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_list_sessions failed: {e!r}")
+        return [
+            TextContent(type="text", text=format_sdk_error(e, doing="listing sessions"))
+        ]
+    except Exception:
+        logger.exception("futuresearch_list_sessions failed")
+        return [TextContent(type="text", text="Unexpected error listing sessions.")]
 
     if not result.sessions:
         if result.total > 0:
@@ -1408,15 +1579,23 @@ async def futuresearch_balance(ctx: FuturesearchContext) -> list[TextContent]:
     client = _get_client(ctx)
 
     try:
-        response = await get_billing_balance_billing_get.asyncio(client=client)
-        if response is None:
-            raise RuntimeError("Failed to get billing balance")
+        response = await _call_and_check(
+            get_billing_balance_billing_get.asyncio_detailed(client=client)
+        )
+    except FuturesearchError as e:
+        logger.warning(f"Failed to get billing balance: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="retrieving billing balance"),
+            )
+        ]
     except Exception:
         logger.exception("Failed to get billing balance")
         return [
             TextContent(
                 type="text",
-                text="Error retrieving billing balance. Please try again.",
+                text="Unexpected error retrieving billing balance.",
             )
         ]
 
@@ -1456,12 +1635,22 @@ async def futuresearch_task_cost(
             task_id=UUID(params.task_id),
             client=client,
         )
+    except FuturesearchError as e:
+        logger.warning(f"Failed to get task cost for task {params.task_id}: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(
+                    e, doing=f"retrieving cost for task {params.task_id}"
+                ),
+            )
+        ]
     except Exception:
         logger.exception("Failed to get task cost for task %s", params.task_id)
         return [
             TextContent(
                 type="text",
-                text=f"Error retrieving cost for task {params.task_id}. Please try again.",
+                text=f"Unexpected error retrieving cost for task {params.task_id}.",
             )
         ]
 
@@ -1510,8 +1699,24 @@ async def futuresearch_list_session_tasks(
         )
         response.raise_for_status()
         data = response.json()
-    except Exception as e:
-        return [TextContent(type="text", text=f"Error listing session tasks: {e!r}")]
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_list_session_tasks failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(
+                    e, doing=f"listing tasks in session {params.session_id}"
+                ),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_list_session_tasks failed")
+        return [
+            TextContent(
+                type="text",
+                text=f"Unexpected error listing tasks in session {params.session_id}.",
+            )
+        ]
 
     tasks = data.get("tasks", [])
     if not tasks:
@@ -1574,12 +1779,16 @@ async def futuresearch_cancel(
                 text=f"Cancelled task {task_id}.",
             )
         ]
-    except EveryrowError:
-        logger.exception("Failed to cancel task %s", task_id)
+    except FuturesearchError as e:
+        # A failed cancel typically means the task is already in a terminal state.
+        logger.warning(f"Failed to cancel task {task_id}: {e!r}")
         return [
             TextContent(
                 type="text",
-                text=f"Failed to cancel task {task_id}. The task may have already completed.",
+                text=(
+                    f"Could not cancel task {task_id}. The task may have already completed. "
+                    f"({format_sdk_error(e, doing='cancelling')})"
+                ),
             )
         ]
     except Exception:
@@ -1587,7 +1796,7 @@ async def futuresearch_cancel(
         return [
             TextContent(
                 type="text",
-                text=f"Error cancelling task {task_id}. Please try again.",
+                text=f"Unexpected error cancelling task {task_id}.",
             )
         ]
 

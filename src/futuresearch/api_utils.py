@@ -1,17 +1,8 @@
 import os
 from importlib.metadata import version
-from typing import TypeVar
 
-from futuresearch.constants import DEFAULT_FUTURESEARCH_API_URL, FuturesearchError
+from futuresearch.constants import DEFAULT_FUTURESEARCH_API_URL
 from futuresearch.generated.client import AuthenticatedClient
-from futuresearch.generated.models.error_response import ErrorResponse
-from futuresearch.generated.models.http_validation_error import HTTPValidationError
-from futuresearch.generated.models.insufficient_balance_response import (
-    InsufficientBalanceResponse,
-)
-
-# Backwards compatibility alias
-EveryrowError = FuturesearchError
 
 
 def create_client() -> AuthenticatedClient:
@@ -44,25 +35,3 @@ def create_client() -> AuthenticatedClient:
         raise_on_unexpected_status=True,
         follow_redirects=True,
     )
-
-
-T = TypeVar("T")
-
-
-def handle_response[T](
-    response: T
-    | ErrorResponse
-    | HTTPValidationError
-    | InsufficientBalanceResponse
-    | None,
-) -> T:
-    if isinstance(response, ErrorResponse):
-        raise FuturesearchError(response.message)
-    if isinstance(response, HTTPValidationError):
-        raise FuturesearchError(response.detail)
-    if isinstance(response, InsufficientBalanceResponse):
-        raise FuturesearchError(response.message)
-    if response is None:
-        raise FuturesearchError("Unknown error")
-
-    return response

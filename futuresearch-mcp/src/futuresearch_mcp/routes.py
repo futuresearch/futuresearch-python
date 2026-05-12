@@ -9,7 +9,7 @@ import secrets
 from uuid import UUID
 
 import pandas as pd
-from futuresearch.api_utils import handle_response
+from futuresearch.errors import _call_and_check
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from futuresearch.generated.client import AuthenticatedClient
 from starlette.requests import Request
@@ -247,8 +247,8 @@ async def api_progress(request: Request) -> Response:
             raise_on_unexpected_status=True,
             follow_redirects=True,
         )
-        status_response = handle_response(
-            await get_task_status_tasks_task_id_status_get.asyncio(
+        status_response = await _call_and_check(
+            get_task_status_tasks_task_id_status_get.asyncio_detailed(
                 task_id=UUID(task_id),
                 client=client,
             )

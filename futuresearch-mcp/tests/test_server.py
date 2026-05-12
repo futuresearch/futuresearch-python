@@ -7,6 +7,7 @@ without making actual API calls.
 import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,7 +15,11 @@ from uuid import UUID, uuid4
 
 import pandas as pd
 import pytest
-from futuresearch.constants import EveryrowError
+from futuresearch.errors import (
+    FuturesearchClientError,
+    FuturesearchError,
+    FuturesearchInsufficientBalanceError,
+)
 from futuresearch.generated.client import AuthenticatedClient
 from futuresearch.generated.models.create_artifact_response import (
     CreateArtifactResponse,
@@ -31,6 +36,7 @@ from futuresearch.generated.models.task_result_response_data_type_0_item import 
 )
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
+from futuresearch.generated.types import Response
 from futuresearch.task import EffortLevel
 from mcp.types import TextContent
 from pydantic import ValidationError
@@ -213,9 +219,9 @@ def _make_task_status_response(
     running: int = 0,
     pending: int = 0,
     total: int = 10,
-) -> TaskStatusResponse:
-    """Create a real TaskStatusResponse for testing."""
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    """Create a real Response[TaskStatusResponse] for testing."""
+    body = TaskStatusResponse(
         task_id=task_id or uuid4(),
         session_id=session_id or uuid4(),
         status=TaskStatus(status),
@@ -230,20 +236,22 @@ def _make_task_status_response(
             total=total,
         ),
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 def _make_task_result_response(
     data: list[dict[str, Any]],
     *,
     task_id: UUID | None = None,
-) -> TaskResultResponse:
-    """Create a real TaskResultResponse for testing."""
+) -> Response[TaskResultResponse]:
+    """Create a real Response[TaskResultResponse] for testing."""
     items = [TaskResultResponseDataType0Item.from_dict(d) for d in data]
-    return TaskResultResponse(
+    body = TaskResultResponse(
         task_id=task_id or uuid4(),
         status=TaskStatus.COMPLETED,
         data=items,
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 class TestAgent:
@@ -283,6 +291,73 @@ class TestAgent:
             assert str(mock_task.task_id) in text
             assert "Session ID:" in text
             assert "futuresearch_progress" in text
+
+    @pytest.mark.asyncio
+    async def test_insufficient_balance_returns_actionable_text(self):
+        """A 402 from the SDK surfaces balance numbers + a top-up hint."""
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with (
+            patch(
+                "futuresearch_mcp.tools._submit_agent_map",
+                new_callable=AsyncMock,
+                side_effect=FuturesearchInsufficientBalanceError(
+                    "Balance too low for this operation",
+                    current_balance_dollars=0.50,
+                    minimum_required_dollars=2.00,
+                ),
+            ),
+            patch(
+                "futuresearch_mcp.tools.create_linked_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            params = AgentInput(
+                task="Find HQ for each company",
+                data=[{"name": "TechStart"}],
+            )
+            result = await futuresearch_agent(params, ctx)
+
+        assert len(result) == 1
+        text = result[0].text
+        assert "$0.50" in text
+        assert "$2.00" in text
+        assert "Top up" in text
+
+    @pytest.mark.asyncio
+    async def test_sdk_error_returns_text_not_exception(self):
+        """A generic FuturesearchError from submit produces user-facing text
+        instead of bubbling to FastMCP."""
+        mock_session = _make_mock_session()
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+
+        with (
+            patch(
+                "futuresearch_mcp.tools._submit_agent_map",
+                new_callable=AsyncMock,
+                side_effect=FuturesearchClientError(
+                    "Invalid response_schema", status_code=400
+                ),
+            ),
+            patch(
+                "futuresearch_mcp.tools.create_linked_session",
+                return_value=_make_async_context_manager(mock_session),
+            ),
+        ):
+            params = AgentInput(
+                task="Find HQ for each company",
+                data=[{"name": "TechStart"}],
+            )
+            result = await futuresearch_agent(params, ctx)
+
+        assert len(result) == 1
+        text = result[0].text
+        assert "submitting agent task" in text
+        assert "Invalid response_schema" in text
+        assert "Fix the request" in text
 
 
 class TestSingleAgent:
@@ -415,16 +490,16 @@ class TestProgress:
 
     @pytest.mark.asyncio
     async def test_progress_api_error(self):
-        """Test progress with API error returns helpful message."""
+        """Test progress with a typed SDK error surfaces message + retry hint."""
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
         task_id = str(uuid4())
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
-                side_effect=RuntimeError("API error"),
+                side_effect=FuturesearchClientError("Task not found", status_code=404),
             ),
             patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
         ):
@@ -433,8 +508,10 @@ class TestProgress:
 
         # In stdio mode, only human-readable text is returned
         assert len(result) == 1
-        assert "Error polling task" in result[0].text
-        assert "Retry:" in result[0].text
+        text = result[0].text
+        assert f"polling task {task_id}" in text
+        assert "Task not found" in text
+        assert "Fix the request" in text
 
     @pytest.mark.asyncio
     async def test_progress_running_task(self):
@@ -453,7 +530,7 @@ class TestProgress:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
@@ -487,7 +564,7 @@ class TestProgress:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
@@ -516,7 +593,7 @@ class TestResults:
 
         with (
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("API error"),
             ),
@@ -524,7 +601,7 @@ class TestResults:
             params = StdioResultsInput(task_id=task_id, output_path=str(output_file))
             result = await futuresearch_results_stdio(params, ctx)
 
-        assert "Error retrieving results" in result[0].text
+        assert "Unexpected error retrieving results" in result[0].text
 
     @pytest.mark.asyncio
     async def test_results_saves_csv(self, tmp_path: Path):
@@ -542,7 +619,7 @@ class TestResults:
         _setup_httpx_result(mock_client, rows)
 
         with patch(
-            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_response,
         ):
@@ -571,7 +648,7 @@ class TestResults:
         _setup_httpx_result(mock_client, {"ceo": "Tim Cook", "company": "Apple"})
 
         with patch(
-            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_response,
         ):
@@ -739,7 +816,7 @@ class TestListSessions:
         ):
             result = await futuresearch_list_sessions(ListSessionsInput(), ctx)
 
-        assert "Error listing sessions" in result[0].text
+        assert "Unexpected error listing sessions" in result[0].text
 
     @pytest.mark.asyncio
     async def test_list_sessions_passes_client_and_pagination(self):
@@ -886,7 +963,7 @@ class TestCancel:
                 "futuresearch_mcp.tools.cancel_task", new_callable=AsyncMock
             ) as mock_cancel,
         ):
-            mock_cancel.side_effect = EveryrowError(
+            mock_cancel.side_effect = FuturesearchError(
                 f"Task {task_id} is already COMPLETED"
             )
 
@@ -895,7 +972,7 @@ class TestCancel:
 
         text = result[0].text
         assert task_id in text
-        assert "Failed" in text
+        assert "Could not cancel" in text
 
     @pytest.mark.asyncio
     async def test_cancel_task_not_found(self):
@@ -909,13 +986,14 @@ class TestCancel:
                 "futuresearch_mcp.tools.cancel_task", new_callable=AsyncMock
             ) as mock_cancel,
         ):
-            mock_cancel.side_effect = EveryrowError("Task not found")
+            mock_cancel.side_effect = FuturesearchError("Task not found")
 
             params = CancelInput(task_id=task_id)
             result = await futuresearch_cancel(params, ctx)
 
         text = result[0].text
-        assert "Failed" in text
+        assert "Could not cancel" in text
+        assert "Task not found" in text
 
     @pytest.mark.asyncio
     async def test_cancel_api_error(self):
@@ -935,7 +1013,7 @@ class TestCancel:
             result = await futuresearch_cancel(params, ctx)
 
         text = result[0].text
-        assert "Error" in text
+        assert "Unexpected error" in text
 
     def test_cancel_input_validation(self):
         """Test CancelInput strips whitespace, validates UUID, and forbids extra fields."""
@@ -1462,7 +1540,7 @@ class TestStdioVsHttpGating:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
@@ -1486,7 +1564,7 @@ class TestStdioVsHttpGating:
         with (
             override_settings(transport="streamable-http", upload_secret="test-secret"),
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_response,
             ),
@@ -1894,12 +1972,11 @@ class TestUseList:
         with (
             patch(
                 "futuresearch_mcp.tools.create_linked_session",
-                side_effect=EveryrowError("connection failed"),
+                side_effect=FuturesearchError("connection failed"),
             ),
         ):
             params = UseListInput(artifact_id=str(uuid4()))
             result = await futuresearch_use_list(params, ctx)
 
         text = result[0].text
-        assert "Error importing built-in list" in text
-        assert "connection failed" in text
+        assert text == "Error while importing built-in list: connection failed."

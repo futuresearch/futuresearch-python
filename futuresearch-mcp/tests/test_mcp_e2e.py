@@ -15,6 +15,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -24,6 +25,7 @@ from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_progress_info import TaskProgressInfo
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
+from futuresearch.generated.types import Response
 from mcp.server.fastmcp.server import lifespan_wrapper
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
@@ -124,8 +126,8 @@ def _mock_status_response(
     total: int = 10,
     failed: int = 0,
     running: int = 2,
-) -> TaskStatusResponse:
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    body = TaskStatusResponse(
         task_id=UUID(task_id) if task_id else uuid4(),
         session_id=uuid4(),
         status=TaskStatus(status),
@@ -140,6 +142,7 @@ def _mock_status_response(
             total=total,
         ),
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 # ── TestMcpProtocol — always runs (mocked SDK) ───────────────
@@ -198,7 +201,7 @@ class TestMcpProtocol:
                     return_value=MagicMock(token="fake-token"),
                 ),
                 patch(
-                    "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                    "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                     new_callable=AsyncMock,
                     return_value=status_resp,
                 ),
@@ -281,7 +284,7 @@ class TestMcpProtocol:
                     return_value=MagicMock(token="fake-token"),
                 ),
                 patch(
-                    "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                    "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                     new_callable=AsyncMock,
                     return_value=status_resp,
                 ),
@@ -300,8 +303,11 @@ class TestMcpProtocol:
     @pytest.mark.asyncio
     async def test_call_balance_tool(self, _http_state):
         """Check billing balance via MCP protocol."""
-        mock_response = MagicMock()
-        mock_response.current_balance_dollars = 42.50
+        balance_body = MagicMock()
+        balance_body.current_balance_dollars = 42.50
+        wrapped = Response(
+            status_code=HTTPStatus.OK, content=b"", headers={}, parsed=balance_body
+        )
 
         async with mcp_client() as session:
             with (
@@ -310,9 +316,9 @@ class TestMcpProtocol:
                     return_value=MagicMock(token="fake-token"),
                 ),
                 patch(
-                    "futuresearch_mcp.tools.get_billing_balance_billing_get.asyncio",
+                    "futuresearch_mcp.tools.get_billing_balance_billing_get.asyncio_detailed",
                     new_callable=AsyncMock,
-                    return_value=mock_response,
+                    return_value=wrapped,
                 ),
             ):
                 result = await session.call_tool("futuresearch_balance", {})
@@ -332,7 +338,7 @@ class TestMcpProtocol:
                     return_value=MagicMock(token="fake-token"),
                 ),
                 patch(
-                    "futuresearch_mcp.tools.get_billing_balance_billing_get.asyncio",
+                    "futuresearch_mcp.tools.get_billing_balance_billing_get.asyncio_detailed",
                     new_callable=AsyncMock,
                     side_effect=RuntimeError("API down"),
                 ),
@@ -343,7 +349,7 @@ class TestMcpProtocol:
             assert len(result.content) == 1
             item = result.content[0]
             assert isinstance(item, TextContent)
-            assert "Error" in item.text
+            assert "Unexpected error" in item.text
 
 
 # ── TestMcpE2ERealApi — real API tests ────────────────────────

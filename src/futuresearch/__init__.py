@@ -2,6 +2,12 @@ from importlib.metadata import version
 
 from futuresearch.api_utils import create_client
 from futuresearch.billing import BillingResponse, get_billing_balance
+from futuresearch.errors import (
+    FuturesearchClientError,
+    FuturesearchError,
+    FuturesearchInsufficientBalanceError,
+    FuturesearchServerError,
+)
 from futuresearch.session import (
     Session,
     SessionInfo,
@@ -15,6 +21,10 @@ __version__ = version("futuresearch")
 
 __all__ = [
     "BillingResponse",
+    "FuturesearchClientError",
+    "FuturesearchError",
+    "FuturesearchInsufficientBalanceError",
+    "FuturesearchServerError",
     "Session",
     "SessionInfo",
     "SessionListResult",

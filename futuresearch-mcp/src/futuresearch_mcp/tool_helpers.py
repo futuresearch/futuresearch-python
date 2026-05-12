@@ -11,7 +11,13 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from futuresearch.api_utils import handle_response
+from futuresearch.errors import (
+    FuturesearchClientError,
+    FuturesearchError,
+    FuturesearchInsufficientBalanceError,
+    FuturesearchServerError,
+    _call_and_check,
+)
 from futuresearch.generated.api.tasks import (
     get_task_status_tasks_task_id_status_get,
 )
@@ -23,7 +29,7 @@ from futuresearch.generated.types import Unset
 from futuresearch.session import create_session
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
-from mcp.types import TextContent
+from mcp.types import CallToolResult, TextContent
 from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from futuresearch_mcp import redis_store
@@ -55,6 +61,45 @@ class SessionContext:
 
 # Typed Context alias — gives type checkers visibility into lifespan_context.
 FuturesearchContext = Context[ServerSession, SessionContext]
+
+
+def _error_result(text: str) -> CallToolResult:
+    """Build an error CallToolResult with a single text message."""
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        isError=True,
+    )
+
+
+def format_sdk_error(exc: FuturesearchError, *, doing: str) -> str:
+    """Format a typed SDK exception as text for an MCP tool response.
+
+    `doing` names the operation in progress (e.g. "polling task abc-123") so
+    the LLM has context.
+    """
+    if isinstance(exc, FuturesearchInsufficientBalanceError):
+        return (
+            f"Insufficient balance while {doing}: {exc.message} "
+            f"(current ${exc.current_balance_dollars:.2f}, "
+            f"need ${exc.minimum_required_dollars:.2f}). "
+            f"Top up your balance to continue."
+        )
+
+    fields: list[str] = []
+    if exc.status_code is not None:
+        fields.append(f"status={exc.status_code}")
+    if exc.error_code:
+        fields.append(f"code={exc.error_code}")
+    suffix = f" ({', '.join(fields)})" if fields else ""
+
+    if isinstance(exc, FuturesearchServerError):
+        hint = " The server failed; retrying may help."
+    elif isinstance(exc, FuturesearchClientError):
+        hint = " Fix the request before retrying."
+    else:
+        hint = ""
+
+    return f"Error while {doing}: {exc.message}{suffix}.{hint}"
 
 
 def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
@@ -601,8 +646,8 @@ async def _fetch_task_result(
         TaskNotReady: If the task is not in a terminal state.
         ValueError: If the result has no table data.
     """
-    status_response = handle_response(
-        await get_task_status_tasks_task_id_status_get.asyncio(
+    status_response = await _call_and_check(
+        get_task_status_tasks_task_id_status_get.asyncio_detailed(
             task_id=UUID(task_id),
             client=client,
         )

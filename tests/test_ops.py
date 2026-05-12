@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime
+from http import HTTPStatus
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
@@ -19,7 +21,7 @@ from futuresearch.generated.models import (
     TaskStatus,
     TaskStatusResponse,
 )
-from futuresearch.generated.types import UNSET
+from futuresearch.generated.types import UNSET, Response
 from futuresearch.ops import (
     agent_map,
     create_scalar_artifact,
@@ -30,6 +32,11 @@ from futuresearch.ops import (
 from futuresearch.result import ScalarResult, TableResult
 from futuresearch.session import Session
 from futuresearch.task import LLM, EffortLevel
+
+
+def _wrap(parsed: Any, status_code: HTTPStatus = HTTPStatus.OK) -> Response[Any]:
+    """Wrap a parsed body the way the generated *_detailed clients return it."""
+    return Response(status_code=status_code, content=b"", headers={}, parsed=parsed)
 
 
 @pytest.fixture
@@ -48,34 +55,40 @@ def mock_env_api_key(monkeypatch):
 def _make_status_response(
     task_id, session_id, artifact_id=None, status=TaskStatus.COMPLETED
 ):
-    return TaskStatusResponse(
-        task_id=task_id,
-        session_id=session_id,
-        status=status,
-        task_type=PublicTaskType.AGENT,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        artifact_id=artifact_id,
-        progress=None,
+    return _wrap(
+        TaskStatusResponse(
+            task_id=task_id,
+            session_id=session_id,
+            status=status,
+            task_type=PublicTaskType.AGENT,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            artifact_id=artifact_id,
+            progress=None,
+        )
     )
 
 
 def _make_table_result(task_id, records, artifact_id=None):
     data_items = [TaskResultResponseDataType0Item.from_dict(r) for r in records]
-    return TaskResultResponse(
-        task_id=task_id,
-        status=TaskStatus.COMPLETED,
-        data=data_items,
-        artifact_id=artifact_id,
+    return _wrap(
+        TaskResultResponse(
+            task_id=task_id,
+            status=TaskStatus.COMPLETED,
+            data=data_items,
+            artifact_id=artifact_id,
+        )
     )
 
 
 def _make_scalar_result(task_id, record, artifact_id=None):
-    return TaskResultResponse(
-        task_id=task_id,
-        status=TaskStatus.COMPLETED,
-        data=TaskResultResponseDataType1.from_dict(record),
-        artifact_id=artifact_id,
+    return _wrap(
+        TaskResultResponse(
+            task_id=task_id,
+            status=TaskStatus.COMPLETED,
+            data=TaskResultResponseDataType1.from_dict(record),
+            artifact_id=artifact_id,
+        )
     )
 
 
@@ -88,12 +101,14 @@ async def test_create_scalar_artifact(mocker, mock_session):
     model = MyModel(name="John", age=30)
     artifact_id = uuid.uuid4()
     mock_upload = mocker.patch(
-        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio",
+        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_upload.return_value = CreateArtifactResponse(
-        artifact_id=artifact_id,
-        session_id=mock_session.session_id,
+    mock_upload.return_value = _wrap(
+        CreateArtifactResponse(
+            artifact_id=artifact_id,
+            session_id=mock_session.session_id,
+        )
     )
 
     result_artifact_id = await create_scalar_artifact(model, mock_session)
@@ -119,18 +134,20 @@ async def test_single_agent(mocker, mock_session):
 
     # Mock operation endpoint
     mock_submit = mocker.patch(
-        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio",
+        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     # Mock get_task_status
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -139,7 +156,7 @@ async def test_single_agent(mocker, mock_session):
 
     # Mock get_task_result
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_scalar_result(
@@ -168,18 +185,20 @@ async def test_single_agent_with_table_output(mocker, mock_session):
 
     # Mock operation endpoint
     mock_submit = mocker.patch(
-        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio",
+        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     # Mock get_task_status
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -188,7 +207,7 @@ async def test_single_agent_with_table_output(mocker, mock_session):
 
     # Mock get_task_result with table data
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_table_result(
@@ -217,18 +236,20 @@ async def test_agent_map(mocker, mock_session):
 
     # Mock operation endpoint
     mock_submit = mocker.patch(
-        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     # Mock get_task_status
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -237,7 +258,7 @@ async def test_agent_map(mocker, mock_session):
 
     # Mock get_task_result
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_table_result(
@@ -269,17 +290,19 @@ async def test_agent_map_with_return_table_forwards_return_list(mocker, mock_ses
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -288,7 +311,7 @@ async def test_agent_map_with_return_table_forwards_return_list(mocker, mock_ses
 
     # Two input rows; agent fans each out into 3 cities, so 6 output rows total.
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_table_result(
@@ -328,24 +351,26 @@ async def test_agent_map_default_does_not_set_return_list(mocker, mock_session):
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status_response(
             task_id, mock_session.session_id, artifact_id
         ),
     )
     mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_table_result(
             task_id, [{"country": "India", "answer": "New Delhi"}], artifact_id
@@ -395,12 +420,14 @@ async def test_create_table_artifact_converts_nan_to_none(mocker, mock_session):
     """NaN values should be converted to None for JSON compatibility."""
     artifact_id = uuid.uuid4()
     mock_upload = mocker.patch(
-        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio",
+        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_upload.return_value = CreateArtifactResponse(
-        artifact_id=artifact_id,
-        session_id=mock_session.session_id,
+    mock_upload.return_value = _wrap(
+        CreateArtifactResponse(
+            artifact_id=artifact_id,
+            session_id=mock_session.session_id,
+        )
     )
 
     df_with_nan = pd.DataFrame([{"name": "Alice", "age": np.nan}])
@@ -417,12 +444,14 @@ async def test_create_table_artifact_preserves_valid_values(mocker, mock_session
     """Non-NaN values should be passed through unchanged."""
     artifact_id = uuid.uuid4()
     mock_upload = mocker.patch(
-        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio",
+        "futuresearch.ops.upload_data_artifacts_upload_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_upload.return_value = CreateArtifactResponse(
-        artifact_id=artifact_id,
-        session_id=mock_session.session_id,
+    mock_upload.return_value = _wrap(
+        CreateArtifactResponse(
+            artifact_id=artifact_id,
+            session_id=mock_session.session_id,
+        )
     )
 
     df = pd.DataFrame([{"name": "Alice", "age": 30}])
@@ -444,17 +473,19 @@ async def test_single_agent_with_effort_level_preset(mocker, mock_session):
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio",
+        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -462,7 +493,7 @@ async def test_single_agent_with_effort_level_preset(mocker, mock_session):
     )
 
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_scalar_result(
@@ -493,17 +524,19 @@ async def test_single_agent_with_custom_params(mocker, mock_session):
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio",
+        "futuresearch.ops.single_agent_operations_single_agent_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -511,7 +544,7 @@ async def test_single_agent_with_custom_params(mocker, mock_session):
     )
 
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_scalar_result(
@@ -546,17 +579,19 @@ async def test_agent_map_with_effort_level_preset(mocker, mock_session):
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -564,7 +599,7 @@ async def test_agent_map_with_effort_level_preset(mocker, mock_session):
     )
 
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_table_result(
@@ -598,17 +633,19 @@ async def test_agent_map_with_custom_params(mocker, mock_session):
     artifact_id = uuid.uuid4()
 
     mock_submit = mocker.patch(
-        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio",
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
         new_callable=AsyncMock,
     )
-    mock_submit.return_value = OperationResponse(
-        task_id=task_id,
-        session_id=mock_session.session_id,
-        status=TaskStatus.PENDING,
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
     )
 
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status_response(
@@ -616,7 +653,7 @@ async def test_agent_map_with_custom_params(mocker, mock_session):
     )
 
     mock_result = mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_result.return_value = _make_table_result(

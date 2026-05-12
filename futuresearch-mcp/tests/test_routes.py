@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 from datetime import UTC, datetime
+from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_progress_info import TaskProgressInfo
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
+from futuresearch.generated.types import Response
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.routes import (
@@ -49,8 +51,8 @@ def _make_status_response(
     total=10,
     failed=0,
     running=2,
-) -> TaskStatusResponse:
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    body = TaskStatusResponse(
         task_id=task_id or uuid4(),
         session_id=session_id or uuid4(),
         status=TaskStatus(status),
@@ -65,6 +67,7 @@ def _make_status_response(
             total=total,
         ),
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 # ── Fixtures ───────────────────────────────────────────────────
@@ -148,7 +151,7 @@ class TestApiProgress:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -182,7 +185,7 @@ class TestApiProgress:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -213,7 +216,7 @@ class TestApiProgress:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -240,7 +243,7 @@ class TestApiProgress:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             side_effect=RuntimeError("API down"),
         ):

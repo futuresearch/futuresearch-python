@@ -17,6 +17,7 @@ import os
 import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -34,6 +35,7 @@ from futuresearch.generated.models.task_result_response_data_type_0_item import 
 )
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
+from futuresearch.generated.types import Response
 from mcp.server.fastmcp.server import lifespan_wrapper
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import TextContent
@@ -166,8 +168,8 @@ def _make_status_response(
     failed: int = 0,
     running: int = 0,
     total: int = 10,
-) -> TaskStatusResponse:
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    body = TaskStatusResponse(
         task_id=uuid4(),
         session_id=uuid4(),
         status=TaskStatus(status),
@@ -182,15 +184,17 @@ def _make_status_response(
             total=total,
         ),
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
-def _make_result_response(data: list[dict[str, Any]]) -> TaskResultResponse:
+def _make_result_response(data: list[dict[str, Any]]) -> Response[TaskResultResponse]:
     items = [TaskResultResponseDataType0Item.from_dict(d) for d in data]
-    return TaskResultResponse(
+    body = TaskResultResponse(
         task_id=uuid4(),
         status=TaskStatus.COMPLETED,
         data=items,
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 def _submit_patches(mock_op_path: str):
@@ -321,7 +325,7 @@ class TestStdioProgressContent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),
@@ -344,7 +348,7 @@ class TestStdioProgressContent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),
@@ -367,7 +371,7 @@ class TestStdioProgressContent:
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("API timeout"),
             ),
@@ -377,7 +381,7 @@ class TestStdioProgressContent:
 
         assert len(result) == 1
         assert_stdio_clean(result, tool_name="futuresearch_progress (error)")
-        assert "Error polling task" in result[0].text
+        assert "Unexpected error polling task" in result[0].text
 
     @pytest.mark.asyncio
     async def test_failed_task_with_error_message(self):
@@ -388,11 +392,12 @@ class TestStdioProgressContent:
         status_resp = _make_status_response(
             status="failed", completed=3, failed=2, total=5
         )
-        status_resp.error = "Rate limit exceeded"
+        assert status_resp.parsed is not None
+        status_resp.parsed.error = "Rate limit exceeded"
 
         with (
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),
@@ -436,7 +441,7 @@ class TestStdioResultsContent:
         )
 
         with patch(
-            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -461,7 +466,7 @@ class TestStdioResultsContent:
 
         with (
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),
@@ -485,7 +490,7 @@ class TestStdioResultsContent:
 
         with (
             patch(
-                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tool_helpers.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("Connection refused"),
             ),
@@ -496,7 +501,7 @@ class TestStdioResultsContent:
 
         assert len(result) == 1
         assert_stdio_clean(result, tool_name="futuresearch_results (error)")
-        assert "Error" in result[0].text
+        assert "Unexpected error" in result[0].text
 
 
 # ── Tool description tests ────────────────────────────────────────────
@@ -579,7 +584,7 @@ class TestHttpModeIncludesWidgets:
         with (
             patch.object(settings, "transport", Transport.HTTP),
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),
@@ -601,7 +606,7 @@ class TestHttpModeIncludesWidgets:
         with (
             patch.object(settings, "transport", Transport.HTTP),
             patch(
-                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio",
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
                 return_value=status_resp,
             ),

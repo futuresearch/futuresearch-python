@@ -6,12 +6,22 @@ import datetime
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
+from futuresearch.errors import (
+    FuturesearchClientError,
+    FuturesearchError,
+    FuturesearchInsufficientBalanceError,
+    FuturesearchServerError,
+)
 from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_progress_info import TaskProgressInfo
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.types import UNSET, Unset
 
-from futuresearch_mcp.tool_helpers import TaskState, _format_summary_lines
+from futuresearch_mcp.tool_helpers import (
+    TaskState,
+    _format_summary_lines,
+    format_sdk_error,
+)
 from tests.conftest import override_settings
 
 
@@ -49,6 +59,85 @@ def _make_status_response(
         resp.progress = progress
 
     return resp
+
+
+class TestFormatSdkError:
+    def test_doing_is_interpolated_into_prefix(self):
+        exc = FuturesearchClientError("Bad request", status_code=400)
+        text = format_sdk_error(exc, doing="polling task abc-123")
+        assert text.startswith("Error while polling task abc-123: ")
+
+    def test_message_appears_in_output(self):
+        exc = FuturesearchClientError("Bad request", status_code=400)
+        text = format_sdk_error(exc, doing="x")
+        assert "Bad request" in text
+
+    def test_client_error_says_fix_the_request(self):
+        exc = FuturesearchClientError("Bad request", status_code=400)
+        text = format_sdk_error(exc, doing="x")
+        assert "Fix the request" in text
+
+    def test_server_error_says_retry_may_help(self):
+        exc = FuturesearchServerError("Internal error", status_code=500)
+        text = format_sdk_error(exc, doing="x")
+        assert "retrying may help" in text
+
+    def test_base_error_has_no_retry_hint(self):
+        exc = FuturesearchError("Generic failure")
+        text = format_sdk_error(exc, doing="x")
+        assert "retry" not in text.lower()
+
+    def test_status_and_error_code_appear_in_parens(self):
+        exc = FuturesearchClientError(
+            "Bad request", status_code=400, error_code="VALIDATION_ERROR"
+        )
+        text = format_sdk_error(exc, doing="x")
+        assert "(status=400, code=VALIDATION_ERROR)" in text
+
+    def test_status_only(self):
+        exc = FuturesearchClientError("Bad request", status_code=400)
+        text = format_sdk_error(exc, doing="x")
+        assert "(status=400)" in text
+
+    def test_error_code_only(self):
+        exc = FuturesearchError("Generic", error_code="WEIRD")
+        text = format_sdk_error(exc, doing="x")
+        assert "(code=WEIRD)" in text
+
+    def test_no_fields_no_parens(self):
+        exc = FuturesearchError("Generic failure")
+        text = format_sdk_error(exc, doing="x")
+        # Just the message + trailing period — no metadata parens.
+        assert text == "Error while x: Generic failure."
+
+    def test_insufficient_balance_includes_dollar_amounts(self):
+        exc = FuturesearchInsufficientBalanceError(
+            "Balance too low",
+            current_balance_dollars=0.50,
+            minimum_required_dollars=2.00,
+        )
+        text = format_sdk_error(exc, doing="submitting agent task")
+        assert "$0.50" in text
+        assert "$2.00" in text
+
+    def test_insufficient_balance_has_actionable_hint(self):
+        exc = FuturesearchInsufficientBalanceError(
+            "Balance too low",
+            current_balance_dollars=0.50,
+            minimum_required_dollars=2.00,
+        )
+        text = format_sdk_error(exc, doing="x")
+        assert "Top up" in text
+
+    def test_insufficient_balance_uses_balance_template_not_default(self):
+        """The specific-exception branch wins — no generic client-error boilerplate."""
+        exc = FuturesearchInsufficientBalanceError(
+            "Balance too low",
+            current_balance_dollars=0.50,
+            minimum_required_dollars=2.00,
+        )
+        text = format_sdk_error(exc, doing="x")
+        assert "Fix the request" not in text
 
 
 class TestTaskStateArtifactId:

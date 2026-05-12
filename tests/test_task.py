@@ -2,12 +2,13 @@
 
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import BaseModel
 
-from futuresearch.constants import EveryrowError
+from futuresearch.errors import FuturesearchError
 from futuresearch.generated.models import (
     PublicTaskType,
     TaskProgressInfo,
@@ -16,6 +17,7 @@ from futuresearch.generated.models import (
     TaskStatus,
     TaskStatusResponse,
 )
+from futuresearch.generated.types import Response
 from futuresearch.result import TableResult
 from futuresearch.task import (
     EveryrowTask,
@@ -29,8 +31,8 @@ def _make_status(
     status: TaskStatus = TaskStatus.PENDING,
     progress: TaskProgressInfo | None = None,
     error: str | None = None,
-) -> TaskStatusResponse:
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    body = TaskStatusResponse(
         task_id=uuid.uuid4(),
         session_id=uuid.uuid4(),
         status=status,
@@ -40,6 +42,7 @@ def _make_status(
         progress=progress,
         error=error,
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +63,7 @@ async def test_immediate_completion(
 ):
     """Task already completed on first poll — no progress output."""
     mock_status = mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
     )
     mock_status.return_value = _make_status(TaskStatus.COMPLETED)
@@ -99,7 +102,7 @@ async def test_progress_callback_fires_on_change(
     ]
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -144,7 +147,7 @@ async def test_callback_skips_duplicate_snapshot(
     ]
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -177,7 +180,7 @@ async def test_print_progress_output_format(
     ]
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -198,7 +201,7 @@ async def test_failed_task_returns_status(
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.FAILED, error="Something went wrong"),
     )
@@ -213,16 +216,16 @@ async def test_revoked_task_raises(
     mocker,
     mock_client,
 ):
-    """A task that ends in REVOKED raises EveryrowError."""
+    """A task that ends in REVOKED raises FuturesearchError."""
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.REVOKED),
     )
 
-    with pytest.raises(EveryrowError, match="revoked"):
+    with pytest.raises(FuturesearchError, match="revoked"):
         await await_task_completion(task_id, mock_client)
 
 
@@ -244,7 +247,7 @@ async def test_retries_on_transient_error(
         return _make_status(TaskStatus.COMPLETED)
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         side_effect=status_with_error,
     )
 
@@ -258,15 +261,15 @@ async def test_retries_exhausted_raises(
     mocker,
     mock_client,
 ):
-    """Exceeding max_retries raises EveryrowError."""
+    """Exceeding max_retries raises FuturesearchError."""
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         side_effect=ConnectionError("persistent failure"),
     )
 
-    with pytest.raises(EveryrowError, match="retries"):
+    with pytest.raises(FuturesearchError, match="retries"):
         await await_task_completion(task_id, mock_client)
 
 
@@ -291,7 +294,7 @@ async def test_no_output_without_callback(
     ]
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         side_effect=statuses,
     )
@@ -312,8 +315,8 @@ def _make_result_response(
     status: TaskStatus = TaskStatus.COMPLETED,
     data: list[dict] | None = None,
     error: str | None = None,
-) -> TaskResultResponse:
-    """Build a TaskResultResponse with table data."""
+) -> Response[TaskResultResponse]:
+    """Build a Response[TaskResultResponse] with table data."""
     items = None
     if data is not None:
         items = []
@@ -321,13 +324,14 @@ def _make_result_response(
             item = TaskResultResponseDataType0Item()
             item.additional_properties = row
             items.append(item)
-    return TaskResultResponse(
+    body = TaskResultResponse(
         task_id=uuid.uuid4(),
         status=status,
         artifact_id=artifact_id,
         data=items,
         error=error,
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 class DummyModel(BaseModel):
@@ -343,12 +347,12 @@ async def test_await_result_partial_failure_returns_data(mocker, mock_client):
     artifact_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.FAILED, error="3/10 rows failed"),
     )
     mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_result_response(
             artifact_id=artifact_id,
@@ -377,16 +381,16 @@ async def test_await_result_partial_failure_returns_data(mocker, mock_client):
 
 @pytest.mark.asyncio
 async def test_await_result_total_failure_no_artifact_raises(mocker, mock_client):
-    """FAILED task with no artifact raises EveryrowError."""
+    """FAILED task with no artifact raises FuturesearchError."""
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.FAILED, error="10/10 rows failed"),
     )
     mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_result_response(
             artifact_id=None,
@@ -398,7 +402,7 @@ async def test_await_result_total_failure_no_artifact_raises(mocker, mock_client
     task = EveryrowTask(response_model=DummyModel, is_map=True, is_expand=False)
     task.set_submitted(task_id, uuid.uuid4(), mock_client)
 
-    with pytest.raises(EveryrowError, match="Task failed with no results"):
+    with pytest.raises(FuturesearchError, match="Task failed with no results"):
         await task.await_result()
 
 
@@ -408,12 +412,12 @@ async def test_fetch_task_data_allows_failed_status(mocker):
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.FAILED, error="2/5 rows failed"),
     )
     mocker.patch(
-        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio",
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_result_response(
             artifact_id=uuid.uuid4(),
@@ -433,11 +437,11 @@ async def test_fetch_task_data_rejects_running_status(mocker):
     task_id = uuid.uuid4()
 
     mocker.patch(
-        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio",
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
         new_callable=AsyncMock,
         return_value=_make_status(TaskStatus.PENDING),
     )
 
     mock_client = MagicMock()
-    with pytest.raises(EveryrowError, match="not completed"):
+    with pytest.raises(FuturesearchError, match="not completed"):
         await fetch_task_data(task_id, client=mock_client)

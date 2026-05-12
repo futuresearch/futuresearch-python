@@ -28,7 +28,7 @@ async def test_classify_returns_table_result_with_error_field():
     """Classify always returns a TableResult with an error field (None or string).
 
     This validates the structural contract that was changed: the SDK no longer
-    raises EveryrowError on FAILED status. Instead it returns a TableResult
+    raises FuturesearchError on FAILED status. Instead it returns a TableResult
     with .error set.
     """
     input_df = pd.DataFrame(

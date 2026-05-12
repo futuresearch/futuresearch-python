@@ -2,6 +2,8 @@
 
 import uuid
 from datetime import UTC, datetime
+from http import HTTPStatus
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
@@ -9,6 +11,8 @@ import pytest
 
 from futuresearch.generated.models.session_list_item import SessionListItem
 from futuresearch.generated.models.session_list_response import SessionListResponse
+from futuresearch.generated.models.session_response import SessionResponse
+from futuresearch.generated.types import Response
 from futuresearch.session import (
     Session,
     SessionInfo,
@@ -17,6 +21,11 @@ from futuresearch.session import (
     get_session_url,
     list_sessions,
 )
+
+
+def _wrap(parsed: Any, status_code: HTTPStatus = HTTPStatus.OK) -> Response[Any]:
+    """Wrap a parsed body the way the generated *_detailed clients return it."""
+    return Response(status_code=status_code, content=b"", headers={}, parsed=parsed)
 
 
 @pytest.fixture(autouse=True)
@@ -117,13 +126,15 @@ class TestSessionListResponse:
 
 
 def _make_api_response(sessions, *, total=None, offset=0, limit=25):
-    """Create a SessionListResponse for mocking."""
+    """Create a Response[SessionListResponse] matching what asyncio_detailed returns."""
     tc = total if total is not None else len(sessions)
-    return SessionListResponse(
-        sessions=sessions,
-        total=tc,
-        offset=offset,
-        limit=limit,
+    return _wrap(
+        SessionListResponse(
+            sessions=sessions,
+            total=tc,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
@@ -148,7 +159,7 @@ class TestListSessions:
         )
 
         mock_api = mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=api_response,
         )
@@ -186,7 +197,7 @@ class TestListSessions:
         )
 
         mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=api_response,
         )
@@ -208,7 +219,7 @@ class TestListSessions:
     async def test_empty_list(self, mocker):
         mock_client = MagicMock()
         mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=_make_api_response([]),
         )
@@ -232,7 +243,7 @@ class TestListSessions:
             for i in range(5)
         ]
         mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=_make_api_response(items, total=5),
         )
@@ -246,7 +257,7 @@ class TestListSessions:
     async def test_cleans_up_client_on_error(self, mocker):
         """Auto-created client is cleaned up even when the API call fails."""
         mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             side_effect=RuntimeError("API down"),
         )
@@ -266,7 +277,7 @@ class TestListSessions:
         """list_sessions(limit=10, offset=5) passes params to generated API."""
         mock_client = MagicMock()
         mock_api = mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=_make_api_response([], total=20, offset=5, limit=10),
         )
@@ -283,7 +294,7 @@ class TestListSessions:
         """Default call uses offset=0, limit=25."""
         mock_client = MagicMock()
         mock_api = mocker.patch(
-            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio",
+            "futuresearch.session.list_sessions_endpoint_sessions_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=_make_api_response([], total=0, offset=0, limit=25),
         )
@@ -306,7 +317,7 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mock_api = mocker.patch(
-            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio_detailed",
             new_callable=AsyncMock,
         )
 
@@ -324,7 +335,7 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mocker.patch(
-            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio_detailed",
             new_callable=AsyncMock,
         )
 
@@ -339,12 +350,13 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mock_create = mocker.patch(
-            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio_detailed",
             new_callable=AsyncMock,
         )
         mock_update = mocker.patch(
-            "futuresearch.session.update_session_endpoint_sessions_session_id_patch.asyncio",
+            "futuresearch.session.update_session_endpoint_sessions_session_id_patch.asyncio_detailed",
             new_callable=AsyncMock,
+            return_value=_wrap(SessionResponse(session_id=sid)),
         )
 
         async with create_session(
@@ -364,7 +376,7 @@ class TestCreateSessionResumption:
         sid = uuid.uuid4()
 
         mocker.patch(
-            "futuresearch.session.create_session_endpoint_sessions_post.asyncio",
+            "futuresearch.session.create_session_endpoint_sessions_post.asyncio_detailed",
             new_callable=AsyncMock,
         )
 

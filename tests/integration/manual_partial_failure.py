@@ -17,7 +17,7 @@ import sys
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from futuresearch.constants import EveryrowError
+from futuresearch.errors import FuturesearchError
 from futuresearch.ops import agent_map
 from futuresearch.result import TableResult
 from futuresearch.task import LLM
@@ -68,8 +68,8 @@ async def main():
             iteration_budget=3,
             include_reasoning=True,
         )
-    except EveryrowError as e:
-        print(f"\n[FAIL] SDK raised EveryrowError: {e}")
+    except FuturesearchError as e:
+        print(f"\n[FAIL] SDK raised FuturesearchError: {e}")
         print("This means the partial failure handling is NOT working correctly.")
         sys.exit(1)
 

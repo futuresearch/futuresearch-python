@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
+from http import HTTPStatus
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -21,6 +22,7 @@ from futuresearch.generated.models.public_task_type import PublicTaskType
 from futuresearch.generated.models.task_progress_info import TaskProgressInfo
 from futuresearch.generated.models.task_status import TaskStatus
 from futuresearch.generated.models.task_status_response import TaskStatusResponse
+from futuresearch.generated.types import Response
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -86,8 +88,8 @@ def _make_status_response(
     total=10,
     failed=0,
     running=2,
-) -> TaskStatusResponse:
-    return TaskStatusResponse(
+) -> Response[TaskStatusResponse]:
+    body = TaskStatusResponse(
         task_id=uuid4(),
         session_id=uuid4(),
         status=TaskStatus(status),
@@ -102,6 +104,7 @@ def _make_status_response(
             total=total,
         ),
     )
+    return Response(status_code=HTTPStatus.OK, content=b"", headers={}, parsed=body)
 
 
 # ── Health endpoint ────────────────────────────────────────────
@@ -162,7 +165,7 @@ class TestProgressEndpoint:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -193,7 +196,7 @@ class TestProgressEndpoint:
         )
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=status_resp,
         ):
@@ -216,7 +219,7 @@ class TestProgressEndpoint:
         await redis_store.store_task_token(task_id, "api-key")
 
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             side_effect=RuntimeError("upstream timeout"),
         ):
@@ -248,7 +251,7 @@ class TestProgressLifecycle:
         # 2. Poll progress — task is running
         running_resp = _make_status_response(status="running", completed=1, total=3)
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=running_resp,
         ):
@@ -265,7 +268,7 @@ class TestProgressLifecycle:
             status="completed", completed=3, total=3, running=0
         )
         with patch(
-            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio",
+            "futuresearch_mcp.routes.get_task_status_tasks_task_id_status_get.asyncio_detailed",
             new_callable=AsyncMock,
             return_value=completed_resp,
         ):
