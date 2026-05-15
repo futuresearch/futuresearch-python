@@ -900,15 +900,28 @@ async def futuresearch_forecast(
             mode_label = "numeric percentile"
         else:
             mode_label = "probability"
+        widget_meta: dict[str, Any] = {
+            "task_type": "forecast",
+            "forecast_type": params.forecast_type,
+        }
+        if params.output_field:
+            widget_meta["output_field"] = params.output_field
+        if params.units:
+            widget_meta["units"] = params.units
         return await create_tool_response(
             task_id=task_id,
-            label=f"Submitted: {total} rows for {mode_label} forecasting (6 research dimensions + 3 forecasters per batch)."
+            # Deliberately no hardcoded researcher/forecaster counts in the label:
+            # the actual numbers depend on effort_level and batching, and we don't
+            # want Claude paraphrasing stale numbers to the user. The widget UI
+            # reports the live researcher count dynamically via researcherMap.
+            label=f"Submitted: {total} rows for {mode_label} forecasting."
             if total
             else f"Submitted: artifact for {mode_label} forecasting.",
             token=client.token,
             total=total,
             mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
             session_id=session_id_str,
+            widget_meta=widget_meta,
         )
     except FuturesearchError as e:
         logger.warning(f"futuresearch_forecast failed: {e!r}")
@@ -1322,24 +1335,31 @@ async def futuresearch_status(
         "download_url": f"{mcp_server_url}/api/results/{task_id}/download",
     }
 
+    # Replay widget metadata (forecast_type, output_field, units) stored at
+    # submission time so the widget knows whether to render forecast cards.
+    meta_json = await redis_store.get_task_meta(task_id)
+    if meta_json:
+        try:
+            widget_data.update(json.loads(meta_json))
+        except (json.JSONDecodeError, TypeError):
+            logger.debug("Discarding malformed task_meta for %s", task_id)
+
     if ts.is_terminal:
         text = dedent(f"""\
             Completed: {ts.completed}/{ts.total} ({ts.failed} failed) in {ts.elapsed_s}s.
-            Results are loading in the widget above.
-            Do NOT proactively call futuresearch_results — the widget displays results automatically.
-            If the user asks to see, discuss, or analyze the results, call futuresearch_results(task_id='{task_id}') to load them into the conversation.
-            Wait for the user to tell you what to do next.""")
+            The widget above is displaying the results to the user.
+            If the user asks to see, discuss, or analyze specific rows, call futuresearch_results(task_id='{task_id}') to load the full row data into the conversation. Otherwise, wait for the user's next instruction.""")
     else:
         fail_part = f", {ts.failed} failed" if ts.failed else ""
         text = dedent(f"""\
             Running: {ts.completed}/{ts.total} complete, {ts.running} running{fail_part} ({ts.elapsed_s}s elapsed).
             Progress and results are handled by the widget above.
 
-            Important:
-            - Do NOT proactively call futuresearch_results — the widget loads results automatically when the task completes. Only call it if the user asks to see or discuss the results.
             - Do NOT call futuresearch_progress — the widget polls automatically.
             - Do NOT call futuresearch_status again.
-            - You will NOT be notified when the task completes. The widget will notify the user directly. Tell the user: "The widget above is tracking progress. When it's done, it will let you know — just ask me to get the results when you're ready."
+            - You will NOT be automatically notified when the task completes (claude.ai connector clients don't currently re-engage the model on widget completion — see notes). The widget displays the results to the user; you remain idle until the user messages you again.
+            - Acknowledge briefly that the task is running and tell the user to message you for analysis when they're ready. Do NOT over-promise — e.g. do NOT say "I'll pull the percentiles when it finishes" or "I'll chart the results when it's done"; you cannot autonomously continue.
+            - When the user does follow up, call futuresearch_results(task_id='{task_id}') to load the row data into the conversation before analyzing.
             """)
 
     return CallToolResult(

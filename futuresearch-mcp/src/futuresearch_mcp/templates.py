@@ -1,6 +1,6 @@
 """MCP App UI HTML template for the unified session widget."""
 
-_APP_SCRIPT_SRC = "https://unpkg.com/@modelcontextprotocol/ext-apps@1.0.1/app-with-deps"
+_APP_SCRIPT_SRC = "https://unpkg.com/@modelcontextprotocol/ext-apps@1.7.1/app-with-deps"
 
 
 UNIFIED_HTML = """<!DOCTYPE html>
@@ -15,6 +15,15 @@ UNIFIED_HTML = """<!DOCTYPE html>
   --text:#333;--text-sec:#525252;--text-dim:#a3a3a3;
   --border:rgba(0,0,0,0.08);--border-light:rgba(0,0,0,0.04);
   --accent:#4D4FBD;
+  /* Purple used for section headers / field keys / median value /
+     IQR shading / iteration progress bar. Distinct from --accent (links)
+     so the eye registers them as different colors. Values pulled from
+     landing-site (--brand-secondary) and everyrow-cc (--color-brand-400). */
+  --section-purple:#1D1F8A;
+  --median-fill:#4D4FBD;
+  --median-text:#1D1F8A;
+  --iqr-fill:rgba(77,79,189,0.15);
+  --iqr-stroke:rgba(77,79,189,0.4);
   --research-dot:#9294F0;
   --pop-bg:#fff;--pop-shadow:0 4px 20px rgba(0,0,0,0.12);
   --toast-bg:#333;--toast-text:#fff;
@@ -29,6 +38,11 @@ UNIFIED_HTML = """<!DOCTYPE html>
   --text:#e4e4e7;--text-sec:#a1a1aa;--text-dim:#71717a;
   --border:rgba(255,255,255,0.08);--border-light:rgba(255,255,255,0.04);
   --accent:#9294F0;
+  --section-purple:#9294F0;
+  --median-fill:#9294F0;
+  --median-text:#CFCFFF;
+  --iqr-fill:rgba(146,148,240,0.18);
+  --iqr-stroke:rgba(146,148,240,0.45);
   --research-dot:#9294F0;
   --pop-bg:#1e1e1e;--pop-shadow:0 4px 20px rgba(0,0,0,0.5);
   --toast-bg:#e4e4e7;--toast-text:#111111;
@@ -57,22 +71,53 @@ body{font-family:'JetBrains Mono',ui-monospace,monospace;margin:0;padding:0;colo
 .tab-btn:hover{color:var(--text)}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 
-/* ── Activity list (expandable aggregate cards) ── */
-.activity-tab{padding:0 12px;max-height:320px;overflow-y:auto}
-.activity-list{margin:0;padding:0;list-style:none}
-.agg-item{margin:0 0 4px;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:var(--bg);transition:background-color .15s ease}
-.agg-item:last-child{margin-bottom:0}
-.agg-header{display:flex;align-items:flex-start;gap:6px;padding:8px 12px;cursor:pointer;user-select:none;transition:background-color .15s ease;border-left:2px solid var(--accent)}
-.agg-header:hover{background:var(--bg-hover)}
-.agg-chevron{font-size:9px;color:var(--text-dim);flex-shrink:0;transition:transform .2s;margin-top:3px}
-.agg-item.open .agg-chevron{transform:rotate(90deg)}
-.agg-text{flex:1;font-size:12px;color:var(--text);line-height:1.5;font-style:italic}
-.agg-ts{font-size:9px;color:var(--text-dim);flex-shrink:0;font-variant-numeric:tabular-nums;margin-top:2px}
-.agg-micros{display:none;border-top:1px solid var(--border);padding:0;margin:0;list-style:none;background:var(--bg-alt)}
-.agg-item.open .agg-micros{display:block}
-.agg-micros li{padding:5px 12px 5px 24px;font-size:11px;color:var(--text-sec);line-height:1.5;border-bottom:1px solid var(--border-light)}
-.agg-micros li:last-child{border-bottom:none}
-.agg-micro-row{font-size:9px;color:var(--text-dim);margin-right:4px;font-weight:500}
+/* ── Activity tab: per-researcher boxes ─────────────────────────────
+   One box per unique trace_id seen across polls. Each box shows the
+   researcher's latest micro-summary, plus a small icon, with a faint
+   pulsing background while the overall task is running. The team-level
+   aggregate text (when present) is shown as a small italic banner
+   above the boxes. Modeled on everyrow-cc's ResearcherStreamItem. */
+.activity-tab{padding:0 12px;max-height:360px;overflow-y:auto}
+.activity-banner{margin:0 0 8px;padding:8px 12px;background:var(--bg-alt);border:1px solid var(--border);border-radius:4px;font-size:11px;line-height:1.5;color:var(--text-sec)}
+/* Title row: "researcher team activity" label + horizontal strip of
+   icons sitting inline on the same baseline. Icons live INSIDE the
+   header rather than below the aggregate text so the visual identity
+   of "the team" reads alongside the section title. */
+.activity-banner-header{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.activity-banner-label{font-style:normal;font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em}
+.activity-banner-text{font-style:italic;display:block}
+/* One icon per unique trace_id, capped at 10 with a "[…]" suffix if
+   more. Each icon-cell pulses while the task is running. */
+.banner-icon-row{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.banner-icon-cell{width:18px;height:18px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;color:var(--accent);transition:background-color .3s ease,border-color .3s ease}
+.banner-icon-cell.running{animation:researcher-pulse 2.2s ease-in-out infinite}
+.banner-icon-more{font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;margin-left:2px}
+@keyframes researcher-pulse{
+  0%,100%{background:var(--bg);border-color:var(--border);color:var(--accent)}
+  50%{background:rgba(146,148,240,0.15);border-color:rgba(146,148,240,0.55);color:var(--median-fill)}
+}
+.researchers-list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+/* Box itself is calm — pulse lives on the icon only. */
+.researcher-box{border:1px solid var(--border);border-radius:4px;padding:8px 12px;background:var(--bg)}
+.researcher-head{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px}
+/* Wrap the icon SVG in a same-sized circle so the pulse animation
+   has a fixed background area to bloom into. */
+.researcher-icon-wrap{width:18px;height:18px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;transition:background-color .3s ease,border-color .3s ease}
+.researcher-icon-wrap.running{animation:researcher-pulse 2.2s ease-in-out infinite}
+.researcher-icon{flex-shrink:0;display:block}
+.researcher-label{font-weight:600;color:var(--text)}
+.researcher-rows{color:var(--text-dim);font-size:10px;font-variant-numeric:tabular-nums}
+/* Iteration progress: thin purple bar only, no numeric label.
+   Width = min(iter, visualMax)/visualMax * 100%. visualMax derives
+   from the engine's effort-level budgets (medium=5, high=10), and
+   ratchets up to the next multiple of 5 when observations exceed it. */
+.researcher-iter-bar{display:block;flex:1;height:5px;background:var(--border-light);border-radius:3px;overflow:hidden;margin-left:auto;min-width:50px;max-width:110px}
+/* The fill must be block (not inline) — inline spans ignore explicit
+   height/width %, which was making the purple fill invisible even when
+   pct > 0. */
+.researcher-iter-bar-fill{display:block;height:100%;background:var(--median-fill);border-radius:3px;transition:width .4s ease}
+.researcher-summary{font-size:11px;line-height:1.5;color:var(--text-sec)}
+.researchers-empty{padding:14px 4px;color:var(--text-dim);font-size:11px;text-align:center}
 
 /* ── Results table ── */
 #toolbar{display:flex;align-items:center;gap:8px;padding:8px 4px;margin-bottom:8px;flex-wrap:wrap}
@@ -148,6 +193,55 @@ body.row-resizing,body.row-resizing *{cursor:row-resize!important;user-select:no
 body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none!important}
 .hdr-row th.drag-over-left{box-shadow:inset 3px 0 0 var(--accent)}
 .hdr-row th.drag-over-right{box-shadow:inset -3px 0 0 var(--accent)}
+/* ── Forecast cards (only for futuresearch_forecast results) ── */
+.fc-toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px 0;flex-wrap:wrap}
+.fc-toolbar #fcSum{flex:1;font-size:11px;color:var(--text-sec);min-width:120px}
+.fc-toolbar button{padding:5px 12px;border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;background:var(--btn-bg);color:var(--btn-text);transition:background-color .15s ease;font-family:inherit}
+.fc-toolbar button:hover{background:var(--btn-hover)}
+.fc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px;padding:10px 12px 12px;align-items:start}
+.fc-grid.solo{grid-template-columns:1fr}
+.fc-card{border:1px solid var(--border);border-radius:4px;padding:12px 14px;background:var(--bg);display:flex;flex-direction:column;gap:8px;transition:border-color .15s ease,background-color .15s ease;position:relative}
+.fc-card[data-clickable="1"]{cursor:pointer}
+.fc-card[data-clickable="1"]:hover{border-color:var(--accent)}
+.fc-card.expanded{grid-column:1/-1;cursor:default}
+.fc-card.solo{cursor:default}
+.fc-card.failed{border-color:var(--seg-fail);opacity:.9}
+.fc-card-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.fc-card-title{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);line-height:1.4;word-wrap:break-word}
+.fc-card.solo .fc-card-title{font-size:16px;line-height:1.35}
+.fc-row-badge{font-size:10px;color:var(--text-dim);font-weight:normal;font-variant-numeric:tabular-nums;flex-shrink:0}
+.fc-fail-tag{font-size:10px;color:var(--seg-fail);font-weight:500;letter-spacing:0.05em;text-transform:uppercase}
+.fc-prob{display:flex;align-items:baseline;gap:8px;margin-top:2px}
+.fc-prob-value{font-size:28px;font-weight:600;color:var(--median-text);font-variant-numeric:tabular-nums;line-height:1}
+.fc-card.solo .fc-prob-value{font-size:40px}
+.fc-prob-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em}
+.fc-prob-bar{height:6px;border-radius:3px;background:linear-gradient(90deg,rgba(229,57,53,0.22),rgba(77,79,189,0.22),rgba(77,79,189,0.30));position:relative;margin-top:4px}
+.fc-prob-bar-marker{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--median-fill);border-radius:2px;transform:translateX(-1.5px);box-shadow:0 0 0 2px var(--bg)}
+.fc-pctl-bar{margin-top:2px}
+.fc-pctl-header{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;font-size:11px;flex-wrap:wrap}
+.fc-pctl-field{color:var(--text-sec);font-weight:500}
+.fc-pctl-median{color:var(--median-text);font-weight:600;font-size:14px}
+.fc-card.solo .fc-pctl-median{font-size:20px}
+.fc-pctl-units{color:var(--text-dim);font-size:10px}
+.fc-pctl-svg-label{font-size:9px;font-family:'JetBrains Mono',monospace}
+.fc-pctl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}
+.fc-pctl-cell{text-align:center}
+.fc-pctl-cell-label{font-size:9px;color:var(--text-dim);margin-bottom:2px}
+.fc-pctl-cell-val{font-size:11px;font-weight:600;color:var(--text-sec)}
+.fc-pctl-cell-val.median{color:var(--median-text);background:rgba(77,79,189,0.12);border-radius:3px;padding:1px 4px;display:inline-block}
+.fc-section-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;margin-top:4px}
+.fc-field-row a{color:var(--accent);font-weight:500}
+.fc-field-row.clamped{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.fc-card.solo .fc-field-row{font-size:13px}
+.fc-field-row{font-size:12px;color:var(--text-sec);line-height:1.5;margin-top:4px;word-wrap:break-word}
+.fc-field-key{color:var(--section-purple);font-weight:500;margin-right:4px;text-transform:lowercase}
+.fc-sources{display:flex;flex-wrap:wrap;gap:4px;padding-top:8px;border-top:1px solid var(--border-light);margin-top:4px}
+.fc-source-pill{font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg-toolbar);color:var(--text-sec);text-decoration:none;font-family:inherit;white-space:nowrap}
+.fc-source-pill:hover{color:var(--accent);background:var(--bg-hover);text-decoration:none}
+.fc-source-more{font-size:9px;color:var(--text-dim);padding:2px 4px}
+.fc-empty{padding:24px 12px;text-align:center;color:var(--text-dim);font-size:12px}
+.fc-expand-hint{font-size:9px;color:var(--text-dim);text-align:right;font-style:italic;margin-top:2px}
+.fc-card.expanded .fc-expand-hint{display:none}
 /* ── Widget frame ── */
 .widget-frame{border:1px solid var(--border);border-radius:4px;margin:4px;overflow:hidden}
 </style></head><body>
@@ -168,10 +262,10 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 
 <!-- ── Activity tab ── -->
 <div id="activityTab" class="activity-tab" style="display:none">
-  <ul class="activity-list" id="activityList"></ul>
+  <div class="activity-list" id="activityList"></div>
 </div>
 
-<!-- ── Results tab (full table UI) ── -->
+<!-- ── Results tab (full table UI, used for all non-forecast operations) ── -->
 <div id="resultsTab" style="display:none">
 <div style="display:flex;align-items:center;gap:8px;padding:0 0 6px"><input id="globalSearch" type="text" placeholder="Search all columns..." style="flex:1"></div>
 <div id="toolbar">
@@ -183,10 +277,19 @@ body.col-dragging,body.col-dragging *{cursor:grabbing!important;user-select:none
 <div class="wrap" id="wrap" style="max-height:520px"><table id="tbl"></table></div>
 <div class="resize-handle" id="resizeHandle"></div>
 </div>
+
+<!-- ── Forecast tab (cards instead of table; used when task_type=forecast) ── -->
+<div id="forecastTab" style="display:none">
+  <div class="fc-toolbar">
+    <span id="fcSum">Loading...</span>
+    <button id="fcExportLink" title="Download all rows as CSV">Download CSV</button>
+  </div>
+  <div class="fc-grid" id="fcGrid"></div>
+</div>
 </div><!-- close widget-frame -->
 
 <div id="pop" class="popover"><div class="pop-hdr"></div><div class="pop-body"></div></div>
-<div id="doneBanner" class="done-banner"><span class="banner-text">Task complete — ask Claude to get the results.</span><button class="banner-close" id="closeBanner">&times;</button></div>
+<div id="doneBanner" class="done-banner"><span class="banner-text">Task complete &mdash; ask Claude to analyze the results.</span><button class="banner-close" id="closeBanner">&times;</button></div>
 <div id="toast" class="toast">Copied!</div>
 <div id="copyModal" class="copy-modal"><div class="copy-modal-box"><div style="font-weight:600;font-size:13px">Select all and copy (Cmd+C / Ctrl+C)</div><textarea id="copyArea" readonly></textarea><div class="modal-btns"><button id="closeCopyModal">Close</button></div></div></div>
 <script type="module">
@@ -218,6 +321,15 @@ const tabBar=document.getElementById("tabBar");
 const activityTab=document.getElementById("activityTab");
 const activityList=document.getElementById("activityList");
 const resultsTab=document.getElementById("resultsTab");
+const forecastTab=document.getElementById("forecastTab");
+const fcGrid=document.getElementById("fcGrid");
+const fcSum=document.getElementById("fcSum");
+const fcExportLink=document.getElementById("fcExportLink");
+/* forecastMeta is non-null only when the submission/status tool flagged
+   this task as task_type=forecast; in that mode we render cards instead
+   of the table. Set by enterProgressMode() from the widget JSON. */
+let forecastMeta=null;
+let forecastRows=null;
 
 let sessionUrl="",csvUrl="",pollToken="",downloadUrl="";
 const TRUNC=200;
@@ -230,8 +342,18 @@ const S={rows:[],allCols:[],filteredIdx:[],sortCol:null,sortDir:0,filters:{},glo
 let pollUrl=null,pollTimer=null,wasDone=false,pollCursor=null;
 let progressMode=false,resultsFetched=false;
 let currentTaskId=null;
-const aggHistory=[];  /* [{aggregate,micros:[{text,row_index}],ts}] */
+/* Per-researcher state: one entry per unique trace_id ever seen.
+   Keys → {summary, updated_at, row_indices, iteration, num} where `num` is
+   a stable 1-based display index assigned on first sighting. */
+const researcherMap=new Map();
+let latestAggregate="";
 let activeTab="activity";
+/* Iteration-budget heuristic for the per-researcher progress bar.
+   Engine effort levels: low=0, medium=5, high=10 iterations. We don't
+   know the effort level from the polling payload, so we start at 10
+   (covers high-effort default) and ratchet up to the nearest multiple
+   of 5 if an observed iteration exceeds it. The bar shows iter/max. */
+let iterVisualMax=10;
 
 /* --- theming & display mode --- */
 app.onhostcontextchanged=(ctx)=>{
@@ -255,20 +377,20 @@ function switchTab(tab){
   activeTab=tab;
   tabBar.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
   activityTab.style.display=tab==="activity"?"block":"none";
-  resultsTab.style.display=tab==="results"?"block":"none";
+  /* Results tab content is either the table (default) or the forecast
+     card grid — both share the same tab; forecastMeta picks the view. */
+  const showResults=tab==="results";
+  if(forecastMeta){
+    forecastTab.style.display=showResults?"block":"none";
+    resultsTab.style.display="none";
+  }else{
+    resultsTab.style.display=showResults?"block":"none";
+    forecastTab.style.display="none";
+  }
 }
 tabBar.addEventListener("click",e=>{
   const btn=e.target.closest(".tab-btn");
   if(btn)switchTab(btn.dataset.tab);
-});
-
-/* ── expand/collapse aggregate items ── */
-activityList.addEventListener("click",e=>{
-  const item=e.target.closest(".agg-item");
-  if(!item)return;
-  /* only toggle if clicking the header area, not inside micro-summaries */
-  if(e.target.closest(".agg-micros"))return;
-  item.classList.toggle("open");
 });
 
 /* ── progress rendering ── */
@@ -278,99 +400,124 @@ function fmtTime(s){
   return m+"m"+((sec>0)?(" "+sec+"s"):"");
 }
 
+/* Inline researcher icon — simple person glyph, scales with currentColor. */
+const RESEARCHER_ICON_SVG=`<svg class="researcher-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 21 c0-3.6 3.1-6.5 7-6.5 s7 2.9 7 6.5 v.5 H5 z"/></svg>`;
+
+/* Upsert per-trace state from a poll's summaries[] (each entry = one
+   researcher's most recent micro-summary). Assigns a stable 1-based
+   display number on first sighting. Ratchets iterVisualMax upward
+   if any researcher exceeds the current value. */
+function _updateResearchers(summaries){
+  if(!Array.isArray(summaries))return;
+  for(const s of summaries){
+    if(!s||!s.trace_id)continue;
+    const prev=researcherMap.get(s.trace_id);
+    const num=prev?prev.num:(researcherMap.size+1);
+    const rowIndices=s.row_indices||(s.row_index!=null?[s.row_index]:null);
+    const iter=s.iteration_number??(prev?prev.iteration:0);
+    researcherMap.set(s.trace_id,{
+      num,
+      summary:s.summary||"",
+      updated_at:s.updated_at||(prev?prev.updated_at:""),
+      iteration:iter,
+      row_indices:rowIndices,
+    });
+    /* Ratchet to next multiple of 5 above any observed iteration. */
+    if(iter>iterVisualMax)iterVisualMax=Math.ceil(iter/5)*5;
+  }
+}
+
+function _renderActivity(isRunning){
+  const researchers=Array.from(researcherMap.values()).sort((a,b)=>a.num-b.num);
+  let h="";
+  /* Banner: header row with the "researcher team activity" label and an
+     inline strip of researcher icons; aggregate text sits below as the
+     body. Icon cap at 10 with a "[…]" suffix if more. Each cell pulses
+     while the task is running. */
+  const showBanner=latestAggregate||researchers.length>0;
+  if(showBanner){
+    h+=`<div class="activity-banner">`;
+    h+=`<div class="activity-banner-header">`;
+    h+=`<span class="activity-banner-label">researcher team activity</span>`;
+    if(researchers.length>0){
+      h+=`<div class="banner-icon-row" aria-label="${researchers.length} researchers">`;
+      const ICON_CAP=10;
+      const shown=researchers.slice(0,ICON_CAP);
+      for(let i=0;i<shown.length;i++){
+        h+=`<span class="banner-icon-cell${isRunning?" running":""}" style="animation-delay:${(i*0.18).toFixed(2)}s">${RESEARCHER_ICON_SVG}</span>`;
+      }
+      if(researchers.length>ICON_CAP){
+        h+=`<span class="banner-icon-more">[&hellip;]</span>`;
+      }
+      h+=`</div>`;
+    }
+    h+=`</div>`;
+    if(latestAggregate)h+=`<span class="activity-banner-text">${esc(latestAggregate)}</span>`;
+    h+=`</div>`;
+  }
+  if(researchers.length===0){
+    h+=`<div class="researchers-empty">Waiting for the first researcher to report&hellip;</div>`;
+    activityList.innerHTML=h;
+    return;
+  }
+  h+=`<ul class="researchers-list">`;
+  for(const r of researchers){
+    const rowsLabel=(r.row_indices&&r.row_indices.length)
+      ? (r.row_indices.length>1
+          ? "rows "+r.row_indices.map(i=>i+1).join(", ")
+          : "row "+(r.row_indices[0]+1))
+      : "";
+    h+=`<li class="researcher-box">`;
+    h+=`<div class="researcher-head">`;
+    /* Icon-only pulse: a fixed-size wrapper holds the SVG and animates.
+       Stagger the pulse start times by ~180ms each so the row reads as
+       a coordinated team rather than a strobing block. */
+    h+=`<span class="researcher-icon-wrap${isRunning?" running":""}" style="animation-delay:${((r.num-1)*0.18).toFixed(2)}s">${RESEARCHER_ICON_SVG}</span>`;
+    h+=`<span class="researcher-label">Researcher #${r.num}</span>`;
+    if(rowsLabel)h+=`<span class="researcher-rows">${esc(rowsLabel)}</span>`;
+    if(r.iteration){
+      const pct=Math.min(100,Math.max(0,(r.iteration/iterVisualMax)*100));
+      h+=`<span class="researcher-iter-bar" title="iteration ${esc(String(r.iteration))} of ~${iterVisualMax}">`;
+      h+=`<span class="researcher-iter-bar-fill" style="width:${pct}%"></span>`;
+      h+=`</span>`;
+    }
+    h+=`</div>`;
+    h+=`<div class="researcher-summary">${esc(r.summary||"Starting research…")}</div>`;
+    h+=`</li>`;
+  }
+  h+=`</ul>`;
+  activityList.innerHTML=h;
+}
+
 function renderProgress(d){
   const comp=d.completed||0,tot=d.total||0,fail=d.failed||0,run=d.running||0;
   const done=["completed","failed","revoked"].includes(d.status);
   const elapsed=d.elapsed_s||0;
 
-  /* accumulate aggregate + micro-summaries as expandable entries */
-  if(d.aggregate_summary){
-    const now=new Date();
-    const ts=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    const micros=(d.summaries||[]).map(s=>({text:s.summary||String(s),row_indices:s.row_indices||null,row_index:s.row_index}));
-    /* only add if aggregate text is new */
-    const lastAgg=aggHistory.length?aggHistory[aggHistory.length-1].aggregate:"";
-    if(d.aggregate_summary!==lastAgg){
-      aggHistory.push({aggregate:d.aggregate_summary,micros,ts});
-      if(aggHistory.length>30)aggHistory.splice(0,aggHistory.length-30);
-    }
-  } else if(d.summaries&&d.summaries.length){
-    /* fallback: no aggregate, just micro-summaries — create a placeholder entry */
-    const now=new Date();
-    const ts=now.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    const micros=d.summaries.map(s=>({text:s.summary||String(s),row_indices:s.row_indices||null,row_index:s.row_index}));
-    const fallbackAgg=micros[0]?.text||"Agent activity";
-    const lastAgg=aggHistory.length?aggHistory[aggHistory.length-1].aggregate:"";
-    if(fallbackAgg!==lastAgg){
-      aggHistory.push({aggregate:fallbackAgg,micros,ts});
-      if(aggHistory.length>30)aggHistory.splice(0,aggHistory.length-30);
-    }
-  }
+  /* Update per-researcher state from this poll. */
+  _updateResearchers(d.summaries);
+  if(d.aggregate_summary)latestAggregate=d.aggregate_summary;
   if(d.cursor)pollCursor=d.cursor;
 
+  /* Streaming-view header: keep it minimal. Researcher count (when
+     known) + elapsed time + terminal status word. The old segment bar
+     and the "X done / X running / X pending / ETA" labels described
+     rows, not researchers, and were misleading once we switched to the
+     researcher-centric activity view. */
+  const numR=researcherMap.size;
   let h="";
-  if(tot>0){
-    const pDone=comp/tot*100,pRun=run/tot*100,pFail=fail/tot*100;
-    h+=`<div class="bar-bg">`;
-    if(pDone>0)h+=`<div class="seg seg-done" style="width:${pDone}%">${pDone>=10?Math.round(pDone)+"%":""}</div>`;
-    if(pRun>0)h+=`<div class="seg seg-run" style="width:${pRun}%"></div>`;
-    if(pFail>0)h+=`<div class="seg seg-fail" style="width:${pFail}%"></div>`;
-    h+=`</div>`;
-    h+=`<div class="prog-info">`;
-    if(done){
-      const cls=d.status==="completed"?"status-done":"status-fail";
-      h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
-      h+=`<span>${comp}/${tot}${fail?` (${fail} failed)`:""}</span>`;
-      if(elapsed)h+=`<span>${fmtTime(elapsed)}</span>`;
-    }else{
-      h+=`<span>${comp}/${tot}</span>`;
-      if(elapsed)h+=`<span class="eta">${fmtTime(elapsed)} elapsed</span>`;
-      if(comp)h+=`<span>${comp} done</span>`;
-      if(run)h+=`<span>${run} running</span>`;
-      if(fail)h+=`<span>${fail} failed</span>`;
-      const pend=Math.max(0,tot-comp-fail-run);
-      if(pend)h+=`<span>${pend} pending</span>`;
-      const eta=comp>0&&elapsed>0?Math.round((tot-comp)/(comp/elapsed)):0;
-      if(eta>0)h+=`<span class="eta">~${fmtTime(eta)} remaining</span>`;
-    }
-    h+=`</div>`;
-  }else if(d.status){
-    h+=`<div class="prog-info">${esc(d.status)}${elapsed?` &mdash; ${fmtTime(elapsed)}`:""}</div>`;
+  h+=`<div class="prog-info">`;
+  if(done){
+    const cls=d.status==="completed"?"status-done":"status-fail";
+    h+=`<span class="${esc(cls)}">${esc(d.status)}</span>`;
   }
+  if(numR>0)h+=`<span>${numR} researcher${numR!==1?"s":""}</span>`;
+  if(elapsed)h+=`<span class="eta">${fmtTime(elapsed)}${done?"":" elapsed"}</span>`;
+  if(fail&&done)h+=`<span class="status-fail">${fail} failed</span>`;
+  h+=`</div>`;
   progressContent.innerHTML=h;
 
-  /* render expandable aggregate activity list (newest first) */
-  if(aggHistory.length){
-    /* remember which items are expanded */
-    const openSet=new Set();
-    activityList.querySelectorAll(".agg-item.open").forEach(el=>{
-      const idx=el.dataset.aggIdx;if(idx!=null)openSet.add(idx);
-    });
-    let al="";
-    for(let i=aggHistory.length-1;i>=0;i--){
-      const a=aggHistory[i];
-      const hasMicros=a.micros&&a.micros.length>0;
-      const isOpen=openSet.has(String(i));
-      al+=`<li class="agg-item${isOpen?" open":""}" data-agg-idx="${i}">`;
-      al+=`<div class="agg-header">`;
-      if(hasMicros)al+=`<span class="agg-chevron">&#9654;</span>`;
-      al+=`<span class="agg-text">${esc(a.aggregate)}</span>`;
-      al+=`<span class="agg-ts">${esc(a.ts)}</span>`;
-      al+=`</div>`;
-      if(hasMicros){
-        al+=`<ul class="agg-micros">`;
-        for(const m of a.micros){
-          let rowLabel="";
-          if(m.row_indices&&m.row_indices.length>1){rowLabel=`<span class="agg-micro-row">Rows ${m.row_indices.map(r=>r+1).join(", ")}</span>`;}
-          else if(m.row_index!=null){rowLabel=`<span class="agg-micro-row">Row ${m.row_index+1}</span>`;}
-          al+=`<li>${rowLabel}${esc(m.text)}</li>`;
-        }
-        al+=`</ul>`;
-      }
-      al+=`</li>`;
-    }
-    activityList.innerHTML=al;
-  }
+  _renderActivity(!done);
 
   if(done&&!wasDone){
     wasDone=true;
@@ -403,11 +550,26 @@ async function autoFetchResults(){
     }
     if(!dataResp.ok){resultsFetched=false;return;}
     const data=await dataResp.json();
-    /* activate results UI */
-    showResultsUI();
-    processData(data);
-    updateSessionLink();
-    switchTab("results");
+    if(forecastMeta){
+      /* Forecast tasks get the card grid; the table is hidden. */
+      showForecastUI();
+      renderForecastCards(Array.isArray(data)?data:[data]);
+      updateSessionLink();
+      switchTab("results");
+    }else{
+      /* All other operation types keep the original table UI. */
+      showResultsUI();
+      processData(data);
+      updateSessionLink();
+      switchTab("results");
+    }
+    /* NOTE: we deliberately do NOT call app.sendMessage() or
+       app.updateModelContext() here. Both are advertised by claude.ai for
+       custom connectors but their delivery is reconnect-gated — the message
+       only materializes in the chat on page refresh, producing a mystery
+       user message that hurts UX more than it helps. See SKILL.md's
+       "Autonomous Widget→Model Handoff" section for the investigation
+       trail. The widget shows results; the user asks Claude to analyze. */
   }catch(e){
     resultsFetched=false;
   }
@@ -422,6 +584,439 @@ function showResultsUI(){
   resultsTab.style.padding="0 12px 12px";
 }
 
+function showForecastUI(){
+  widgetActive=true;
+  document.body.style.height="auto";document.body.style.overflow="visible";document.body.style.padding="0";
+  widgetFrame.style.display="block";
+  forecastTab.style.display="block";
+  /* Hide the standard results tab — they share the same Results button. */
+  resultsTab.style.display="none";
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Forecast card rendering — used only when forecastMeta is set
+   (i.e. task_type=forecast). Mirrors the everyrow-cc ResearcherStreamItem
+   + ResearcherFullView layouts in vanilla JS. Sources for design choices:
+   PercentileRangeBar.tsx, DatePercentileRangeBar.tsx, PercentileGrid.tsx.
+   ────────────────────────────────────────────────────────────────── */
+
+const FC_PERCENTILES=[10,25,50,75,90];
+
+function fcNum(n){
+  if(n===0||n===0.0)return "0";
+  if(typeof n!=="number"||!isFinite(n))return String(n);
+  const r=Number(n.toPrecision(3));
+  const a=Math.abs(r);
+  if(a>=1e6)return (Math.round(r/1e5)/10)+"M";
+  if(a>=1e3)return (Math.round(r/100)/10)+"K";
+  if(a<1&&a>0)return String(r);
+  return String(r);
+}
+
+function fcIsNever(s){
+  if(s==="never")return true;
+  const m=/^(\\d{4})-/.exec(s||"");
+  return !!m&&parseInt(m[1],10)>=2099;
+}
+
+function fcExtractPctl(row,field){
+  if(!field)return null;
+  const out={};
+  for(const p of FC_PERCENTILES){
+    const raw=row[field+"_p"+p];
+    const n=typeof raw==="number"?raw:Number(raw);
+    if(isNaN(n))return null;
+    out["p"+p]=n;
+  }
+  return out;
+}
+
+function fcExtractDatePctl(row,field){
+  if(!field)return null;
+  const out={};
+  for(const p of FC_PERCENTILES){
+    const raw=row[field+"_p"+p];
+    if(typeof raw!=="string")return null;
+    if(raw!=="never"&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw))return null;
+    out["p"+p]=raw;
+  }
+  return out;
+}
+
+function fcPickDateGran(dates){
+  const ms=dates.filter(d=>!fcIsNever(d)).map(d=>new Date(d+"T00:00:00").getTime());
+  if(ms.length<2)return "year-month";
+  const range=Math.max(...ms)-Math.min(...ms);
+  return range>=1.5*365.25*86400000?"year-month":"month-day";
+}
+
+function fcFmtDate(iso,compact,gran){
+  if(fcIsNever(iso))return "never";
+  const d=new Date(iso+"T00:00:00");
+  const mon=d.toLocaleString("en",{month:"short"});
+  const day=d.getDate();
+  const year=d.getFullYear();
+  if(gran==="month-day")return compact?(mon+" "+day):(mon+" "+day+", "+year);
+  return compact?(mon+" '"+String(year).slice(2)):(mon+" "+day+", "+year);
+}
+
+/* Render an SVG numeric percentile bar (p10-p90 with IQR box + median dot).
+   Non-compact mode staggers labels above/below so p25/p75 don't collide
+   with their neighbors when percentiles are bunched together - matches
+   PercentileRangeBar.tsx's topPad/aboveLabelY behaviour. */
+function fcRenderPctlSVG(p,units,compact){
+  const W=200,svgH=compact?24:36,pad=6,trackW=W-2*pad;
+  const topPad=compact?0:14;
+  const bottomPad=compact?14:18;
+  const midY=topPad+svgH/2;
+  const totalH=topPad+svgH+bottomPad;
+  const aboveLabelY=topPad-4;
+  const belowLabelY=topPad+svgH+(compact?10:14);
+  const range=p.p90-p.p10;
+  const scale=v=>range===0?trackW/2:((v-p.p10)/range)*trackW;
+  const x={};
+  for(const k of FC_PERCENTILES)x["p"+k]=pad+(k===10?0:scale(p["p"+k]));
+  const tickH=compact?6:10;
+  const dotR=compact?3.5:5;
+  /* Compact: p10/p50/p90 below. Non-compact: p10/p50/p90 below + p25/p75 above. */
+  const ticks=compact?[[10,false],[50,false],[90,false]]:[[10,false],[25,true],[50,false],[75,true],[90,false]];
+  let labels="";
+  for(const[k,above]of ticks){
+    const y=above?aboveLabelY:belowLabelY;
+    labels+=`<text x="${x["p"+k]}" y="${y}" text-anchor="middle" fill="currentColor" class="fc-pctl-svg-label">${esc(fcNum(p["p"+k]))}</text>`;
+  }
+  /* Extra mini ticks at p25/p75 in non-compact so the eye can still find them. */
+  const extraTicks=compact?"":`
+    <line x1="${x.p25}" y1="${midY-tickH/2}" x2="${x.p25}" y2="${midY+tickH/2}" style="stroke:var(--iqr-stroke)" stroke-width="0.5"/>
+    <line x1="${x.p75}" y1="${midY-tickH/2}" x2="${x.p75}" y2="${midY+tickH/2}" style="stroke:var(--iqr-stroke)" stroke-width="0.5"/>`;
+  return `<svg viewBox="0 0 ${W} ${totalH}" preserveAspectRatio="xMidYMid meet" width="100%" height="${totalH}" style="color:var(--text-sec);display:block;overflow:visible">
+    <line x1="${x.p10}" y1="${midY}" x2="${x.p90}" y2="${midY}" stroke="#71717a" stroke-width="${compact?1:1.5}"/>
+    <rect x="${x.p25}" y="${midY-(compact?5:7)}" width="${Math.max(x.p75-x.p25,1)}" height="${compact?10:14}" rx="2" style="fill:var(--iqr-fill);stroke:var(--iqr-stroke)" stroke-width="0.5"/>
+    <line x1="${x.p10}" y1="${midY-tickH/2}" x2="${x.p10}" y2="${midY+tickH/2}" stroke="#71717a" stroke-width="1"/>
+    <line x1="${x.p90}" y1="${midY-tickH/2}" x2="${x.p90}" y2="${midY+tickH/2}" stroke="#71717a" stroke-width="1"/>
+    ${extraTicks}
+    <circle cx="${x.p50}" cy="${midY}" r="${dotR}" style="fill:var(--median-fill)"/>
+    ${labels}
+  </svg>`;
+}
+
+/* Render an SVG date percentile bar. Same staggered-label trick as
+   fcRenderPctlSVG. Plus a dashed →never tail when any percentile is the
+   sentinel (matches DatePercentileRangeBar.tsx). */
+function fcRenderDatePctlSVG(dp,compact){
+  const W=200,svgH=compact?24:36,pad=6,trackW=W-2*pad;
+  const topPad=compact?0:14;
+  const bottomPad=compact?14:18;
+  const midY=topPad+svgH/2;
+  const totalH=topPad+svgH+bottomPad;
+  const aboveLabelY=topPad-4;
+  const belowLabelY=topPad+svgH+(compact?10:14);
+  const tickH=compact?6:10;
+  const dotR=compact?3.5:5;
+  const dates=FC_PERCENTILES.map(p=>dp["p"+p]);
+  const neverFlags=dates.map(fcIsNever);
+  const hasTail=neverFlags.some(Boolean);
+  const medianIsNever=neverFlags[2];
+  const gran=fcPickDateGran(dates);
+
+  const tailFrac=hasTail?0.22:0;
+  const realTrackW=trackW*(1-tailFrac);
+  const tailStartX=pad+realTrackW;
+  const tailEndX=pad+trackW;
+
+  const realMs=dates.map((d,i)=>neverFlags[i]?null:new Date(d+"T00:00:00").getTime()).filter(v=>v!==null);
+  const msLeft=realMs[0]??0;
+  const msRight=realMs[realMs.length-1]??msLeft;
+  const realRange=msRight-msLeft;
+  const scale=v=>realRange===0?realTrackW/2:((v-msLeft)/realRange)*realTrackW;
+  const positions=dates.map((d,i)=>neverFlags[i]?tailStartX:(pad+scale(new Date(d+"T00:00:00").getTime())));
+  const x10=positions[0],x25=positions[1],x50=positions[2],x75=positions[3],x90=positions[4];
+  const trackRightX=hasTail?tailStartX:x90;
+  const iqrRightX=neverFlags[3]?trackRightX:x75;
+
+  /* Compact: p10/p50/p90 below. Non-compact: same + p25/p75 above.
+     Skip sentinel positions (the tail already says "never"). */
+  const tickRows=compact?[[0,false],[2,false],[4,false]]:[[0,false],[1,true],[2,false],[3,true],[4,false]];
+  let labels="";
+  for(const[i,above]of tickRows){
+    if(neverFlags[i])continue;
+    const y=above?aboveLabelY:belowLabelY;
+    labels+=`<text x="${positions[i]}" y="${y}" text-anchor="middle" fill="currentColor" class="fc-pctl-svg-label">${esc(fcFmtDate(dates[i],true,gran))}</text>`;
+  }
+
+  /* Extra mini ticks at p25/p75 in non-compact (only when real). */
+  let extraTicks="";
+  if(!compact){
+    if(!neverFlags[1])extraTicks+=`<line x1="${x25}" y1="${midY-tickH/2}" x2="${x25}" y2="${midY+tickH/2}" style="stroke:var(--iqr-stroke)" stroke-width="0.5"/>`;
+    if(!neverFlags[3])extraTicks+=`<line x1="${x75}" y1="${midY-tickH/2}" x2="${x75}" y2="${midY+tickH/2}" style="stroke:var(--iqr-stroke)" stroke-width="0.5"/>`;
+  }
+
+  let tailMarkup="";
+  if(hasTail){
+    tailMarkup=`
+      <line x1="${tailStartX}" y1="${midY}" x2="${tailEndX-4}" y2="${midY}" stroke="#71717a" stroke-width="1" stroke-dasharray="2,2"/>
+      <polygon points="${tailEndX},${midY} ${tailEndX-5},${midY-3} ${tailEndX-5},${midY+3}" fill="#71717a"/>
+      <text x="${tailEndX}" y="${belowLabelY}" text-anchor="end" fill="#a1a1aa" class="fc-pctl-svg-label" style="font-style:italic">never</text>`;
+  }
+
+  const medianDot=medianIsNever?"":`<circle cx="${x50}" cy="${midY}" r="${dotR}" style="fill:var(--median-fill)"/>`;
+  const rightWhisker=neverFlags[4]?"":`<line x1="${x90}" y1="${midY-tickH/2}" x2="${x90}" y2="${midY+tickH/2}" stroke="#71717a" stroke-width="1"/>`;
+
+  return `<svg viewBox="0 0 ${W} ${totalH}" preserveAspectRatio="xMidYMid meet" width="100%" height="${totalH}" style="color:var(--text-sec);display:block;overflow:visible">
+    <line x1="${x10}" y1="${midY}" x2="${trackRightX}" y2="${midY}" stroke="#71717a" stroke-width="${compact?1:1.5}"/>
+    <rect x="${x25}" y="${midY-(compact?5:7)}" width="${Math.max(iqrRightX-x25,1)}" height="${compact?10:14}" rx="2" style="fill:var(--iqr-fill);stroke:var(--iqr-stroke)" stroke-width="0.5"/>
+    <line x1="${x10}" y1="${midY-tickH/2}" x2="${x10}" y2="${midY+tickH/2}" stroke="#71717a" stroke-width="1"/>
+    ${rightWhisker}
+    ${extraTicks}
+    ${tailMarkup}
+    ${medianDot}
+    ${labels}
+  </svg>`;
+}
+
+/* Extract source domains from inline markdown links AND _source_bank
+   (whichever is present). Citations get resolved server-side to
+   `[title](url)` markdown so the link pattern catches them. */
+function fcExtractDomain(url){
+  try{const u=new URL(url.startsWith("http")?url:"https://"+url);return u.hostname.replace(/^www\\./,"");}
+  catch{return url.slice(0,30);}
+}
+
+function fcExtractSources(row){
+  const seen=new Set();
+  const out=[];
+  /* 1. Use _source_bank if present (preferred — richer, deduped server-side). */
+  const sb=row._source_bank;
+  let parsed=null;
+  if(sb&&typeof sb==="object"&&!Array.isArray(sb))parsed=sb;
+  else if(typeof sb==="string"){try{parsed=JSON.parse(sb);}catch{}}
+  if(parsed){
+    for(const v of Object.values(parsed)){
+      if(!v||typeof v!=="object")continue;
+      const u=v.url;
+      if(typeof u!=="string"||!u)continue;
+      const dom=fcExtractDomain(u);
+      if(seen.has(dom))continue;
+      seen.add(dom);
+      out.push({url:u,domain:dom});
+    }
+    if(out.length)return out;
+  }
+  /* 2. Fallback: scan string fields for markdown links + bare URLs. */
+  const mdRe=/\\[[^\\]]+\\]\\((https?:\\/\\/[^)]+)\\)/g;
+  const urlRe=/(https?:\\/\\/[^\\s<>"')]+)/g;
+  for(const v of Object.values(row)){
+    if(typeof v!=="string")continue;
+    let m;
+    while((m=mdRe.exec(v))!==null){
+      const dom=fcExtractDomain(m[1]);
+      if(!seen.has(dom)){seen.add(dom);out.push({url:m[1],domain:dom});}
+    }
+    while((m=urlRe.exec(v))!==null){
+      const dom=fcExtractDomain(m[1]);
+      if(!seen.has(dom)){seen.add(dom);out.push({url:m[1],domain:dom});}
+    }
+  }
+  return out;
+}
+
+/* Pick the row's title — typically `question` for forecast inputs. */
+function fcRowTitle(row){
+  const cands=["question","entity","name","item","subject","title"];
+  for(const k of cands){
+    const v=row[k];
+    if(typeof v==="string"&&v.trim())return v.trim();
+  }
+  /* Fallback: first non-empty string that isn't rationale/probability. */
+  const skip=new Set(["rationale","probability","units","_status","_error","_row_index","_completed_at","_source_bank","research"]);
+  for(const[k,v]of Object.entries(row)){
+    if(skip.has(k)||k.startsWith("_"))continue;
+    if(typeof v==="string"&&v.trim()&&v.length<200)return v.trim();
+  }
+  return null;
+}
+
+/* First "section" of the rationale — first paragraph or first ~600 chars. */
+function fcFirstSection(text){
+  if(typeof text!=="string")return "";
+  const trimmed=text.trim();
+  if(!trimmed)return "";
+  /* Prefer paragraph break. */
+  const pIdx=trimmed.indexOf("\\n\\n");
+  if(pIdx>0&&pIdx<800)return trimmed.slice(0,pIdx).trim();
+  return trimmed.length>600?trimmed.slice(0,600).trim()+"…":trimmed;
+}
+
+function fcLinkifyRationale(text){
+  return linkify(text);
+}
+
+function fcBuildCard(row,idx,isSolo,isExpanded){
+  const data=row.display||row;
+  const status=data._status||"";
+  const isFailed=status==="failed";
+  const title=fcRowTitle(data);
+  const rowBadge=data._row_index!=null?("#"+(data._row_index+1)):("#"+(idx+1));
+  const sources=fcExtractSources(data);
+
+  let body="";
+  let displayedFieldKeys=new Set(["rationale","units"]);
+
+  if(isFailed){
+    const err=data._error||"This row failed.";
+    body+=`<p class="fc-error" style="color:var(--seg-fail);font-size:11px;margin:0">${esc(err)}</p>`;
+  }else if(forecastMeta.forecastType==="binary"){
+    const probRaw=data.probability;
+    const prob=typeof probRaw==="number"?probRaw:Number(probRaw);
+    if(!isNaN(prob)){
+      const pct=Math.max(0,Math.min(100,prob));
+      body+=`<div class="fc-prob"><span class="fc-prob-value">${esc(Math.round(pct))}%</span><span class="fc-prob-label">probability</span></div>`;
+      body+=`<div class="fc-prob-bar"><div class="fc-prob-bar-marker" style="left:${pct}%"></div></div>`;
+      displayedFieldKeys.add("probability");
+    }
+  }else if(forecastMeta.forecastType==="numeric"&&forecastMeta.outputField){
+    const p=fcExtractPctl(data,forecastMeta.outputField);
+    if(p){
+      body+=`<div class="fc-pctl-bar">`;
+      body+=`<div class="fc-pctl-header"><span class="fc-pctl-field">${esc(forecastMeta.outputField)}</span><span class="fc-pctl-median">${esc(fcNum(p.p50))}</span>`;
+      if(forecastMeta.units)body+=`<span class="fc-pctl-units">${esc(forecastMeta.units)}</span>`;
+      body+=`</div>`;
+      body+=fcRenderPctlSVG(p,forecastMeta.units,!isExpanded&&!isSolo);
+      if(isExpanded||isSolo){
+        body+=`<div class="fc-pctl-grid">`;
+        for(const k of FC_PERCENTILES){
+          const isMed=k===50;
+          body+=`<div class="fc-pctl-cell"><div class="fc-pctl-cell-label">p${k}</div><div class="fc-pctl-cell-val${isMed?" median":""}">${esc(fcNum(p["p"+k]))}</div></div>`;
+        }
+        body+=`</div>`;
+      }
+      body+=`</div>`;
+      for(const k of FC_PERCENTILES)displayedFieldKeys.add(forecastMeta.outputField+"_p"+k);
+    }
+  }else if(forecastMeta.forecastType==="date"&&forecastMeta.outputField){
+    const dp=fcExtractDatePctl(data,forecastMeta.outputField);
+    if(dp){
+      const gran=fcPickDateGran([dp.p10,dp.p25,dp.p50,dp.p75,dp.p90]);
+      const isNever=fcIsNever(dp.p50);
+      body+=`<div class="fc-pctl-bar">`;
+      body+=`<div class="fc-pctl-header"><span class="fc-pctl-field">${esc(forecastMeta.outputField)}</span><span class="fc-pctl-median"${isNever?' style="color:var(--text-dim)"':''}>${esc(fcFmtDate(dp.p50,false,gran))}</span></div>`;
+      body+=fcRenderDatePctlSVG(dp,!isExpanded&&!isSolo);
+      if(isExpanded||isSolo){
+        body+=`<div class="fc-pctl-grid">`;
+        for(const k of FC_PERCENTILES){
+          const isMed=k===50;
+          const label=isMed?"median":(k+"% by");
+          body+=`<div class="fc-pctl-cell"><div class="fc-pctl-cell-label">${esc(label)}</div><div class="fc-pctl-cell-val${isMed?" median":""}">${esc(fcFmtDate(dp["p"+k],true,gran))}</div></div>`;
+        }
+        body+=`</div>`;
+      }
+      body+=`</div>`;
+      for(const k of FC_PERCENTILES)displayedFieldKeys.add(forecastMeta.outputField+"_p"+k);
+    }
+  }
+
+  /* Rationale — same fc-field-row style as resolution_criteria/units/etc.
+     so the "rationale:" key sits inline with the text and the font matches.
+     Clamped in compact, full in expanded/solo. */
+  const rationale=typeof data.rationale==="string"?data.rationale:"";
+  if(rationale){
+    const text=(isExpanded||isSolo)?rationale:fcFirstSection(rationale);
+    body+=`<div class="fc-field-row${(isExpanded||isSolo)?"":" clamped"}"><span class="fc-field-key">rationale:</span>${fcLinkifyRationale(text)}</div>`;
+  }
+
+  /* In expanded/solo, show any other scalar output fields the user
+     defined in their response_schema (binary forecasts often just have
+     probability + rationale, but custom schemas may add more). */
+  if(isExpanded||isSolo){
+    const extras=[];
+    const skip=new Set(["_status","_error","_row_index","_completed_at","_source_bank","_expand_index","research","provenance_and_notes"]);
+    for(const[k,v]of Object.entries(data)){
+      if(skip.has(k)||k.startsWith("_"))continue;
+      if(displayedFieldKeys.has(k))continue;
+      if(k==="question"||k==="entity"||k==="name"||k==="item"||k==="subject"||k==="title")continue;
+      if(v===null||v===undefined||v==="")continue;
+      if(typeof v==="object")continue;
+      extras.push([k,Array.isArray(v)?v.join(", "):String(v)]);
+    }
+    if(extras.length){
+      for(const[k,v]of extras){
+        body+=`<div class="fc-field-row"><span class="fc-field-key">${esc(k)}:</span>${esc(v)}</div>`;
+      }
+    }
+  }
+
+  /* Sources */
+  const maxSources=(isExpanded||isSolo)?20:5;
+  if(sources.length){
+    body+=`<div class="fc-sources">`;
+    for(const s of sources.slice(0,maxSources)){
+      body+=`<a class="fc-source-pill" href="${escAttr(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.domain)}</a>`;
+    }
+    if(sources.length>maxSources)body+=`<span class="fc-source-more">+${sources.length-maxSources} more</span>`;
+    body+=`</div>`;
+  }
+
+  const headerHTML=`<div class="fc-card-header">`+
+    (title?`<div class="fc-card-title">${esc(title)}</div>`:`<div class="fc-card-title">Forecast ${esc(rowBadge)}</div>`)+
+    (isFailed?`<span class="fc-fail-tag">failed</span>`:"")+
+    `<span class="fc-row-badge">${esc(rowBadge)}</span>`+
+    `</div>`;
+
+  const expandHint=(isSolo||isExpanded||isFailed)?"":`<div class="fc-expand-hint">click to expand</div>`;
+  const cls="fc-card"+(isSolo?" solo":"")+(isExpanded?" expanded":"")+(isFailed?" failed":"");
+  const clickable=(!isSolo&&!isFailed)?'data-clickable="1"':"";
+  return `<div class="${cls}" data-idx="${idx}" ${clickable}>${headerHTML}${body}${expandHint}</div>`;
+}
+
+function renderForecastCards(rows){
+  forecastRows=rows||[];
+  const isSolo=forecastRows.length===1;
+  fcGrid.classList.toggle("solo",isSolo);
+  let html="";
+  if(!forecastRows.length){
+    fcGrid.innerHTML=`<div class="fc-empty">No forecast results.</div>`;
+    fcSum.textContent="No results";
+    return;
+  }
+  for(let i=0;i<forecastRows.length;i++){
+    html+=fcBuildCard(forecastRows[i],i,isSolo,false);
+  }
+  fcGrid.innerHTML=html;
+  fcSum.textContent=forecastRows.length+" forecast"+(forecastRows.length>1?"s":"");
+  /* Wire up CSV download */
+  if(downloadUrl&&pollToken){
+    const csvUrlLocal=downloadUrl+(downloadUrl.includes("?")?"&":"?")+"token="+encodeURIComponent(pollToken);
+    fcExportLink.onclick=()=>{
+      try{app.openLink({target:"_blank",url:csvUrlLocal});}
+      catch{window.open(csvUrlLocal,"_blank");}
+    };
+  }else{
+    fcExportLink.style.display="none";
+  }
+}
+
+/* Click handler: expand/collapse a card. Solo cards are not clickable. */
+fcGrid.addEventListener("click",e=>{
+  const card=e.target.closest(".fc-card");
+  if(!card||card.classList.contains("solo"))return;
+  /* Don't toggle on link clicks (source pills, rationale citations). */
+  if(e.target.closest("a"))return;
+  const idx=parseInt(card.dataset.idx,10);
+  if(isNaN(idx)||!forecastRows[idx])return;
+  const wasExpanded=card.classList.contains("expanded");
+  /* Collapse all others first so the grid doesn't fragment. */
+  fcGrid.querySelectorAll(".fc-card.expanded").forEach(c=>{
+    const i=parseInt(c.dataset.idx,10);
+    if(!isNaN(i)){
+      c.outerHTML=fcBuildCard(forecastRows[i],i,false,false);
+    }
+  });
+  if(!wasExpanded){
+    const fresh=fcGrid.querySelector(`.fc-card[data-idx="${idx}"]`);
+    if(fresh)fresh.outerHTML=fcBuildCard(forecastRows[idx],idx,false,true);
+  }
+});
+
 function enterProgressMode(d){
   progressMode=true;
   document.body.style.height="auto";document.body.style.overflow="visible";document.body.style.padding="0";
@@ -430,12 +1025,20 @@ function enterProgressMode(d){
   tabBar.style.display="flex";
   activityTab.style.display="block";
   resultsTab.style.display="none";
+  forecastTab.style.display="none";
   sessionUrl=d.session_url||sessionUrl;
   if(d.task_id)currentTaskId=d.task_id;
   /* Extract task_id from progress_url as fallback */
   if(!currentTaskId&&d.progress_url){const m=d.progress_url.match(/progress\\/([0-9a-f-]+)/);if(m)currentTaskId=m[1];}
   if(d.poll_token)pollToken=d.poll_token;
   if(d.download_url)downloadUrl=d.download_url;
+  /* Forecast operations get a card grid instead of the table.
+     forecast_type drives bar selection (binary→prob bar, numeric→percentile
+     SVG, date→date percentile SVG). output_field/units are needed by the
+     numeric/date variants. */
+  if(d.task_type==="forecast"&&d.forecast_type){
+    forecastMeta={forecastType:d.forecast_type,outputField:d.output_field||null,units:d.units||null};
+  }
   renderProgress(d);
 }
 

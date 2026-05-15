@@ -304,6 +304,7 @@ async def _submission_ui_json(
     poll_token: str,
     mcp_server_url: str = "",
     session_id: str = "",
+    widget_meta: dict[str, Any] | None = None,
 ) -> str:
     """Build JSON for the session MCP App widget."""
     data: dict[str, Any] = {
@@ -316,6 +317,9 @@ async def _submission_ui_json(
     if mcp_server_url:
         data["progress_url"] = f"{mcp_server_url}/api/progress/{task_id}"
         data["poll_token"] = poll_token
+        data["download_url"] = f"{mcp_server_url}/api/results/{task_id}/download"
+    if widget_meta:
+        data.update(widget_meta)
     return json.dumps(data)
 
 
@@ -339,11 +343,17 @@ async def create_tool_response(
     total: int,
     mcp_server_url: str = "",
     session_id: str = "",
+    widget_meta: dict[str, Any] | None = None,
 ) -> list[TextContent]:
     """Build the standard submission response for a tool.
 
     Returns human-readable text in all modes, plus a widget JSON
     prepended in HTTP mode.
+
+    ``widget_meta`` is forwarded to the widget unchanged. For forecast
+    submissions it carries ``forecast_type``/``output_field``/``units`` so
+    the widget can render forecast cards. Also persisted to Redis so
+    ``futuresearch_status`` can re-issue the same metadata to the widget.
     """
     text = _submission_text(label, task_id, session_id=session_id)
     main_content = TextContent(type="text", text=text)
@@ -353,6 +363,8 @@ async def create_tool_response(
         await _start_headless_summarizer(task_id, token)
     if settings.is_http:
         poll_token = await _record_task_ownership(task_id, token)
+        if widget_meta:
+            await redis_store.store_task_meta(task_id, json.dumps(widget_meta))
         if not is_internal_client():
             ui_json = await _submission_ui_json(
                 task_id=task_id,
@@ -360,6 +372,7 @@ async def create_tool_response(
                 poll_token=poll_token,
                 mcp_server_url=mcp_server_url,
                 session_id=session_id,
+                widget_meta=widget_meta,
             )
             return [TextContent(type="text", text=ui_json), main_content]
     return [main_content]

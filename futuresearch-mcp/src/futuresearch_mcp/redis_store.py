@@ -206,3 +206,24 @@ async def get_poll_token(task_id: str) -> str | None:
     if encrypted is None:
         return None
     return decrypt_value(encrypted)
+
+
+# ── Task metadata (forecast type, output_field, units, …) ─────
+
+
+async def store_task_meta(task_id: str, meta_json: str) -> None:
+    """Store widget metadata for a task as a JSON string.
+
+    Used so that ``futuresearch_status`` can render the right widget
+    variant (e.g. forecast cards) without re-deriving from the original
+    submission params. Not sensitive — stored plain.
+    """
+    await get_redis_client().setex(
+        name=build_key("task_meta", task_id),
+        time=TOKEN_TTL,
+        value=meta_json,
+    )
+
+
+async def get_task_meta(task_id: str) -> str | None:
+    return await get_redis_client().get(build_key("task_meta", task_id))
