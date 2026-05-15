@@ -2,14 +2,13 @@
 #   helm upgrade futuresearch-mcp-staging . -n futuresearch-mcp-staging \
 #     -f values.yaml \
 #     -f values.staging.yaml -f values.secrets.staging.yaml
-#
-# FUTURESEARCH_API_URL is intentionally not overridden — there is no staging API.
-# The MCP server is a frontend to the production FutureSearch API in both environments.
 
 replicaCount: 2
 
 env:
+  FUTURESEARCH_API_URL: "https://engine-staging.futuresearch.ai/api/v0"
   MCP_SERVER_URL: "https://mcp-staging.futuresearch.ai"
+  SUPABASE_URL: "https://jmraczchpxwbrnngyjuf.supabase.co"
   REDIS_DB: "14"
 
 httproute:
