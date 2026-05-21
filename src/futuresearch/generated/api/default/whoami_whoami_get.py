@@ -5,7 +5,7 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.whoami_whoami_get_response_whoami_whoami_get import WhoamiWhoamiGetResponseWhoamiWhoamiGet
+from ...models.whoami_response import WhoamiResponse
 from ...types import Response
 
 
@@ -18,11 +18,9 @@ def _get_kwargs() -> dict[str, Any]:
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> WhoamiWhoamiGetResponseWhoamiWhoamiGet | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> WhoamiResponse | None:
     if response.status_code == 200:
-        response_200 = WhoamiWhoamiGetResponseWhoamiWhoamiGet.from_dict(response.json())
+        response_200 = WhoamiResponse.from_dict(response.json())
 
         return response_200
 
@@ -32,9 +30,7 @@ def _parse_response(
         return None
 
 
-def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[WhoamiWhoamiGetResponseWhoamiWhoamiGet]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[WhoamiResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -46,7 +42,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[WhoamiWhoamiGetResponseWhoamiWhoamiGet]:
+) -> Response[WhoamiResponse]:
     """Whoami
 
      Return the authenticated user's information.
@@ -56,7 +52,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[WhoamiWhoamiGetResponseWhoamiWhoamiGet]
+        Response[WhoamiResponse]
     """
 
     kwargs = _get_kwargs()
@@ -71,7 +67,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-) -> WhoamiWhoamiGetResponseWhoamiWhoamiGet | None:
+) -> WhoamiResponse | None:
     """Whoami
 
      Return the authenticated user's information.
@@ -81,7 +77,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        WhoamiWhoamiGetResponseWhoamiWhoamiGet
+        WhoamiResponse
     """
 
     return sync_detailed(
@@ -92,7 +88,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-) -> Response[WhoamiWhoamiGetResponseWhoamiWhoamiGet]:
+) -> Response[WhoamiResponse]:
     """Whoami
 
      Return the authenticated user's information.
@@ -102,7 +98,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[WhoamiWhoamiGetResponseWhoamiWhoamiGet]
+        Response[WhoamiResponse]
     """
 
     kwargs = _get_kwargs()
@@ -115,7 +111,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-) -> WhoamiWhoamiGetResponseWhoamiWhoamiGet | None:
+) -> WhoamiResponse | None:
     """Whoami
 
      Return the authenticated user's information.
@@ -125,7 +121,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        WhoamiWhoamiGetResponseWhoamiWhoamiGet
+        WhoamiResponse
     """
 
     return (

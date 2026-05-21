@@ -86,8 +86,10 @@ from .upload_data_artifacts_upload_post_json_body_data_type_0_item import (
 from .upload_data_artifacts_upload_post_json_body_data_type_1 import UploadDataArtifactsUploadPostJsonBodyDataType1
 from .use_built_in_list_request import UseBuiltInListRequest
 from .use_built_in_list_response import UseBuiltInListResponse
+from .user_base import UserBase
+from .user_base_auth_method import UserBaseAuthMethod
 from .validation_error import ValidationError
-from .whoami_whoami_get_response_whoami_whoami_get import WhoamiWhoamiGetResponseWhoamiWhoamiGet
+from .whoami_response import WhoamiResponse
 
 __all__ = (
     "AgentMapOperation",
@@ -174,6 +176,8 @@ __all__ = (
     "UploadDataArtifactsUploadPostJsonBodyDataType1",
     "UseBuiltInListRequest",
     "UseBuiltInListResponse",
+    "UserBase",
+    "UserBaseAuthMethod",
     "ValidationError",
-    "WhoamiWhoamiGetResponseWhoamiWhoamiGet",
+    "WhoamiResponse",
 )
