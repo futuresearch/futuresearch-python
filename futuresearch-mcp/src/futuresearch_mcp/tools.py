@@ -377,6 +377,10 @@ async def futuresearch_multi_agent(
     `response_schema` defines the OUTPUT STRUCTURE for the synthesized result.
     If omitted, results default to a single {"answer": string} field.
 
+    `return_table=True` MUST be set when the task asks for a list of items
+    (e.g. "find 15 AI startups in healthcare"). In that case `response_schema`
+    must describe a single item; the server emits one output row per item.
+
     This function submits the task and returns immediately with a task_id.
     Then immediately follow the instructions in the response to monitor progress.
     """
@@ -408,6 +412,7 @@ async def futuresearch_multi_agent(
             kwargs["effort_level"] = (
                 params.effort_level.value if params.effort_level else "medium"
             )
+            kwargs["return_list"] = params.return_table
 
             submitted = await _submit_multi_agent(**kwargs)
             task_id = str(submitted.task_id)

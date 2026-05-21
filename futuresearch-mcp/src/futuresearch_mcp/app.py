@@ -92,8 +92,9 @@ Otherwise, help them find one:
 Call with no filters to see all available lists. Many analyses start from one of these.
 2. **URLs** — upload from a URL or Google Sheet via `futuresearch_upload_data`.
 3. **From memory** — if you know a good starting list, generate it as inline `data`.
-4. **single_agent** — dispatch a research agent to find or build a list. \
-Works well but slow (3-5 min), so prefer the options above. \
+4. **single_agent / multi_agent** — dispatch research agents to find or build a list. \
+Works well but slow (3-5 min), so prefer the options above. Use `multi_agent` when \
+completeness matters (multiple agents on different slices give much better recall). \
 When generating a list, always set `return_table=True` and provide a `response_schema` \
 defining the fields per item — otherwise results come back as a single text string.
 

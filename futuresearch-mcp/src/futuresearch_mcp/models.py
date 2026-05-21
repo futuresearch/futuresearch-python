@@ -783,6 +783,12 @@ class MultiAgentInput(_SingleSourceInput):
         description="Controls the number of parallel direction agents: "
         '"low" (3 agents), "medium" (4 agents), "high" (6 agents).',
     )
+    return_table: bool = Field(
+        default=False,
+        description="MUST be true when the task asks for a list of items (e.g. 'find 15 startups', "
+        "'list all X'). Pair with response_schema describing a single item to define the fields per item. "
+        "If false (default), returns one synthesized row per input row.",
+    )
 
     @field_validator("response_schema")
     @classmethod

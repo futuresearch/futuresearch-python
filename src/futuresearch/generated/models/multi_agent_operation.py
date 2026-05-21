@@ -38,6 +38,8 @@ class MultiAgentOperation:
         effort_level (None | PublicEffortLevel | Unset): Controls the number of parallel direction agents: low (3
             agents), medium (4 agents), high (6 agents). Default: PublicEffortLevel.MEDIUM.
         join_with_input (bool | Unset): If True, merge the synthesized output with the input row. Default: True.
+        return_list (bool | Unset): If True, treat each row's synthesized output as a list of records and emit one
+            output row per item (with an `_expand_index` column). Default: False.
     """
 
     input_: list[MultiAgentOperationInputType1Item] | MultiAgentOperationInputType2 | UUID
@@ -48,6 +50,7 @@ class MultiAgentOperation:
     response_schema: MultiAgentOperationResponseSchemaType0 | None | Unset = UNSET
     effort_level: None | PublicEffortLevel | Unset = PublicEffortLevel.MEDIUM
     join_with_input: bool | Unset = True
+    return_list: bool | Unset = False
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -108,6 +111,8 @@ class MultiAgentOperation:
 
         join_with_input = self.join_with_input
 
+        return_list = self.return_list
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -128,6 +133,8 @@ class MultiAgentOperation:
             field_dict["effort_level"] = effort_level
         if join_with_input is not UNSET:
             field_dict["join_with_input"] = join_with_input
+        if return_list is not UNSET:
+            field_dict["return_list"] = return_list
 
         return field_dict
 
@@ -252,6 +259,8 @@ class MultiAgentOperation:
 
         join_with_input = d.pop("join_with_input", UNSET)
 
+        return_list = d.pop("return_list", UNSET)
+
         multi_agent_operation = cls(
             input_=input_,
             task=task,
@@ -261,6 +270,7 @@ class MultiAgentOperation:
             response_schema=response_schema,
             effort_level=effort_level,
             join_with_input=join_with_input,
+            return_list=return_list,
         )
 
         multi_agent_operation.additional_properties = d

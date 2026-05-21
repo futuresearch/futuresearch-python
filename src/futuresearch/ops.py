@@ -1087,6 +1087,7 @@ async def multi_agent(
     effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
+    return_list: bool = False,
 ) -> TableResult:
     """Run multiple AI agents in parallel on different research angles, then synthesize.
 
@@ -1105,6 +1106,10 @@ async def multi_agent(
         response_schema: JSON Schema for the synthesized output. If not provided,
             defaults to ``{answer: string}``.
         join_with_input: If True, merge output with input row. Default: True.
+        return_list: If True, treat each row's synthesized output as a list of
+            records and emit one output row per item. The ``response_schema``
+            should describe a single item; the worker wraps it in a list
+            automatically. Default: False.
 
     Returns:
         TableResult with synthesized output columns added to each input row.
@@ -1119,6 +1124,7 @@ async def multi_agent(
                 effort_level=effort_level,
                 response_schema=response_schema,
                 join_with_input=join_with_input,
+                return_list=return_list,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -1132,6 +1138,7 @@ async def multi_agent(
         effort_level=effort_level,
         response_schema=response_schema,
         join_with_input=join_with_input,
+        return_list=return_list,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -1148,6 +1155,7 @@ async def _submit_multi_agent(
     effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
+    return_list: bool = False,
 ) -> SubmittedTask:
     """Submit a multi-agent task and return task/session IDs (for MCP use)."""
     input_data = _prepare_table_input(input, MultiAgentOperationInputType1Item)
@@ -1162,6 +1170,7 @@ async def _submit_multi_agent(
         session_id=session.session_id,
         effort_level=PublicEffortLevel(effort_level),
         join_with_input=join_with_input,
+        return_list=return_list,
     )
 
     response = await _call_and_check(
@@ -1181,6 +1190,7 @@ async def multi_agent_async(
     effort_level: EffortLevel = EffortLevel.MEDIUM,
     response_schema: dict[str, Any] | None = None,
     join_with_input: bool = True,
+    return_list: bool = False,
 ) -> EveryrowTask[BaseModel]:
     """Submit a multi-agent task asynchronously.
 
@@ -1192,6 +1202,7 @@ async def multi_agent_async(
         effort_level: ``"low"`` (3 agents), ``"medium"`` (4), ``"high"`` (6).
         response_schema: JSON Schema for the synthesized output.
         join_with_input: If True, merge output with input row.
+        return_list: If True, emit one output row per synthesized item.
 
     Returns:
         EveryrowTask that resolves to a TableResult.
@@ -1204,10 +1215,11 @@ async def multi_agent_async(
         effort_level=effort_level,
         response_schema=response_schema,
         join_with_input=join_with_input,
+        return_list=return_list,
     )
 
     cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
-        response_model=BaseModel, is_map=True, is_expand=False
+        response_model=BaseModel, is_map=True, is_expand=return_list
     )
     cohort_task.set_submitted(submitted.task_id, submitted.session_id, session.client)
     return cohort_task
