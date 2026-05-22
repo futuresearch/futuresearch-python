@@ -23,7 +23,6 @@ from futuresearch_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    SingleAgentInput,
     StdioResultsInput,
     UploadDataInput,
 )
@@ -35,7 +34,6 @@ from futuresearch_mcp.tools import (
     futuresearch_progress,
     futuresearch_rank,
     futuresearch_results_stdio,
-    futuresearch_single_agent,
     futuresearch_upload_data,
 )
 from tests.conftest import make_test_context
@@ -329,102 +327,6 @@ class TestAgentIntegration:
         assert len(output_df) == 2
         # Should have research results
         assert "headquarters" in output_df.columns or "answer" in output_df.columns
-
-
-class TestSingleAgentIntegration:
-    """Integration tests for the single agent tool."""
-
-    @pytest.mark.asyncio
-    async def test_single_agent_basic(
-        self,
-        real_ctx,
-        tmp_path: Path,
-    ):
-        """Test single agent researching one question."""
-        # 1. Submit the task
-        params = SingleAgentInput(
-            task="Find the current CEO and headquarters city of this company.",
-            input_data={"company": "Anthropic"},
-            response_schema={
-                "properties": {
-                    "ceo": {
-                        "type": "string",
-                        "description": "Name of the current CEO",
-                    },
-                    "headquarters": {
-                        "type": "string",
-                        "description": "City where HQ is located",
-                    },
-                },
-                "required": ["ceo", "headquarters"],
-            },
-        )
-
-        result = await futuresearch_single_agent(params, real_ctx)
-        assert_stdio_clean(result, tool_name="futuresearch_single_agent")
-        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
-        submit_text = result[0].text
-        print(f"\nSubmit result: {submit_text}")
-
-        task_id = extract_task_id(submit_text)
-
-        # 2. Poll until complete
-        await poll_until_complete(task_id, real_ctx)
-
-        # 3. Retrieve results
-        output_file = tmp_path / "single_agent_result.csv"
-        results = await futuresearch_results_stdio(
-            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
-        )
-        assert_stdio_clean(results, tool_name="futuresearch_results")
-        print(f"Results: {results[0].text}")
-
-        # 4. Verify output
-        assert output_file.exists()
-        output_df = pd.read_csv(output_file)
-        print("\nSingle agent result:")
-        print(output_df)
-
-        assert len(output_df) == 1
-        assert "ceo" in output_df.columns or "answer" in output_df.columns
-
-    @pytest.mark.asyncio
-    async def test_single_agent_no_input_data(
-        self,
-        real_ctx,
-        tmp_path: Path,
-    ):
-        """Test single agent with no input_data (pure question)."""
-        params = SingleAgentInput(
-            task="What is the current market cap of Apple Inc?",
-        )
-
-        result = await futuresearch_single_agent(params, real_ctx)
-        assert_stdio_clean(result, tool_name="futuresearch_single_agent")
-        assert len(result) == 1, f"Stdio should return 1 item, got {len(result)}"
-        submit_text = result[0].text
-        print(f"\nSubmit result: {submit_text}")
-
-        task_id = extract_task_id(submit_text)
-
-        # 2. Poll until complete
-        await poll_until_complete(task_id, real_ctx)
-
-        # 3. Retrieve results
-        output_file = tmp_path / "single_agent_no_input.csv"
-        results = await futuresearch_results_stdio(
-            StdioResultsInput(task_id=task_id, output_path=str(output_file)), real_ctx
-        )
-        assert_stdio_clean(results, tool_name="futuresearch_results")
-        print(f"Results: {results[0].text}")
-
-        # 4. Verify output
-        assert output_file.exists()
-        output_df = pd.read_csv(output_file)
-        print("\nSingle agent (no input) result:")
-        print(output_df)
-
-        assert len(output_df) == 1
 
 
 class TestArtifactReuseIntegration:

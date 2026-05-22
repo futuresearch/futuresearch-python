@@ -50,7 +50,6 @@ from futuresearch_mcp.models import (
     MergeInput,
     ProgressInput,
     RankInput,
-    SingleAgentInput,
     StdioResultsInput,
 )
 from futuresearch_mcp.redis_store import Transport, _get_fernet
@@ -62,7 +61,6 @@ from futuresearch_mcp.tools import (
     futuresearch_progress,
     futuresearch_rank,
     futuresearch_results_stdio,
-    futuresearch_single_agent,
 )
 from tests.conftest import make_test_context
 
@@ -238,21 +236,6 @@ class TestStdioSubmissionContent:
         text = result[0].text
         assert str(task.task_id) in text
         assert "futuresearch_progress" in text
-
-    @pytest.mark.asyncio
-    async def test_single_agent_content(self):
-        task, _session, _client, ctx, *patches = _submit_patches(
-            "futuresearch_mcp.tools._submit_single_agent"
-        )
-        with patches[0], patches[1]:
-            result = await futuresearch_single_agent(
-                SingleAgentInput(task="Find CEO of Apple"), ctx
-            )
-
-        assert len(result) == 1
-        assert_stdio_clean(result, tool_name="futuresearch_single_agent")
-        text = result[0].text
-        assert str(task.task_id) in text
 
     @pytest.mark.asyncio
     async def test_rank_content(self):
@@ -753,69 +736,3 @@ class TestStdioMcpIntegration:
             assert len(df) == 1
             print(f"  Results: {results.content[0].text}")
             print(f"  Output columns: {list(df.columns)}")
-
-    @pytest.mark.asyncio
-    async def test_single_agent_pipeline_stdio_clean(
-        self, _real_stdio_client, tmp_path
-    ):
-        """Single agent: submit → poll → results. Every response must be stdio-clean."""
-        async with _stdio_mcp_client(_real_stdio_client) as session:
-            # ── Submit ──
-            submit = await session.call_tool(
-                "futuresearch_single_agent",
-                {
-                    "params": {
-                        "task": "What city is Anthropic headquartered in?",
-                    }
-                },
-            )
-
-            assert not submit.isError
-            _assert_mcp_result_clean(submit, tool_name="single_agent submit")
-            assert len(submit.content) == 1
-            assert isinstance(submit.content[0], TextContent)
-            task_id = _extract_task_id(submit.content[0].text)
-            print(f"\n  Submitted single_agent: {task_id}")
-
-            # ── Poll ──
-            for poll_num in range(30):
-                progress = await session.call_tool(
-                    "futuresearch_progress",
-                    {"params": {"task_id": task_id}},
-                )
-
-                assert not progress.isError
-                _assert_mcp_result_clean(
-                    progress, tool_name=f"single_agent progress (poll {poll_num})"
-                )
-                assert len(progress.content) == 1
-
-                assert isinstance(progress.content[0], TextContent)
-                text = progress.content[0].text
-                print(f"  Progress: {text.splitlines()[0]}")
-
-                if "futuresearch_results" in text:
-                    break
-                if "failed" in text.lower() or "revoked" in text.lower():
-                    pytest.fail(f"Task failed: {text}")
-            else:
-                pytest.fail("Single agent task did not complete within 30 polls")
-
-            # ── Results ──
-            output_file = tmp_path / "single_agent_output.csv"
-            results = await session.call_tool(
-                "futuresearch_results",
-                {
-                    "params": {
-                        "task_id": task_id,
-                        "output_path": str(output_file),
-                    }
-                },
-            )
-
-            assert not results.isError
-            _assert_mcp_result_clean(results, tool_name="single_agent results")
-            assert len(results.content) == 1
-            assert isinstance(results.content[0], TextContent)
-            assert output_file.exists()
-            print(f"  Results: {results.content[0].text}")

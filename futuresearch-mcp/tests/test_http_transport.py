@@ -215,7 +215,6 @@ class TestMcpHttpBasics:
                 [
                     "futuresearch_agent",
                     "futuresearch_classify",
-                    "futuresearch_single_agent",
                     "futuresearch_rank",
                     "futuresearch_dedupe",
                     "futuresearch_merge",

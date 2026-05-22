@@ -2,7 +2,7 @@
 
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from uuid import UUID
 
 import pandas as pd
@@ -97,6 +97,11 @@ def _validate_session_id(v: str | None) -> str | None:
 class _SingleSourceInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
+    # Subclasses can opt in to empty `data=[]` for the "generate from
+    # nothing" use case (multi_agent, agent). Strict-by-default keeps
+    # dedupe/rank/classify/forecast from accepting meaningless empty input.
+    _allow_empty_data: ClassVar[bool] = False
+
     artifact_id: str | None = Field(
         default=None,
         description="Artifact ID (UUID) from upload_data or request_upload_url.",
@@ -135,13 +140,28 @@ class _SingleSourceInput(BaseModel):
         cls, v: list[dict[str, Any]] | None
     ) -> list[dict[str, Any]] | None:
         if v is not None:
-            if len(v) == 0:
+            if len(v) == 0 and not cls._allow_empty_data:
                 raise ValueError("Inline data must not be empty.")
             if len(v) > settings.max_inline_rows:
                 raise ValueError(
                     f"Inline data has {len(v)} rows (max {settings.max_inline_rows})"
                 )
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_empty_data_when_allowed(cls, values: Any) -> Any:
+        """For agent / multi_agent (opt-in via `_allow_empty_data`), let
+        callers omit both `artifact_id` and `data` entirely and treat that
+        as `data=[]` — the "generate from nothing" use case where the
+        agent works from the task alone."""
+        if not cls._allow_empty_data:
+            return values
+        if not isinstance(values, dict):
+            return values
+        if values.get("artifact_id") is None and values.get("data") is None:
+            return {**values, "data": []}
+        return values
 
     @model_validator(mode="after")
     def check_input_source(self):
@@ -171,6 +191,7 @@ class AgentInput(_SingleSourceInput):
     """Input for the agent operation."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    _allow_empty_data: ClassVar[bool] = True
 
     task: str = Field(
         ..., description="Natural language task to perform on each row.", min_length=1
@@ -203,6 +224,14 @@ class AgentInput(_SingleSourceInput):
     enforce_row_independence: bool = Field(
         default=False,
         description="If true, run each row's agent independently without sharing context across rows.",
+    )
+    return_table: bool = Field(
+        default=False,
+        description="MUST be true when the per-row task asks for a list of items (e.g. "
+        "'for each company, list its top 5 products'). Pair with response_schema describing "
+        "a single item to define the fields per item. The output table will have one row "
+        "per generated item (with an `_expand_index` column) instead of one per input row. "
+        "If false (default), returns one result row per input row.",
     )
 
     @field_validator("response_schema")
@@ -514,75 +543,6 @@ class UploadDataInput(BaseModel):
         return _validate_session_id(v)
 
 
-class SingleAgentInput(BaseModel):
-    """Input for a single agent operation (no CSV)."""
-
-    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
-
-    task: str = Field(
-        ...,
-        description="Natural language task for the agent to perform.",
-        min_length=1,
-    )
-    input_data: dict[str, Any] | None = Field(
-        default=None,
-        description="Optional context in the form of a JSON object (e.g. {'company': 'Acme', 'url': 'acme.com'}).",
-    )
-    response_schema: dict[str, Any] | None = Field(
-        default=None,
-        description="JSON schema for the agent response. Required when return_table=True "
-        "to define the fields for each item in the list. If omitted, results default to "
-        'a single {"answer": string} field.',
-    )
-    effort_level: EffortLevel | None = Field(
-        default=EffortLevel.MEDIUM,
-        description='Effort preset controlling cost/quality tradeoff: "low" (fast, cheap), '
-        '"medium" (default), "high" (thorough, expensive). '
-        "Set to null to use custom llm/iteration_budget/include_reasoning instead.",
-    )
-    llm: LLMEnumPublic | None = Field(
-        default=None,
-        description="Specific LLM to use (e.g. CLAUDE_4_6_SONNET_MEDIUM). "
-        "Only used when effort_level is null.",
-    )
-    iteration_budget: int | None = Field(
-        default=None,
-        description="Max agent iterations (0-20). Only used when effort_level is null.",
-        ge=0,
-        le=20,
-    )
-    include_reasoning: bool | None = Field(
-        default=None,
-        description="Include reasoning notes in output. Only used when effort_level is null.",
-    )
-    return_table: bool = Field(
-        default=False,
-        description="MUST be true when the task asks for a list of items (e.g. 'find 15 startups', "
-        "'list all X'). Always pair with response_schema to define the fields per item. "
-        "If false (default), returns a single result row.",
-    )
-    session_id: str | None = Field(
-        default=None,
-        description="Session ID (UUID) to add to an existing session. If session_name is also provided, the session is renamed.",
-    )
-    session_name: str | None = Field(
-        default=None,
-        description="Human-readable name for a new session. If session_id is also provided, renames the existing session.",
-    )
-
-    @field_validator("response_schema")
-    @classmethod
-    def validate_response_schema(
-        cls, v: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
-        return _validate_response_schema(v)
-
-    @field_validator("session_id")
-    @classmethod
-    def validate_session_id(cls, v: str | None) -> str | None:
-        return _validate_session_id(v)
-
-
 def _validate_task_id(v: str) -> str:
     """Validate task_id is a valid UUID."""
     try:
@@ -759,6 +719,7 @@ class MultiAgentInput(_SingleSourceInput):
     """Deep parallel research: multiple agents investigate different angles, then synthesize."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    _allow_empty_data: ClassVar[bool] = True
 
     task: str = Field(
         ...,

@@ -61,10 +61,6 @@
       "description": "Classify each row of a dataset into one of the provided categories."
     },
     {
-      "name": "futuresearch_single_agent",
-      "description": "Run a single web research agent on a task, optionally with context data."
-    },
-    {
       "name": "futuresearch_progress",
       "description": "Check progress of a running task. Blocks briefly to limit the polling rate."
     },

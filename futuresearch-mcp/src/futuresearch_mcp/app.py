@@ -92,11 +92,12 @@ Otherwise, help them find one:
 Call with no filters to see all available lists. Many analyses start from one of these.
 2. **URLs** — upload from a URL or Google Sheet via `futuresearch_upload_data`.
 3. **From memory** — if you know a good starting list, generate it as inline `data`.
-4. **single_agent / multi_agent** — dispatch research agents to find or build a list. \
-Works well but slow (3-5 min), so prefer the options above. Use `multi_agent` when \
-completeness matters (multiple agents on different slices give much better recall). \
-When generating a list, always set `return_table=True` and provide a `response_schema` \
-defining the fields per item — otherwise results come back as a single text string.
+4. **multi_agent** — dispatch parallel research agents (3-6, by `effort_level`) on \
+different angles, then synthesize. Slow (3-5 min) so prefer the options above. \
+**To generate a list from nothing, pass `data=[]` (empty list), set `return_table=True`, \
+and provide a `response_schema` defining the fields per item.** Without these, results \
+come back as a single text string. For one-shot enrichment of existing rows, use \
+`futuresearch_agent` (one agent per row).
 
 ## Choosing the right operation
 
@@ -110,9 +111,9 @@ Pass `response_schema` for multi-field output (see below). Don't add reasoning/j
 users can inspect the research behind each row.
 5. **Dedupe / Merge** — data consolidation.
 
-## Specifying the response schema (Agent, Rank, Single Agent)
+## Specifying the response schema (Agent, Multi-Agent, Rank)
 
-Agent, Rank, and Single Agent accept a `response_schema` parameter. If omitted, results \
+Agent, Multi-Agent, and Rank accept a `response_schema` parameter. If omitted, results \
 default to a single `{{"answer": string}}` field. Pass it whenever you need typed or \
 multi-field output. The schema is a JSON Schema object:
 

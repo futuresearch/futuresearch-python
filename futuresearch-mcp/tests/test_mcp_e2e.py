@@ -173,7 +173,6 @@ class TestMcpProtocol:
                     "futuresearch_progress",
                     "futuresearch_rank",
                     "futuresearch_results",
-                    "futuresearch_single_agent",
                     "futuresearch_status",
                     "futuresearch_task_cost",
                     "futuresearch_upload_data",

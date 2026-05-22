@@ -20,7 +20,6 @@ from futuresearch.ops import (
     _submit_agent_map,
     _submit_multi_agent,
     _submit_rank,
-    _submit_single_agent,
     classify_async,
     create_table_artifact,
     dedupe_async,
@@ -28,9 +27,8 @@ from futuresearch.ops import (
     merge_async,
 )
 from futuresearch.session import list_sessions
-from futuresearch.task import cancel_task, get_task_cost
+from futuresearch.task import EffortLevel, cancel_task, get_task_cost
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, create_model
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.app import mcp
@@ -49,7 +47,6 @@ from futuresearch_mcp.models import (
     MultiAgentInput,
     ProgressInput,
     RankInput,
-    SingleAgentInput,
     StdioResultsInput,
     TaskCostInput,
     UploadDataInput,
@@ -299,6 +296,7 @@ async def futuresearch_agent(
                 "session": session,
                 "input": input_data,
                 "enforce_row_independence": params.enforce_row_independence,
+                "return_table": params.return_table,
             }
             if params.response_schema:
                 kwargs["response_schema"] = params.response_schema
@@ -355,15 +353,15 @@ async def futuresearch_multi_agent(
 ) -> list[TextContent]:
     """Deep parallel research: deploys multiple agents on different angles, then synthesizes.
 
-    Use this instead of futuresearch_single_agent when either (a) completeness
-    matters — you're trying to find all items matching a criteria (e.g. "all AI
-    startups in Europe") and a single agent will have poor recall, or (b) depth
-    matters — the answer benefits from parallel investigation across genuinely
-    distinct angles (sources, geographies, methodologies) that a single agent
-    would weight unevenly. For list-generation tasks especially, directing agents
-    at different slices (by region, by vertical, by time period) dramatically
-    improves coverage before synthesizing. Works on a single question or across
-    many rows of a dataset.
+    Use this when either (a) completeness matters — you're trying to find all
+    items matching a criteria (e.g. "all AI startups in Europe") and a single
+    agent would have poor recall, or (b) depth matters — the answer benefits
+    from parallel investigation across genuinely distinct angles (sources,
+    geographies, methodologies) that one agent would weight unevenly. For
+    list-generation tasks especially, directing agents at different slices
+    (by region, by vertical, by time period) dramatically improves coverage
+    before synthesizing. Works on an empty input (generate a list from
+    nothing), a single question, or across many rows of a dataset.
 
     Each input row is researched by several direction agents in parallel (3-6
     depending on effort_level), each exploring a different angle. Their findings
@@ -409,9 +407,7 @@ async def futuresearch_multi_agent(
                 kwargs["directions"] = params.directions
             if params.response_schema:
                 kwargs["response_schema"] = params.response_schema
-            kwargs["effort_level"] = (
-                params.effort_level.value if params.effort_level else "medium"
-            )
+            kwargs["effort_level"] = params.effort_level or EffortLevel.MEDIUM
             kwargs["return_list"] = params.return_table
 
             submitted = await _submit_multi_agent(**kwargs)
@@ -441,109 +437,6 @@ async def futuresearch_multi_agent(
         return [
             TextContent(
                 type="text", text="Unexpected error submitting multi-agent task."
-            )
-        ]
-
-
-@mcp.tool(
-    name="futuresearch_single_agent",
-    structured_output=False,
-    annotations=ToolAnnotations(
-        title="Run a Single Research Agent",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=True,
-    ),
-)
-async def futuresearch_single_agent(
-    params: SingleAgentInput, ctx: FuturesearchContext
-) -> list[TextContent]:
-    """Run a single web research agent on a task, optionally with context data.
-
-    Unlike futuresearch_agent (which processes many CSV rows), this dispatches ONE agent
-    to research a single question. The agent can search the web, read pages, and
-    return structured results.
-
-    `task` describes WHAT to research in natural language. `response_schema`
-    defines the OUTPUT STRUCTURE as a JSON Schema. If omitted, results default
-    to a single {"answer": string} field. Pass it whenever you need typed or
-    multi-field output. Do NOT describe desired output columns only in `task`
-    — the schema is what controls the output structure.
-
-    **For list generation:** When the task asks for a list of items, set
-    `return_table=True` and provide a `response_schema` defining the fields
-    for each item. This returns a multi-row table instead of a single text blob.
-
-    Examples:
-    - "Find the current CEO of Apple and their background"
-    - "Research the latest funding round for this company" (with input_data: {"company": "Stripe"})
-    - "What are the pricing tiers for this product?" (with input_data: {"product": "Snowflake"})
-    - "Find 15 AI startups in healthcare" (with return_table=True and response_schema:
-      {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"},
-       "url": {"type": "string"}}, "required": ["name", "description"]})
-
-    This function submits the task and returns immediately with a task_id.
-
-    Then immediately follow the instructions in the response to monitor progress.
-    """
-    logger.info("futuresearch_single_agent: task=%.80s", params.task)
-    log_client_info(ctx, "futuresearch_single_agent")
-    client = _get_client(ctx)
-
-    # Convert input_data dict to a BaseModel if provided
-    input_model: BaseModel | None = None
-    if params.input_data:
-        fields: dict[str, Any] = {k: (type(v), v) for k, v in params.input_data.items()}
-        DynamicInput = create_model("DynamicInput", **fields)  # pyright: ignore[reportArgumentType, reportCallIssue]
-        input_model = DynamicInput()
-
-    try:
-        async with create_linked_session(
-            client=client, session_id=params.session_id, name=params.session_name
-        ) as session:
-            session_id_str = str(session.session_id)
-            kwargs: dict[str, Any] = {
-                "task": params.task,
-                "session": session,
-                "return_table": params.return_table,
-            }
-            if input_model is not None:
-                kwargs["input"] = input_model
-            if params.response_schema:
-                kwargs["response_schema"] = params.response_schema
-            kwargs["effort_level"] = params.effort_level
-            if params.effort_level is None:
-                if params.llm is not None:
-                    kwargs["llm"] = params.llm
-                if params.iteration_budget is not None:
-                    kwargs["iteration_budget"] = params.iteration_budget
-                if params.include_reasoning is not None:
-                    kwargs["include_reasoning"] = params.include_reasoning
-            submitted = await _submit_single_agent(**kwargs)
-            task_id = str(submitted.task_id)
-
-        return await create_tool_response(
-            task_id=task_id,
-            label="Submitted: single agent starting.",
-            token=client.token,
-            total=1,
-            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-            session_id=session_id_str,
-        )
-    except FuturesearchError as e:
-        logger.warning(f"futuresearch_single_agent failed: {e!r}")
-        return [
-            TextContent(
-                type="text",
-                text=format_sdk_error(e, doing="submitting single-agent task"),
-            )
-        ]
-    except Exception:
-        logger.exception("futuresearch_single_agent failed")
-        return [
-            TextContent(
-                type="text", text="Unexpected error submitting single-agent task."
             )
         ]
 

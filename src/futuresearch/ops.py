@@ -1,4 +1,5 @@
 import json
+import warnings
 from typing import Any, Literal, NamedTuple, TypeVar, overload
 from uuid import UUID
 
@@ -158,7 +159,15 @@ async def create_table_artifact(
     )
 
 
-# --- Single Agent ---
+# --- Single Agent (DEPRECATED) ---
+
+_SINGLE_AGENT_DEPRECATION = (
+    "futuresearch.single_agent is deprecated and will be removed in a future "
+    "release. Use futuresearch.agent_map (one task per row, optionally with "
+    "return_list=True) or futuresearch.multi_agent (parallel agents synthesized "
+    "per row) instead. Both accept an empty input list to generate output from "
+    "the task alone."
+)
 
 
 @overload
@@ -202,6 +211,12 @@ async def single_agent[T: BaseModel](
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
 
+    .. deprecated::
+        Will be removed in a future release. Use :func:`agent_map` (one task
+        per row, optionally with ``return_list=True``) or :func:`multi_agent`
+        (parallel agents synthesized per row) instead. Both accept an empty
+        input list to generate output from the task alone.
+
     Args:
         task: Instructions for the AI agent to execute.
         session: Optional session. If not provided, one will be created automatically.
@@ -217,6 +232,7 @@ async def single_agent[T: BaseModel](
     Returns:
         ScalarResult or TableResult depending on return_table parameter.
     """
+    warnings.warn(_SINGLE_AGENT_DEPRECATION, DeprecationWarning, stacklevel=2)
     if session is None:
         async with create_session() as internal_session:
             cohort_task = await single_agent_async(
@@ -296,7 +312,12 @@ async def single_agent_async[T: BaseModel](
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
 ) -> EveryrowTask[T]:
-    """Submit a single_agent task asynchronously."""
+    """Submit a single_agent task asynchronously.
+
+    .. deprecated::
+        See :func:`single_agent` — same deprecation applies.
+    """
+    warnings.warn(_SINGLE_AGENT_DEPRECATION, DeprecationWarning, stacklevel=2)
     submitted = await _submit_single_agent(
         task=task,
         session=session,

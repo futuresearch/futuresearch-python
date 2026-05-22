@@ -50,9 +50,9 @@ from futuresearch_mcp.models import (
     HttpResultsInput,
     ListSessionsInput,
     MergeInput,
+    MultiAgentInput,
     ProgressInput,
     RankInput,
-    SingleAgentInput,
     StdioResultsInput,
     UploadDataInput,
     UseListInput,
@@ -65,7 +65,6 @@ from futuresearch_mcp.tools import (
     futuresearch_progress,
     futuresearch_results_http,
     futuresearch_results_stdio,
-    futuresearch_single_agent,
     futuresearch_upload_data,
     futuresearch_use_list,
 )
@@ -360,131 +359,6 @@ class TestAgent:
         assert "Fix the request" in text
 
 
-class TestSingleAgent:
-    """Tests for futuresearch_single_agent."""
-
-    @pytest.mark.asyncio
-    async def test_submit_returns_task_id(self):
-        """Test that submit returns immediately with task_id."""
-        mock_task = _make_mock_task()
-        mock_session = _make_mock_session()
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        with (
-            patch(
-                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
-            ) as mock_op,
-            patch(
-                "futuresearch_mcp.tools.create_linked_session",
-                return_value=_make_async_context_manager(mock_session),
-            ),
-        ):
-            mock_op.return_value = mock_task
-
-            params = SingleAgentInput(
-                task="Find the current CEO of Apple",
-            )
-            result = await futuresearch_single_agent(params, ctx)
-            text = result[0].text
-
-            assert str(mock_task.task_id) in text
-            assert "Session ID:" in text
-            assert "futuresearch_progress" in text
-            assert "single agent" in text
-
-    @pytest.mark.asyncio
-    async def test_submit_with_input_data(self):
-        """Test that input_data is converted to a dynamic model."""
-        mock_task = _make_mock_task()
-        mock_session = _make_mock_session()
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-
-        with (
-            patch(
-                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
-            ) as mock_op,
-            patch(
-                "futuresearch_mcp.tools.create_linked_session",
-                return_value=_make_async_context_manager(mock_session),
-            ),
-        ):
-            mock_op.return_value = mock_task
-
-            params = SingleAgentInput(
-                task="Research this company's funding",
-                input_data={"company": "Stripe", "url": "stripe.com"},
-            )
-            result = await futuresearch_single_agent(params, ctx)
-            text = result[0].text
-
-            assert str(mock_task.task_id) in text
-
-            # Verify _submit_single_agent was called with an input model
-            call_kwargs = mock_op.call_args[1]
-            assert "input" in call_kwargs
-            input_model = call_kwargs["input"]
-            assert input_model.company == "Stripe"
-            assert input_model.url == "stripe.com"
-
-    @pytest.mark.asyncio
-    async def test_submit_with_response_schema(self):
-        """Test that response_schema dict is passed through to _submit_single_agent."""
-        mock_session = _make_mock_session()
-        mock_client = _make_mock_client()
-        ctx = make_test_context(mock_client)
-        mock_submitted = MagicMock()
-        mock_submitted.task_id = uuid4()
-
-        schema = {
-            "type": "object",
-            "properties": {
-                "funding_round": {
-                    "type": "string",
-                    "description": "Latest funding round",
-                },
-            },
-            "required": ["funding_round"],
-        }
-
-        with (
-            patch(
-                "futuresearch_mcp.tools._submit_single_agent", new_callable=AsyncMock
-            ) as mock_op,
-            patch(
-                "futuresearch_mcp.tools.create_linked_session",
-                return_value=_make_async_context_manager(mock_session),
-            ),
-        ):
-            mock_op.return_value = mock_submitted
-
-            params = SingleAgentInput(task="Find funding info", response_schema=schema)
-            result = await futuresearch_single_agent(params, ctx)
-            text = result[0].text
-
-            assert str(mock_submitted.task_id) in text
-
-            # Verify the raw schema dict was passed through without conversion
-            call_kwargs = mock_op.call_args[1]
-            assert call_kwargs["response_schema"] == schema
-
-    def test_input_rejects_empty_task(self):
-        """Test that SingleAgentInput rejects an empty task."""
-        with pytest.raises(ValidationError):
-            SingleAgentInput(task="")
-
-    def test_input_rejects_invalid_response_schema(self):
-        """Test that SingleAgentInput validates response_schema."""
-        with pytest.raises(
-            ValidationError, match="must include a non-empty top-level 'properties'"
-        ):
-            SingleAgentInput(
-                task="test",
-                response_schema={},
-            )
-
-
 class TestProgress:
     """Tests for futuresearch_progress."""
 
@@ -636,8 +510,8 @@ class TestResults:
         assert list(output_df.columns) == ["name", "answer"]
 
     @pytest.mark.asyncio
-    async def test_results_scalar_single_agent(self, tmp_path: Path):
-        """Test results handles scalar (single_agent) response as single-row dict."""
+    async def test_results_scalar_response(self, tmp_path: Path):
+        """Test results handles a scalar (single-dict) engine response as a 1-row CSV."""
         task_id = str(uuid4())
         mock_client = _make_mock_client()
         ctx = make_test_context(mock_client)
@@ -1106,11 +980,6 @@ class TestAgentInlineInput:
 class TestAgentInputValidation:
     """Tests for AgentInput model validation with inline data."""
 
-    def test_requires_one_input_source(self):
-        """Test that no input source raises."""
-        with pytest.raises(ValidationError, match="Provide exactly one of"):
-            AgentInput(task="test")
-
     def test_rejects_both_input_sources(self):
         """Test that providing both raises."""
         with pytest.raises(ValidationError, match="Provide exactly one of"):
@@ -1136,6 +1005,42 @@ class TestAgentInputValidation:
         params = AgentInput(task="test", data=records)
         assert params.data == records
         assert params.artifact_id is None
+
+    def test_accepts_empty_data_for_generate_from_nothing(self):
+        """data=[] is allowed for agent / multi_agent so the engine can
+        run the task once with no row context (generate a list from
+        nothing). Engine-side normalization turns [] into [{}]."""
+        params = AgentInput(task="list 5 AI startups", data=[])
+        assert params.data == []
+
+    def test_accepts_no_input_at_all_for_generate_from_nothing(self):
+        """Callers can omit both artifact_id and data — same "generate
+        from nothing" use case, just with a more ergonomic signature."""
+        params = AgentInput(task="list 5 AI startups")
+        assert params.data == []
+        assert params.artifact_id is None
+
+    def test_dedupe_rejects_empty_data(self):
+        """Operations that need rows to operate on still reject empty data."""
+        with pytest.raises(ValidationError, match="must not be empty"):
+            DedupeInput(equivalence_relation="same name", data=[])
+
+    def test_dedupe_still_requires_a_source(self):
+        """Strict-by-default operations still reject missing input."""
+        with pytest.raises(ValidationError, match="Provide exactly one of"):
+            DedupeInput(equivalence_relation="same name")
+
+    def test_return_table_defaults_false(self):
+        params = AgentInput(task="test", data=[{"a": "b"}])
+        assert params.return_table is False
+
+    def test_return_table_accepts_true(self):
+        """Per-row list expansion: each input row → N output rows. Useful
+        for cheap list-generation tasks where multi_agent would be overkill."""
+        params = AgentInput(
+            task="list top 5 products", data=[{"company": "Acme"}], return_table=True
+        )
+        assert params.return_table is True
 
     def test_effort_level_defaults_to_medium(self):
         """AgentInput defaults effort_level to medium."""
@@ -1192,6 +1097,38 @@ class TestAgentInputValidation:
             llm=LLMEnumPublic.CLAUDE_4_6_SONNET_MEDIUM,
         )
         assert params.llm == LLMEnumPublic.CLAUDE_4_6_SONNET_MEDIUM
+
+
+class TestMultiAgentInputValidation:
+    """Tests for MultiAgentInput validation. multi_agent shares the
+    `_allow_empty_data` opt-in with agent_map, so the "generate from
+    nothing" path (empty / omitted input) must be accepted here too —
+    that's the case the user actually hit."""
+
+    def test_accepts_data_json_list(self):
+        records = [{"company": "Acme"}, {"company": "Beta"}]
+        params = MultiAgentInput(task="research these", data=records)
+        assert params.data == records
+
+    def test_accepts_empty_data_for_generate_from_nothing(self):
+        params = MultiAgentInput(task="list 5 AI startups", data=[])
+        assert params.data == []
+
+    def test_accepts_no_input_at_all_for_generate_from_nothing(self):
+        """Caller omits both artifact_id and data entirely — engine
+        normalization handles the empty path. This is the actual shape
+        the everyrow-cc agent ends up sending."""
+        params = MultiAgentInput(task="list 5 AI startups")
+        assert params.data == []
+        assert params.artifact_id is None
+
+    def test_rejects_both_input_sources(self):
+        with pytest.raises(ValidationError, match="Provide exactly one of"):
+            MultiAgentInput(
+                task="test",
+                artifact_id=str(uuid4()),
+                data=[{"a": "b"}],
+            )
 
 
 class TestUploadData:
@@ -1672,37 +1609,6 @@ class TestSessionParams:
             task="match",
             left_data=[{"a": 1}],
             right_data=[{"b": 2}],
-            session_id=sid,
-            session_name="also-provided",
-        )
-        assert params.session_id == sid
-        assert params.session_name == "also-provided"
-
-    def test_single_agent_accepts_session_id(self):
-        params = SingleAgentInput(task="test", session_id=str(uuid4()))
-        assert params.session_id is not None
-
-    def test_single_agent_effort_level_defaults_to_medium(self):
-        params = SingleAgentInput(task="test")
-        assert params.effort_level == "medium"
-
-    def test_single_agent_accepts_custom_params(self):
-        params = SingleAgentInput(
-            task="test",
-            effort_level=None,
-            llm=LLMEnumPublic.GPT_5_HIGH,
-            iteration_budget=5,
-            include_reasoning=True,
-        )
-        assert params.effort_level is None
-        assert params.llm == LLMEnumPublic.GPT_5_HIGH
-        assert params.iteration_budget == 5
-        assert params.include_reasoning is True
-
-    def test_single_agent_accepts_both_session_params(self):
-        sid = str(uuid4())
-        params = SingleAgentInput(
-            task="test",
             session_id=sid,
             session_name="also-provided",
         )
