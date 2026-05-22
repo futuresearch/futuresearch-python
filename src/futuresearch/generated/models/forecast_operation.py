@@ -36,8 +36,7 @@ class ForecastOperation:
         units (None | str | Unset): Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). Required when
             forecast_type is 'numeric'.
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
-            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH' for single-question forecasts
-            and 'LOW' for multi-question forecasts.
+            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID

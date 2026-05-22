@@ -907,8 +907,7 @@ async def forecast(
         session: Optional session. If not provided, one will be created automatically.
         forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
             percentile estimates, ``"date"`` for date percentile estimates.
-        effort_level: affects accuracy and cost of forecast. Default: high for single
-            questions, low for multiple questions.
+        effort_level: affects accuracy and cost of forecast. Default: high.
         output_field: Name of the quantity being forecast (required for numeric
             and date, e.g. ``"price"``, ``"launch_date"``).
         units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
@@ -965,8 +964,7 @@ async def forecast_async(
         input: Input data.
         forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for
             percentile estimates, ``"date"`` for date percentile estimates.
-        effort_level: affects accuracy and cost of forecast. Default: high for single
-            questions, low for multiple questions.
+        effort_level: affects accuracy and cost of forecast. Default: high.
         output_field: Name of the quantity (required for numeric and date).
         units: Units for numeric forecasts (required for numeric).
 

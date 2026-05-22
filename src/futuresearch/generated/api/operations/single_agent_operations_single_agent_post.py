@@ -75,9 +75,14 @@ def sync_detailed(
     body: SingleAgentOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Single AI research agent
+    """Single AI research agent (deprecated)
 
-     Run a single AI agent to perform research and generate a response.
+     **DEPRECATED.** Will be removed in a future release.
+    Use `/operations/agent-map` (one task per row, optionally with `return_list=True`)
+    or `/operations/multi-agent` (parallel agents synthesized per row) instead.
+    Both accept an empty `input` list to generate output from the task alone.
+
+    Run a single AI agent to perform research and generate a response.
 
     **Configuration options** (mutually exclusive):
 
@@ -123,9 +128,14 @@ def sync(
     body: SingleAgentOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Single AI research agent
+    """Single AI research agent (deprecated)
 
-     Run a single AI agent to perform research and generate a response.
+     **DEPRECATED.** Will be removed in a future release.
+    Use `/operations/agent-map` (one task per row, optionally with `return_list=True`)
+    or `/operations/multi-agent` (parallel agents synthesized per row) instead.
+    Both accept an empty `input` list to generate output from the task alone.
+
+    Run a single AI agent to perform research and generate a response.
 
     **Configuration options** (mutually exclusive):
 
@@ -166,9 +176,14 @@ async def asyncio_detailed(
     body: SingleAgentOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Single AI research agent
+    """Single AI research agent (deprecated)
 
-     Run a single AI agent to perform research and generate a response.
+     **DEPRECATED.** Will be removed in a future release.
+    Use `/operations/agent-map` (one task per row, optionally with `return_list=True`)
+    or `/operations/multi-agent` (parallel agents synthesized per row) instead.
+    Both accept an empty `input` list to generate output from the task alone.
+
+    Run a single AI agent to perform research and generate a response.
 
     **Configuration options** (mutually exclusive):
 
@@ -212,9 +227,14 @@ async def asyncio(
     body: SingleAgentOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Single AI research agent
+    """Single AI research agent (deprecated)
 
-     Run a single AI agent to perform research and generate a response.
+     **DEPRECATED.** Will be removed in a future release.
+    Use `/operations/agent-map` (one task per row, optionally with `return_list=True`)
+    or `/operations/multi-agent` (parallel agents synthesized per row) instead.
+    Both accept an empty `input` list to generate output from the task alone.
+
+    Run a single AI agent to perform research and generate a response.
 
     **Configuration options** (mutually exclusive):
 

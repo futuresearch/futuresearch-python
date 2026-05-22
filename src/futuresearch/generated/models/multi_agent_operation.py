@@ -39,7 +39,8 @@ class MultiAgentOperation:
             agents), medium (4 agents), high (6 agents). Default: PublicEffortLevel.MEDIUM.
         join_with_input (bool | Unset): If True, merge the synthesized output with the input row. Default: True.
         return_list (bool | Unset): If True, treat each row's synthesized output as a list of records and emit one
-            output row per item (with an `_expand_index` column). Default: False.
+            output row per item (with an `_expand_index` column). The `response_schema` should describe a single item; the
+            worker wraps it in a list automatically. Do not pre-wrap your schema. Default: False.
     """
 
     input_: list[MultiAgentOperationInputType1Item] | MultiAgentOperationInputType2 | UUID
