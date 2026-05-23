@@ -21,6 +21,7 @@ class UserBase:
         disabled (bool):
         auth_method (UserBaseAuthMethod):
         is_admin (bool):
+        account_id (str):
     """
 
     id: str
@@ -28,6 +29,7 @@ class UserBase:
     disabled: bool
     auth_method: UserBaseAuthMethod
     is_admin: bool
+    account_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,6 +44,8 @@ class UserBase:
 
         is_admin = self.is_admin
 
+        account_id = self.account_id
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -51,6 +55,7 @@ class UserBase:
                 "disabled": disabled,
                 "auth_method": auth_method,
                 "is_admin": is_admin,
+                "account_id": account_id,
             }
         )
 
@@ -74,12 +79,15 @@ class UserBase:
 
         is_admin = d.pop("is_admin")
 
+        account_id = d.pop("account_id")
+
         user_base = cls(
             id=id,
             email=email,
             disabled=disabled,
             auth_method=auth_method,
             is_admin=is_admin,
+            account_id=account_id,
         )
 
         user_base.additional_properties = d
