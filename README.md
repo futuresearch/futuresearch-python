@@ -1,17 +1,20 @@
-![futuresearch-diagram](https://github.com/user-attachments/assets/8b746b6c-2acb-4591-9328-daebdb472f50)
-
 # FutureSearch Python SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/futuresearch.svg)](https://pypi.org/project/futuresearch/)
-[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=claude&logoColor=fff)](#claude-code)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[PyPI version](https://pypi.org/project/futuresearch/)
+[License: MIT](https://opensource.org/licenses/MIT)
+[Python 3.12+](https://www.python.org/downloads/)
 
-Deploy a team of researchers to forecast, score, classify, or gather data. Use yourself in the [app](https://futuresearch.ai/app), or give your team of researchers to your AI wherever you use it ([Claude.ai](https://futuresearch.ai/docs/claude-ai), [Claude Cowork](https://futuresearch.ai/docs/claude-cowork), [Claude Code](https://futuresearch.ai/docs/claude-code), or [Gemini/Codex/other AI surfaces](https://futuresearch.ai/docs/)), or point them to this [Python SDK](https://futuresearch.ai/docs/getting-started).
+<p align="center">
+  <img src="images/team-dispatch.svg" alt="FutureSearch dispatches a pool of web research agents that search, forecast, and synthesize answers" width="760">
+</p>
 
-Requires Google sign in, no credit card required.
+An API for forecasting and multi-agent research.
 
-## Quick installation steps:
+FutureSearch provides endpoints that use web research agents at scale, for higher accuracy than web search or single agent approaches alone can achieve. `forecast` runs a team of forecasters to predict future dates, numbers, and probabilities. `multi_agent` orchestrates multiple researchers to answer one question. `agent_map` runs one research agent over every row of a dataset, scaling to thousands of rows and agents.
+
+Try it yourself in the [app](https://futuresearch.ai/app), or give advanced forecasting and multi-agent capabilities to your AI wherever you use it ([Claude.ai](https://futuresearch.ai/docs/claude-ai), [Claude Cowork](https://futuresearch.ai/docs/claude-cowork), [Claude Code](https://futuresearch.ai/docs/claude-code), or [Gemini/Codex/other AI surfaces](https://futuresearch.ai/docs/)), or point them to this [Python SDK](https://futuresearch.ai/docs/getting-started).
+
+## Installation
 
 Claude.ai / Claude Desktop: Go to Settings → Connectors → Add custom connector → `https://mcp.futuresearch.ai/mcp`
 
@@ -23,82 +26,73 @@ claude mcp add futuresearch --scope project --transport http https://mcp.futures
 
 Then sign in with Google.
 
-## Operations
+## Endpoints
 
-Spin up a team of:
-
-| Role | What it does | Cost | Scales To |
-| ---- | ------------ | ---- | --------- |
-| [**Agents**](https://futuresearch.ai/docs/reference/RESEARCH)       | Research, then analyze     | 1–3¢/researcher    | 10k rows |
-| [**Forecasters**](https://futuresearch.ai/docs/reference/FORECAST)  | Predict outcomes           | 20-50¢/researcher  | 10k rows |
-| [**Scorers**](https://futuresearch.ai/docs/reference/RANK)          | Research, then score       | 1-5¢/researcher    | 10k rows |
-| [**Classifiers**](https://futuresearch.ai/docs/reference/CLASSIFY)  | Research, then categorize  | 0.1-0.7¢/researcher | 10k rows |
-| [**Matchers**](https://futuresearch.ai/docs/reference/MERGE)        | Find matching rows         | 0.2-0.5¢/researcher | 20k rows |
+| Role                                                                     | What it does                                | Cost      | Scales To |
+| ------------------------------------------------------------------------ | ------------------------------------------- | --------- | --------- |
+| **[forecast()](https://futuresearch.ai/docs/reference/FORECAST)**        | Predict outcomes                            | 50¢-1.20¢ | 1k rows   |
+| **[multi_agent()](https://futuresearch.ai/docs/reference/MULTIAGENT)**   | A team of researchers per for each question | $0.30-$2  | 1k rows   |
+| **[agent_map()](https://futuresearch.ai/docs/reference/RESEARCH)**       | One researcher per row of a dataset         | 1–11¢     | 10k rows  |
+| **[rank()](https://futuresearch.ai/docs/reference/RANK)**                | Research, then score                        | 1-5¢      | 10k rows  |
+| **[classify()](https://futuresearch.ai/docs/reference/CLASSIFY)**        | Research, then categorize                   | 0.1-0.7¢  | 10k rows  |
+| **[dedupe() and merge()](https://futuresearch.ai/docs/reference/MERGE)** | Find matching rows                          | 0.2-0.5¢  | 20k rows  |
 
 See the full [API reference](https://futuresearch.ai/docs/api), [guides](https://futuresearch.ai/docs/guides), and [case studies](https://futuresearch.ai/docs/case-studies), (for example, see our [case study](https://futuresearch.ai/docs/case-studies/llm-web-research-agents-at-scale) running a `Research` task on 10k rows, running agents that used 120k LLM calls.)
 
 Or just ask Claude in your interface of choice:
 
 ```
-Label this 5,000 row CSV with the right categories.
+Find every startup selling training data and evals to frontier AI labs.
 ```
 
 ```
-Find the rows in this 10,000 row pandas dataframe that represent good opportunities.
+Take this 10,000-row CSV of drugs and find the FDA regulatory status of each.
 ```
 
 ```
-Rank these 2,000 people from Wikipedia on who is the most bullish on AI.
+Forecast which of these 500 cancer drug trials are most likely to succeed.
 ```
 
 ---
 
-## Web Agents
-
-The base operation is `agent_map`: one web research agent per row. The other operations (rank, classify, forecast, merge, dedupe) use the agents under the hood as necessary. Agents are tuned on [Deep Research Bench](https://arxiv.org/abs/2506.06287), our benchmark for questions that need extensive searching and cross-referencing, and tuned to get correct answers at minimal cost.
-
-Under the hood, Claude will:
+## SDK Examples
 
 ```python
-from futuresearch.ops import single_agent, agent_map
+from futuresearch.ops import forecast, agent_map, multi_agent
 from pandas import DataFrame
-from pydantic import BaseModel
 
-class CompanyInput(BaseModel):
-    company: str
-
-# Single input, run one web research agent
-result = await single_agent(
-    task="Find this company's latest funding round and lead investors",
-    input=CompanyInput(company="Anthropic"),
+# A team of forecasters: research each question, then predict
+result = await forecast(
+    input=DataFrame([
+        {"question": "When will Anthropic IPO?"},
+        {"question": "When will OpenAI IPO?"},
+    ]),
+    forecast_type="date",
 )
 print(result.data.head())
 
-# Map input, run a set of web research agents in parallel
+# One web research agent per row, in parallel
 result = await agent_map(
     task="Find this company's latest funding round and lead investors",
     input=DataFrame([
         {"company": "Anthropic"},
         {"company": "OpenAI"},
         {"company": "Mistral"},
+        # ... 100 more rows
     ]),
 )
 print(result.data.head())
 
-# Same map, but each agent emits a list of records that fan out into extra rows
-# (one row per item, with an `_expand_index` column).
-result = await agent_map(
-    task="List this company's top 5 products",
-    input=DataFrame([
-        {"company": "Anthropic"},
-        {"company": "OpenAI"},
-    ]),
-    return_table=True,
+# A team of agents on one question; return_list emits one row per item
+result = await multi_agent(
+    task="List the most-funded AI infrastructure startups founded since 2023",
+    input=DataFrame(),
+    return_list=True,
 )
 print(result.data.head())
 ```
 
-See the API [docs](https://futuresearch.ai/docs/reference/RESEARCH), a case study of [labeling data](https://futuresearch.ai/docs/classify-dataframe-rows-llm) or a case study for [researching government data](https://futuresearch.ai/docs/case-studies/research-and-rank-permit-times) at scale.
+See the API [docs](https://futuresearch.ai/docs/reference/RESEARCH). Agents are tuned on [Deep Research Bench, Bench To the Future, on prediction markets, and in the stock market.](https://evals.futuresearch.ai/).
 
 ## Sessions
 
@@ -265,7 +259,7 @@ uv run basedpyright                                    # type check
 
 Built by [FutureSearch](https://futuresearch.ai).
 
-[futuresearch.ai](https://futuresearch.ai) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/)
+[futuresearch.ai](https://futuresearch.ai) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/) · [evals](https://evals.futuresearch.ai/)
 
 **Citing FutureSearch:** If you use this software in your research, please cite it using the metadata in [CITATION.cff](CITATION.cff) or the BibTeX below:
 
