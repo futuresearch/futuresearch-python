@@ -12,9 +12,13 @@ from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.agent_map_operation_input_type_1_item import AgentMapOperationInputType1Item
+    from ..models.agent_map_operation_input_type_1_item import (
+        AgentMapOperationInputType1Item,
+    )
     from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
-    from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+    from ..models.agent_map_operation_response_schema_type_0 import (
+        AgentMapOperationResponseSchemaType0,
+    )
 
 
 T = TypeVar("T", bound="AgentMapOperation")
@@ -54,6 +58,9 @@ class AgentMapOperation:
         return_list (bool | Unset): If True, treat each row's agent output as a list of records and emit one output row
             per item (with an `_expand_index` column). The `response_schema` should describe a single item; the worker wraps
             it in a list automatically. Do not pre-wrap your schema. Default: False.
+        extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
+            agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
+            task prompt.
     """
 
     input_: AgentMapOperationInputType2 | list[AgentMapOperationInputType1Item] | UUID
@@ -70,10 +77,13 @@ class AgentMapOperation:
     enforce_row_independence: bool | Unset = False
     document_query_llm: LLMEnumPublic | None | Unset = UNSET
     return_list: bool | Unset = False
+    extra_notification_text: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+        from ..models.agent_map_operation_response_schema_type_0 import (
+            AgentMapOperationResponseSchemaType0,
+        )
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
@@ -159,6 +169,12 @@ class AgentMapOperation:
 
         return_list = self.return_list
 
+        extra_notification_text: None | str | Unset
+        if isinstance(self.extra_notification_text, Unset):
+            extra_notification_text = UNSET
+        else:
+            extra_notification_text = self.extra_notification_text
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -191,14 +207,22 @@ class AgentMapOperation:
             field_dict["document_query_llm"] = document_query_llm
         if return_list is not UNSET:
             field_dict["return_list"] = return_list
+        if extra_notification_text is not UNSET:
+            field_dict["extra_notification_text"] = extra_notification_text
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.agent_map_operation_input_type_1_item import AgentMapOperationInputType1Item
-        from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
-        from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+        from ..models.agent_map_operation_input_type_1_item import (
+            AgentMapOperationInputType1Item,
+        )
+        from ..models.agent_map_operation_input_type_2 import (
+            AgentMapOperationInputType2,
+        )
+        from ..models.agent_map_operation_response_schema_type_0 import (
+            AgentMapOperationResponseSchemaType0,
+        )
 
         d = dict(src_dict)
 
@@ -361,6 +385,17 @@ class AgentMapOperation:
 
         return_list = d.pop("return_list", UNSET)
 
+        def _parse_extra_notification_text(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        extra_notification_text = _parse_extra_notification_text(
+            d.pop("extra_notification_text", UNSET)
+        )
+
         agent_map_operation = cls(
             input_=input_,
             task=task,
@@ -376,6 +411,7 @@ class AgentMapOperation:
             enforce_row_independence=enforce_row_independence,
             document_query_llm=document_query_llm,
             return_list=return_list,
+            extra_notification_text=extra_notification_text,
         )
 
         agent_map_operation.additional_properties = d

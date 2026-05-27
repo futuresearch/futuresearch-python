@@ -181,6 +181,7 @@ async def single_agent[T: BaseModel](
     include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: Literal[False] = False,
+    extra_notification_text: str | None = None,
 ) -> ScalarResult[T]: ...
 
 
@@ -195,6 +196,7 @@ async def single_agent(
     include_reasoning: bool | None = None,
     response_model: type[BaseModel] = DefaultAgentResponse,
     return_table: Literal[True] = True,
+    extra_notification_text: str | None = None,
 ) -> TableResult: ...
 
 
@@ -208,6 +210,7 @@ async def single_agent[T: BaseModel](
     include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
 
@@ -228,6 +231,9 @@ async def single_agent[T: BaseModel](
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
         return_table: If True, return a TableResult instead of ScalarResult.
+        extra_notification_text: Optional text appended to every inter-iteration
+            notification the agent receives. Useful for nudging behavior across all
+            steps (e.g. a premortem reminder) without changing the task prompt.
 
     Returns:
         ScalarResult or TableResult depending on return_table parameter.
@@ -245,6 +251,7 @@ async def single_agent[T: BaseModel](
                 include_reasoning=include_reasoning,
                 response_model=response_model,
                 return_table=return_table,
+                extra_notification_text=extra_notification_text,
             )
             return await cohort_task.await_result()
     cohort_task = await single_agent_async(
@@ -257,6 +264,7 @@ async def single_agent[T: BaseModel](
         include_reasoning=include_reasoning,
         response_model=response_model,
         return_table=return_table,
+        extra_notification_text=extra_notification_text,
     )
     return await cohort_task.await_result()
 
@@ -271,6 +279,7 @@ async def _submit_single_agent(
     include_reasoning: bool | None = None,
     response_schema: dict | None = None,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> SubmittedTask:
     """Build and submit a single_agent request."""
     input_data = _prepare_single_input(
@@ -291,6 +300,9 @@ async def _submit_single_agent(
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
         include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         return_list=return_table,
+        extra_notification_text=extra_notification_text
+        if extra_notification_text is not None
+        else UNSET,
     )
 
     response = await _call_and_check(
@@ -311,6 +323,7 @@ async def single_agent_async[T: BaseModel](
     include_reasoning: bool | None = None,
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> EveryrowTask[T]:
     """Submit a single_agent task asynchronously.
 
@@ -328,6 +341,7 @@ async def single_agent_async[T: BaseModel](
         include_reasoning=include_reasoning,
         response_schema=response_model.model_json_schema(),
         return_table=return_table,
+        extra_notification_text=extra_notification_text,
     )
 
     cohort_task: EveryrowTask[T] = EveryrowTask(
@@ -352,6 +366,7 @@ async def agent_map(
     response_model: type[BaseModel] = DefaultAgentResponse,
     document_query_llm: LLM | None = None,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> TableResult:
     """Execute an AI agent task on each row of the input table.
 
@@ -370,6 +385,9 @@ async def agent_map(
         return_table: If True, each per-row agent emits a list of records and the result table
             contains one row per item (with an ``_expand_index`` column). Output rows can exceed
             input rows. Default: False (one output row per input row).
+        extra_notification_text: Optional text appended to every inter-iteration notification the
+            agent receives. Useful for nudging behavior across all steps (e.g. a premortem
+            reminder) without changing the task prompt.
 
     Returns:
         TableResult containing the agent results merged with input rows.
@@ -390,6 +408,7 @@ async def agent_map(
                 response_model=response_model,
                 document_query_llm=document_query_llm,
                 return_table=return_table,
+                extra_notification_text=extra_notification_text,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -407,6 +426,7 @@ async def agent_map(
         response_model=response_model,
         document_query_llm=document_query_llm,
         return_table=return_table,
+        extra_notification_text=extra_notification_text,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
@@ -426,6 +446,7 @@ async def _submit_agent_map(
     response_schema: dict | None = None,
     document_query_llm: LLM | None = None,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> SubmittedTask:
     """Build and submit an agent_map request."""
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
@@ -449,6 +470,9 @@ async def _submit_agent_map(
         if document_query_llm is not None
         else UNSET,
         return_list=return_table,
+        extra_notification_text=extra_notification_text
+        if extra_notification_text is not None
+        else UNSET,
     )
 
     response = await _call_and_check(
@@ -471,6 +495,7 @@ async def agent_map_async(
     response_model: type[BaseModel] = DefaultAgentResponse,
     document_query_llm: LLM | None = None,
     return_table: bool = False,
+    extra_notification_text: str | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit an agent_map task asynchronously."""
     submitted = await _submit_agent_map(
@@ -485,6 +510,7 @@ async def agent_map_async(
         response_schema=response_model.model_json_schema(),
         document_query_llm=document_query_llm,
         return_table=return_table,
+        extra_notification_text=extra_notification_text,
     )
 
     cohort_task = EveryrowTask(

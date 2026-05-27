@@ -12,9 +12,15 @@ from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
-    from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
-    from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
+    from ..models.single_agent_operation_input_type_1_item import (
+        SingleAgentOperationInputType1Item,
+    )
+    from ..models.single_agent_operation_input_type_2 import (
+        SingleAgentOperationInputType2,
+    )
+    from ..models.single_agent_operation_response_schema_type_0 import (
+        SingleAgentOperationResponseSchemaType0,
+    )
 
 
 T = TypeVar("T", bound="SingleAgentOperation")
@@ -44,6 +50,9 @@ class SingleAgentOperation:
             not set.
         include_research (bool | None | Unset): Deprecated: use include_reasoning instead. Include research notes in the
             response. Required when effort_level is not set.
+        extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
+            agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
+            task prompt.
     """
 
     input_: list[SingleAgentOperationInputType1Item] | SingleAgentOperationInputType2 | UUID
@@ -57,10 +66,13 @@ class SingleAgentOperation:
     iteration_budget: int | None | Unset = UNSET
     include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
+    extra_notification_text: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
+        from ..models.single_agent_operation_response_schema_type_0 import (
+            SingleAgentOperationResponseSchemaType0,
+        )
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
@@ -134,6 +146,12 @@ class SingleAgentOperation:
         else:
             include_research = self.include_research
 
+        extra_notification_text: None | str | Unset
+        if isinstance(self.extra_notification_text, Unset):
+            extra_notification_text = UNSET
+        else:
+            extra_notification_text = self.extra_notification_text
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -160,14 +178,22 @@ class SingleAgentOperation:
             field_dict["include_reasoning"] = include_reasoning
         if include_research is not UNSET:
             field_dict["include_research"] = include_research
+        if extra_notification_text is not UNSET:
+            field_dict["extra_notification_text"] = extra_notification_text
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
-        from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
-        from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
+        from ..models.single_agent_operation_input_type_1_item import (
+            SingleAgentOperationInputType1Item,
+        )
+        from ..models.single_agent_operation_input_type_2 import (
+            SingleAgentOperationInputType2,
+        )
+        from ..models.single_agent_operation_response_schema_type_0 import (
+            SingleAgentOperationResponseSchemaType0,
+        )
 
         d = dict(src_dict)
 
@@ -311,6 +337,17 @@ class SingleAgentOperation:
 
         include_research = _parse_include_research(d.pop("include_research", UNSET))
 
+        def _parse_extra_notification_text(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        extra_notification_text = _parse_extra_notification_text(
+            d.pop("extra_notification_text", UNSET)
+        )
+
         single_agent_operation = cls(
             input_=input_,
             task=task,
@@ -323,6 +360,7 @@ class SingleAgentOperation:
             iteration_budget=iteration_budget,
             include_reasoning=include_reasoning,
             include_research=include_research,
+            extra_notification_text=extra_notification_text,
         )
 
         single_agent_operation.additional_properties = d
