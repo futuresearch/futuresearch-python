@@ -79,6 +79,36 @@ Create a branch and commit with message: `Bump SDK version to X.Y.Z`
 
 Version bumps should be in their own PR — do not bundle them with feature or fix changes. The commit message and PR title should be: `Bump SDK version to X.Y.Z`
 
+## Publishing the release
+
+Merging the bump PR does NOT publish. The publish pipeline lives in the
+public `futuresearch/futuresearch-python` repo's `.github/workflows/publish.yaml`
+and triggers on `release: published` only. After the bump PR merges:
+
+1. Wait for `sync-futuresearch-python` to mirror the bump commit to the public
+   repo (verify with `gh api repos/futuresearch/futuresearch-python/commits/main --jq '.commit.message'`).
+2. Create a GitHub Release with tag `vX.Y.Z` (note the `v` prefix) and the
+   auto-generated changelog:
+
+   ```bash
+   gh release create vX.Y.Z \
+     --repo futuresearch/futuresearch-python \
+     --generate-notes \
+     --latest
+   ```
+
+3. This kicks off `publish.yaml`, which:
+   - Builds and uploads 4 wheels to PyPI (`futuresearch`, `futuresearch-mcp`,
+     `everyrow`, `everyrow-mcp`)
+   - Builds and attaches the `.mcpb` bundle to the release
+   - Publishes to the MCP Registry (waits 30s for PyPI propagation first)
+
+4. Watch the run:
+
+   ```bash
+   gh run list --repo futuresearch/futuresearch-python --workflow=publish.yaml --limit 1
+   ```
+
 ## Checklist
 
 - [ ] All 11 files updated with new version
@@ -89,3 +119,4 @@ Version bumps should be in their own PR — do not bundle them with feature or f
 - [ ] `uv run pytest tests/test_version.py` passes
 - [ ] `rg --hidden "OLD_VERSION"` shows no unexpected hits
 - [ ] PR contains only version bump changes (no other features or fixes)
+- [ ] After merge + sync: `gh release create vX.Y.Z` in the public repo to trigger PyPI/MCP-Registry publish
