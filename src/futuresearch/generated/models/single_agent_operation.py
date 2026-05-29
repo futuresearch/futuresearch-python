@@ -12,15 +12,9 @@ from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.single_agent_operation_input_type_1_item import (
-        SingleAgentOperationInputType1Item,
-    )
-    from ..models.single_agent_operation_input_type_2 import (
-        SingleAgentOperationInputType2,
-    )
-    from ..models.single_agent_operation_response_schema_type_0 import (
-        SingleAgentOperationResponseSchemaType0,
-    )
+    from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
+    from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
+    from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
 
 
 T = TypeVar("T", bound="SingleAgentOperation")
@@ -70,9 +64,7 @@ class SingleAgentOperation:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.single_agent_operation_response_schema_type_0 import (
-            SingleAgentOperationResponseSchemaType0,
-        )
+        from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
@@ -185,15 +177,9 @@ class SingleAgentOperation:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.single_agent_operation_input_type_1_item import (
-            SingleAgentOperationInputType1Item,
-        )
-        from ..models.single_agent_operation_input_type_2 import (
-            SingleAgentOperationInputType2,
-        )
-        from ..models.single_agent_operation_response_schema_type_0 import (
-            SingleAgentOperationResponseSchemaType0,
-        )
+        from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
+        from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
+        from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
 
         d = dict(src_dict)
 
@@ -344,9 +330,7 @@ class SingleAgentOperation:
                 return data
             return cast(None | str | Unset, data)
 
-        extra_notification_text = _parse_extra_notification_text(
-            d.pop("extra_notification_text", UNSET)
-        )
+        extra_notification_text = _parse_extra_notification_text(d.pop("extra_notification_text", UNSET))
 
         single_agent_operation = cls(
             input_=input_,

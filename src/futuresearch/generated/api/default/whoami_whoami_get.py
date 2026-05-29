@@ -45,7 +45,7 @@ def sync_detailed(
 ) -> Response[WhoamiResponse]:
     """Whoami
 
-     Return the authenticated user's information.
+     Return the authenticated user's information and account memberships.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -70,7 +70,7 @@ def sync(
 ) -> WhoamiResponse | None:
     """Whoami
 
-     Return the authenticated user's information.
+     Return the authenticated user's information and account memberships.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -91,7 +91,7 @@ async def asyncio_detailed(
 ) -> Response[WhoamiResponse]:
     """Whoami
 
-     Return the authenticated user's information.
+     Return the authenticated user's information and account memberships.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -114,7 +114,7 @@ async def asyncio(
 ) -> WhoamiResponse | None:
     """Whoami
 
-     Return the authenticated user's information.
+     Return the authenticated user's information and account memberships.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

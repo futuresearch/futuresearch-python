@@ -7,6 +7,7 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
+    from ..models.account_info import AccountInfo
     from ..models.user_base import UserBase
 
 
@@ -18,19 +19,27 @@ class WhoamiResponse:
     """
     Attributes:
         user (UserBase): Base user model with essential user information.
+        accounts (list[AccountInfo]):
     """
 
     user: UserBase
+    accounts: list[AccountInfo]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         user = self.user.to_dict()
+
+        accounts = []
+        for accounts_item_data in self.accounts:
+            accounts_item = accounts_item_data.to_dict()
+            accounts.append(accounts_item)
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "user": user,
+                "accounts": accounts,
             }
         )
 
@@ -38,13 +47,22 @@ class WhoamiResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.account_info import AccountInfo
         from ..models.user_base import UserBase
 
         d = dict(src_dict)
         user = UserBase.from_dict(d.pop("user"))
 
+        accounts = []
+        _accounts = d.pop("accounts")
+        for accounts_item_data in _accounts:
+            accounts_item = AccountInfo.from_dict(accounts_item_data)
+
+            accounts.append(accounts_item)
+
         whoami_response = cls(
             user=user,
+            accounts=accounts,
         )
 
         whoami_response.additional_properties = d
