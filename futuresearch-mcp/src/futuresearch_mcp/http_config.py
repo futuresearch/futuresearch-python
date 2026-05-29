@@ -196,6 +196,7 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
         with request_context(
             user_agent=request.headers.get("user-agent", ""),
             conversation_id=request.headers.get("x-conversation-id", ""),
+            cohort_account_id=request.headers.get("x-cohort-account-id", ""),
         ):
             start = _time.monotonic()
             response = await call_next(request)

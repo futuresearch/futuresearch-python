@@ -34,7 +34,11 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr, computed_field
 
 from futuresearch_mcp import redis_store
 from futuresearch_mcp.config import settings
-from futuresearch_mcp.request_context import get_conversation_id, get_user_agent
+from futuresearch_mcp.request_context import (
+    get_cohort_account_id,
+    get_conversation_id,
+    get_user_agent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +113,9 @@ def _get_client(ctx: FuturesearchContext) -> AuthenticatedClient:
     conv_id = _get_conversation_id()
     if conv_id:
         extra_headers["x-conversation-id"] = conv_id
+    account_id = get_cohort_account_id()
+    if account_id:
+        extra_headers["x-cohort-account-id"] = account_id
     logger.debug(f"Setting extra headers to {extra_headers}")
     if extra_headers:
         client = client.with_headers(extra_headers)

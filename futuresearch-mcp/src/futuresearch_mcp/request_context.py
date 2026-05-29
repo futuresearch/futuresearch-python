@@ -18,6 +18,10 @@ _conversation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "conversation_id", default=""
 )
 
+_cohort_account_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "cohort_account_id", default=""
+)
+
 
 def get_user_agent() -> str:
     """Return the User-Agent of the current HTTP request (empty in stdio mode)."""
@@ -29,16 +33,24 @@ def get_conversation_id() -> str:
     return _conversation_id_var.get()
 
 
+def get_cohort_account_id() -> str:
+    """Return the X-Cohort-Account-Id of the current HTTP request (empty if absent)."""
+    return _cohort_account_id_var.get()
+
+
 @contextmanager
 def request_context(
     user_agent: str,
     conversation_id: str,
+    cohort_account_id: str,
 ) -> Generator[None]:
     """Set per-request context vars for the duration of the block."""
     ua_token = _user_agent_var.set(user_agent)
     cc_token = _conversation_id_var.set(conversation_id)
+    ca_token = _cohort_account_id_var.set(cohort_account_id)
     try:
         yield
     finally:
         _user_agent_var.reset(ua_token)
         _conversation_id_var.reset(cc_token)
+        _cohort_account_id_var.reset(ca_token)
