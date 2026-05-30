@@ -1517,6 +1517,13 @@ async def futuresearch_balance(ctx: FuturesearchContext) -> list[TextContent]:
             )
         ]
 
+    if response.current_balance_dollars is None:
+        return [
+            TextContent(
+                type="text",
+                text="This account's balance is None",
+            )
+        ]
     logger.info("futuresearch_balance: $%.2f", response.current_balance_dollars)
     return [
         TextContent(

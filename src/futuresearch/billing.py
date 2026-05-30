@@ -10,7 +10,7 @@ from futuresearch.generated.api.billing import get_billing_balance_billing_get
 class BillingResponse:
     """Response containing the user's current billing balance."""
 
-    current_balance_dollars: float
+    current_balance_dollars: float | None
 
 
 async def get_billing_balance() -> BillingResponse:

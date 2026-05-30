@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -13,13 +13,14 @@ T = TypeVar("T", bound="BillingResponse")
 class BillingResponse:
     """
     Attributes:
-        current_balance_dollars (float):
+        current_balance_dollars (float | None):
     """
 
-    current_balance_dollars: float
+    current_balance_dollars: float | None
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        current_balance_dollars: float | None
         current_balance_dollars = self.current_balance_dollars
 
         field_dict: dict[str, Any] = {}
@@ -35,7 +36,13 @@ class BillingResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        current_balance_dollars = d.pop("current_balance_dollars")
+
+        def _parse_current_balance_dollars(data: object) -> float | None:
+            if data is None:
+                return data
+            return cast(float | None, data)
+
+        current_balance_dollars = _parse_current_balance_dollars(d.pop("current_balance_dollars"))
 
         billing_response = cls(
             current_balance_dollars=current_balance_dollars,
