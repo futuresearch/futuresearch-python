@@ -31,6 +31,10 @@ env:
   REDIS_SENTINEL_ENDPOINTS: "redis.utils.svc.cluster.local:26379"
   REDIS_SENTINEL_MASTER_NAME: "mymaster"
   SENTRY_ENVIRONMENT: "production"
+  # Discoverability: claims our listing on Glama.ai (which feeds part of
+  # the awesome-mcp-servers GitHub list) by publishing the maintainer
+  # email at https://mcp.futuresearch.ai/.well-known/glama.json.
+  GLAMA_MAINTAINER_EMAIL: "jack@futuresearch.ai"
 
 httproute:
   host: mcp.futuresearch.ai

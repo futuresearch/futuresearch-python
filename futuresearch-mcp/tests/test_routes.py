@@ -17,10 +17,12 @@ from futuresearch.generated.models.task_status_response import TaskStatusRespons
 from futuresearch.generated.types import Response
 
 from futuresearch_mcp import redis_store
+from futuresearch_mcp.http_config import glama_well_known
 from futuresearch_mcp.routes import (
     _cors_headers,
     api_progress,
 )
+from tests.conftest import override_settings
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -262,3 +264,26 @@ class TestCorsHeaders:
         assert headers["Access-Control-Allow-Origin"] == "*"
         assert headers["Access-Control-Allow-Methods"] == "GET"
         assert headers["Access-Control-Allow-Headers"] == "Authorization"
+
+
+class TestGlamaWellKnown:
+    """Tests for the Glama.ai connector claim endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_returns_claim_body_when_email_configured(self):
+        req = FakeRequest()
+        with override_settings(glama_maintainer_email="jack@futuresearch.ai"):
+            resp = await glama_well_known(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 200
+        body = json.loads(bytes(resp.body).decode())
+        assert body == {
+            "$schema": "https://glama.ai/mcp/schemas/connector.json",
+            "maintainers": [{"email": "jack@futuresearch.ai"}],
+        }
+
+    @pytest.mark.asyncio
+    async def test_returns_404_when_email_empty(self):
+        req = FakeRequest()
+        with override_settings(glama_maintainer_email=""):
+            resp = await glama_well_known(req)  # pyright: ignore[reportArgumentType]
+        assert resp.status_code == 404

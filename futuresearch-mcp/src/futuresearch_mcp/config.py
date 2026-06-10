@@ -127,6 +127,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("FUTURESEARCH_API_KEY", "EVERYROW_API_KEY"),
     )
 
+    # Discoverability: Glama.ai indexes MCP servers and powers part of the
+    # awesome-mcp-servers GitHub list. Publishing this file at
+    # /.well-known/glama.json proves we own the listing so we can claim it.
+    glama_maintainer_email: str = Field(
+        default="",
+        description="Email published at /.well-known/glama.json to claim the "
+        "Glama.ai connector listing. Must match the Glama account email. "
+        "Empty value disables the endpoint (returns 404).",
+    )
+
     @property
     def is_http(self) -> bool:
         return self.transport == "streamable-http"

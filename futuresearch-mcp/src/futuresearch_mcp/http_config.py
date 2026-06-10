@@ -125,6 +125,27 @@ def _register_widgets(
         return UNIFIED_HTML
 
 
+async def glama_well_known(_request: Request) -> Response:
+    """Serve the Glama.ai connector claim file.
+
+    Glama.ai indexes MCP servers and feeds part of the awesome-mcp-servers
+    GitHub list. They verify ownership by fetching this file from the
+    server's own domain, so the route must be public, unauthenticated,
+    and live at the well-known path on the production hostname.
+
+    Returns 404 when no maintainer email is configured so dev/staging
+    deployments don't accidentally publish a claim.
+    """
+    if not settings.glama_maintainer_email:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    return JSONResponse(
+        {
+            "$schema": "https://glama.ai/mcp/schemas/connector.json",
+            "maintainers": [{"email": settings.glama_maintainer_email}],
+        }
+    )
+
+
 def _register_routes(
     mcp: FastMCP,
     redis: Redis,
@@ -147,6 +168,7 @@ def _register_routes(
 
     mcp.custom_route("/health", ["GET"])(_health)
     mcp.custom_route("/api/uploads/{upload_id}", ["PUT"])(proxy_upload)
+    mcp.custom_route("/.well-known/glama.json", ["GET"])(glama_well_known)
 
     if auth_provider is not None:
         mcp.custom_route("/auth/start/{state}", ["GET"])(auth_provider.handle_start)
