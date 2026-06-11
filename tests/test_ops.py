@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 from futuresearch.generated.models import (
     CreateArtifactResponse,
+    ForecastEffortLevel,
+    ForecastType,
     LLMEnumPublic,
     OperationResponse,
     PublicEffortLevel,
@@ -26,6 +28,7 @@ from futuresearch.ops import (
     agent_map,
     create_scalar_artifact,
     create_table_artifact,
+    forecast,
     rank_async,
     single_agent,
 )
@@ -681,3 +684,52 @@ async def test_agent_map_with_custom_params(mocker, mock_session):
     assert body.llm == LLMEnumPublic.GPT_5_MINI
     assert body.iteration_budget == 10
     assert body.include_reasoning is False
+
+
+@pytest.mark.asyncio
+async def test_forecast_with_session_threads_effort_level(mocker, mock_session):
+    """When the caller supplies a session, effort_level must still reach the wire body."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.forecast_operations_forecast_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id,
+        [{"question": "Will it rain tomorrow?", "probability": 60}],
+        artifact_id,
+    )
+
+    input_df = pd.DataFrame([{"question": "Will it rain tomorrow?"}])
+    await forecast(
+        input=input_df,
+        session=mock_session,
+        forecast_type="binary",
+        effort_level=ForecastEffortLevel.HIGH,
+    )
+
+    body = mock_submit.call_args.kwargs["body"]
+    assert body.forecast_type == ForecastType.BINARY
+    assert body.effort_level == ForecastEffortLevel.HIGH

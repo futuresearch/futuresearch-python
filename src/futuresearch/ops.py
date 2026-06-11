@@ -963,6 +963,7 @@ async def forecast(
         session=session,
         input=input,
         forecast_type=forecast_type,
+        effort_level=effort_level,
         output_field=output_field,
         units=units,
     )
