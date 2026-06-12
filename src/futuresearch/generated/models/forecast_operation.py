@@ -35,8 +35,19 @@ class ForecastOperation:
             when forecast_type is 'numeric'. Output columns will be named {output_field}_p10 through {output_field}_p90.
         units (None | str | Unset): Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). Required when
             forecast_type is 'numeric'.
+        categories_field (None | str | Unset): Name of the input column holding each row's candidate outcomes as a JSON
+            array of strings (e.g. ["Labour", "Conservative", "Other"]). Required when forecast_type is 'categorical'. 2-50
+            unique options per row. Options must be mutually exclusive and exhaustive (probabilities sum to exactly 100) —
+            include an explicit 'Other' option when the list doesn't cover every outcome. The output 'probabilities' column
+            holds a JSON object mapping each option to its probability (0-100).
+        thresholds_field (None | str | Unset): Name of the input column holding each row's threshold conditions as a
+            JSON array of numbers or strings, ordered from least strict to most strict (e.g. [80, 90, 100] or ["above $80",
+            "above $90"] or ["before 2027-06", "before 2026-12"]). Required when forecast_type is 'thresholded'. 2-50 unique
+            values per row. The output 'probabilities' column holds a JSON object mapping each condition to the probability
+            (0-100) that it is satisfied.
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
-            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'.
+            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical' and
+            'thresholded' require 'HIGH'.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID
@@ -46,6 +57,8 @@ class ForecastOperation:
     webhook_url: None | str | Unset = UNSET
     output_field: None | str | Unset = UNSET
     units: None | str | Unset = UNSET
+    categories_field: None | str | Unset = UNSET
+    thresholds_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -92,6 +105,18 @@ class ForecastOperation:
         else:
             units = self.units
 
+        categories_field: None | str | Unset
+        if isinstance(self.categories_field, Unset):
+            categories_field = UNSET
+        else:
+            categories_field = self.categories_field
+
+        thresholds_field: None | str | Unset
+        if isinstance(self.thresholds_field, Unset):
+            thresholds_field = UNSET
+        else:
+            thresholds_field = self.thresholds_field
+
         effort_level: None | str | Unset
         if isinstance(self.effort_level, Unset):
             effort_level = UNSET
@@ -117,6 +142,10 @@ class ForecastOperation:
             field_dict["output_field"] = output_field
         if units is not UNSET:
             field_dict["units"] = units
+        if categories_field is not UNSET:
+            field_dict["categories_field"] = categories_field
+        if thresholds_field is not UNSET:
+            field_dict["thresholds_field"] = thresholds_field
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
 
@@ -207,6 +236,24 @@ class ForecastOperation:
 
         units = _parse_units(d.pop("units", UNSET))
 
+        def _parse_categories_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        categories_field = _parse_categories_field(d.pop("categories_field", UNSET))
+
+        def _parse_thresholds_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        thresholds_field = _parse_thresholds_field(d.pop("thresholds_field", UNSET))
+
         def _parse_effort_level(data: object) -> ForecastEffortLevel | None | Unset:
             if data is None:
                 return data
@@ -232,6 +279,8 @@ class ForecastOperation:
             webhook_url=webhook_url,
             output_field=output_field,
             units=units,
+            categories_field=categories_field,
+            thresholds_field=thresholds_field,
             effort_level=effort_level,
         )
 

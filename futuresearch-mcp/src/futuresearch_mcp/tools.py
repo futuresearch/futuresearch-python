@@ -737,7 +737,7 @@ async def futuresearch_forecast(
 ) -> list[TextContent]:
     """Forecast questions about the future using deep research and multi-model ensemble.
 
-    Supports three modes:
+    Supports five modes:
 
     - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
       Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
@@ -751,6 +751,19 @@ async def futuresearch_forecast(
       Requires ``output_field`` (e.g. ``"launch_date"``).
       Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
       (YYYY-MM-DD strings) and ``rationale`` (str).
+
+    - **categorical**: Forecasts one probability per listed outcome (mutually
+      exclusive and exhaustive, summing to 100), e.g. "Who wins: A, B, C or D?".
+      Requires ``categories_field`` naming a column that holds each row's outcomes
+      as a JSON array of strings. High effort only.
+      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
+
+    - **thresholded**: Forecasts one probability per listed threshold condition on
+      a single outcome, e.g. oil above $80 / $90 / $100. Requires
+      ``thresholds_field`` naming a column that holds each row's conditions as a
+      JSON array of numbers or strings, ordered least strict to most strict.
+      High effort only.
+      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
     columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
@@ -788,6 +801,8 @@ async def futuresearch_forecast(
                 effort_level=params.effort_level,
                 output_field=params.output_field,
                 units=params.units,
+                categories_field=params.categories_field,
+                thresholds_field=params.thresholds_field,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
@@ -796,6 +811,10 @@ async def futuresearch_forecast(
             mode_label = "date"
         elif params.forecast_type == "numeric":
             mode_label = "numeric percentile"
+        elif params.forecast_type == "categorical":
+            mode_label = "categorical"
+        elif params.forecast_type == "thresholded":
+            mode_label = "thresholded"
         else:
             mode_label = "probability"
         widget_meta: dict[str, Any] = {
@@ -806,6 +825,10 @@ async def futuresearch_forecast(
             widget_meta["output_field"] = params.output_field
         if params.units:
             widget_meta["units"] = params.units
+        if params.categories_field:
+            widget_meta["categories_field"] = params.categories_field
+        if params.thresholds_field:
+            widget_meta["thresholds_field"] = params.thresholds_field
         return await create_tool_response(
             task_id=task_id,
             # Deliberately no hardcoded researcher/forecaster counts in the label:

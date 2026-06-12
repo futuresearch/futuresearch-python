@@ -449,17 +449,25 @@ class ForecastInput(_SingleSourceInput):
         "(e.g. 'Focus on EU regulatory sources' or 'Assume resolution by end of 2027'). "
         "Leave empty when the rows are self-contained.",
     )
-    forecast_type: Literal["binary", "numeric", "date"] = Field(
+    forecast_type: Literal[
+        "binary", "numeric", "date", "categorical", "thresholded"
+    ] = Field(
         description="Type of forecast. 'binary': yes/no probability (0-100) for questions like "
         "'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like "
         "'What will the price/value/count be?'. 'date': date percentile estimates (p10-p90) "
         "as YYYY-MM-DD strings for timing questions like 'When will X happen?'. "
+        "'categorical': one probability per listed outcome + a single rationale, for "
+        "questions like 'Who will win: A, B, C or D?' (requires categories_field). "
+        "'thresholded': one probability per listed threshold condition + a single "
+        "rationale, for nested conditions on one outcome like 'oil above $80 / $90 "
+        "/ $100' or 'launch before 2027 / 2026' (requires thresholds_field). "
         "Requires output_field when 'numeric' or 'date'.",
     )
     effort_level: ForecastEffortLevel | None = Field(
         default=None,
         description="Effort level for the forecast. 'low' tends to be faster and cheaper. "
-        "'high' tends to be more accurate. When not specified, defaults to 'high'.",
+        "'high' tends to be more accurate. When not specified, defaults to 'high'. "
+        "'categorical' and 'thresholded' require 'high'.",
     )
     output_field: str | None = Field(
         default=None,
@@ -471,6 +479,26 @@ class ForecastInput(_SingleSourceInput):
         default=None,
         description="Units for the numeric forecast (e.g. 'USD per barrel', 'thousands'). "
         "Required when forecast_type is 'numeric'.",
+    )
+    categories_field: str | None = Field(
+        default=None,
+        description="Name of the input column holding each row's candidate outcomes "
+        'as a JSON array of strings (e.g. ["Labour", "Conservative", "Other"]). '
+        "Required when forecast_type is 'categorical'. 2-50 unique options per row. "
+        "Options must be mutually exclusive and exhaustive (probabilities sum to "
+        "exactly 100) — include an explicit 'Other' option when the list doesn't "
+        "cover every outcome. The output 'probabilities' column holds a JSON object "
+        "mapping each option to its probability (0-100).",
+    )
+    thresholds_field: str | None = Field(
+        default=None,
+        description="Name of the input column holding each row's threshold "
+        "conditions as a JSON array of numbers or strings, ordered from least "
+        "strict to most strict (e.g. [80, 90, 100] or "
+        '["above $80", "above $90"] or ["before 2027-06", "before 2026-12"]). '
+        "Required when forecast_type is 'thresholded'. 2-50 unique values per "
+        "row. The output 'probabilities' column holds a JSON object mapping each "
+        "condition to the probability (0-100) that it is satisfied.",
     )
 
 

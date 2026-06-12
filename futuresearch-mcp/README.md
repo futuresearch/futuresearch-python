@@ -119,11 +119,19 @@ Example: Classify companies by GICS sector with categories ["Energy", "Financial
 
 ### futuresearch_forecast
 
-Forecast the probability of binary questions.
+Forecast questions about the future. Five modes: binary probabilities, numeric
+percentiles, date percentiles, categorical (one probability per listed outcome),
+and thresholded (one probability per listed threshold condition).
 
 ```
 Parameters:
+- forecast_type: "binary", "numeric", "date", "categorical", or "thresholded"
 - context: (optional) Batch-level context for all questions
+- effort_level: (optional) "low" or "high" (default; required for categorical/thresholded)
+- output_field: Name of the forecast quantity (required for numeric/date)
+- units: Units of the forecast quantity (required for numeric)
+- categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
+- thresholds_field: Column with each row's threshold conditions as a JSON array (required for thresholded)
 ```
 
 Example: "Will the US Federal Reserve cut rates before July 2027?"

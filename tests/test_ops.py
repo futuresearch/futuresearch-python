@@ -733,3 +733,72 @@ async def test_forecast_with_session_threads_effort_level(mocker, mock_session):
     body = mock_submit.call_args.kwargs["body"]
     assert body.forecast_type == ForecastType.BINARY
     assert body.effort_level == ForecastEffortLevel.HIGH
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("forecast_type", "kwargs", "expected_type"),
+    [
+        (
+            "categorical",
+            {"categories_field": "options"},
+            ForecastType.CATEGORICAL,
+        ),
+        (
+            "thresholded",
+            {"thresholds_field": "thresholds"},
+            ForecastType.THRESHOLDED,
+        ),
+    ],
+)
+async def test_forecast_grouped_types_thread_field_params(
+    mocker, mock_session, forecast_type, kwargs, expected_type
+):
+    """categorical/thresholded forecast types thread their field params to the wire body."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.forecast_operations_forecast_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id,
+        [{"question": "Who wins?", "probabilities": "{}"}],
+        artifact_id,
+    )
+
+    input_df = pd.DataFrame(
+        [{"question": "Who wins?", "options": '["A", "B"]', "thresholds": "[80, 90]"}]
+    )
+    await forecast(
+        input=input_df,
+        session=mock_session,
+        forecast_type=forecast_type,
+        **kwargs,
+    )
+
+    body = mock_submit.call_args.kwargs["body"]
+    assert body.forecast_type == expected_type
+    assert body.categories_field == kwargs.get("categories_field")
+    assert body.thresholds_field == kwargs.get("thresholds_field")

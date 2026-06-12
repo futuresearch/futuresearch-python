@@ -896,14 +896,16 @@ async def forecast(
     context: str | None = None,
     session: Session | None = None,
     *,
-    forecast_type: Literal["binary", "numeric", "date"],
+    forecast_type: Literal["binary", "numeric", "date", "categorical", "thresholded"],
     effort_level: ForecastEffortLevel | None = None,
     output_field: str | None = None,
     units: str | None = None,
+    categories_field: str | None = None,
+    thresholds_field: str | None = None,
 ) -> TableResult:
     """Forecast questions using deep research and multi-model ensemble.
 
-    Supports three modes:
+    Supports five modes:
 
     - **binary** (default): Forecasts the probability (0-100) of YES/NO questions.
       Output columns: ``probability`` (int) and ``rationale`` (str).
@@ -917,6 +919,23 @@ async def forecast(
       Requires ``output_field`` (e.g. ``"launch_date"``).
       Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
       (YYYY-MM-DD strings) and ``rationale`` (str).
+
+    - **categorical**: Forecasts one probability per listed outcome, with the
+      outcomes researched jointly, e.g. "Who wins: A, B, C or D?". Options must be
+      mutually exclusive and exhaustive (probabilities sum to exactly 100) —
+      include an explicit "Other" option when the list isn't complete. Requires
+      ``categories_field`` naming an input column that holds each row's outcomes
+      as a JSON array of strings. HIGH effort only.
+      Output columns: ``probabilities`` (JSON object mapping each outcome to its
+      probability, 0-100) and ``rationale`` (str).
+
+    - **thresholded**: Forecasts one probability per listed threshold condition
+      on a single outcome, e.g. oil above $80 / $90 / $100. Requires
+      ``thresholds_field`` naming an input column that holds each row's
+      conditions as a JSON array of numbers or strings, ordered least strict to
+      most strict. HIGH effort only.
+      Output columns: ``probabilities`` (JSON object mapping each condition to
+      its probability, 0-100) and ``rationale`` (str).
 
     Each row is forecast using 6 parallel research agents followed by a 3-model
     forecaster ensemble, validated against FutureSearch's past-casting environment.
@@ -932,12 +951,21 @@ async def forecast(
             end of 2027").  Leave *None* when the rows are self-contained.
         session: Optional session. If not provided, one will be created automatically.
         forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
-            percentile estimates, ``"date"`` for date percentile estimates.
+            percentile estimates, ``"date"`` for date percentile estimates,
+            ``"categorical"`` for per-outcome probabilities, ``"thresholded"``
+            for per-threshold-condition probabilities.
         effort_level: affects accuracy and cost of forecast. Default: high.
+            ``"categorical"`` and ``"thresholded"`` require high.
         output_field: Name of the quantity being forecast (required for numeric
             and date, e.g. ``"price"``, ``"launch_date"``).
         units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
             Required when *forecast_type* is ``"numeric"``.
+        categories_field: Name of the input column holding each row's candidate
+            outcomes as a JSON array of strings (2-50 unique options). Required
+            when *forecast_type* is ``"categorical"``.
+        thresholds_field: Name of the input column holding each row's threshold
+            conditions as a JSON array of numbers or strings (2-50 unique
+            values). Required when *forecast_type* is ``"thresholded"``.
 
     Returns:
         TableResult with forecast columns added to each input row.
@@ -953,6 +981,8 @@ async def forecast(
                 effort_level=effort_level,
                 output_field=output_field,
                 units=units,
+                categories_field=categories_field,
+                thresholds_field=thresholds_field,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -966,6 +996,8 @@ async def forecast(
         effort_level=effort_level,
         output_field=output_field,
         units=units,
+        categories_field=categories_field,
+        thresholds_field=thresholds_field,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -978,10 +1010,12 @@ async def forecast_async(
     session: Session,
     input: DataFrame | UUID | TableResult,
     *,
-    forecast_type: Literal["binary", "numeric", "date"],
+    forecast_type: Literal["binary", "numeric", "date", "categorical", "thresholded"],
     effort_level: ForecastEffortLevel | None = None,
     output_field: str | None = None,
     units: str | None = None,
+    categories_field: str | None = None,
+    thresholds_field: str | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit a forecast task asynchronously.
 
@@ -990,10 +1024,17 @@ async def forecast_async(
         session: Active session.
         input: Input data.
         forecast_type: ``"binary"`` for yes/no probability, ``"numeric"`` for
-            percentile estimates, ``"date"`` for date percentile estimates.
+            percentile estimates, ``"date"`` for date percentile estimates,
+            ``"categorical"`` for per-outcome probabilities, ``"thresholded"``
+            for per-threshold-condition probabilities.
         effort_level: affects accuracy and cost of forecast. Default: high.
+            ``"categorical"`` and ``"thresholded"`` require high.
         output_field: Name of the quantity (required for numeric and date).
         units: Units for numeric forecasts (required for numeric).
+        categories_field: Input column with each row's outcomes as a JSON array
+            of strings (required for categorical).
+        thresholds_field: Input column with each row's threshold conditions as a
+            JSON array of numbers or strings (required for thresholded).
 
     Returns:
         EveryrowTask that resolves to a TableResult with forecast columns.
@@ -1008,6 +1049,8 @@ async def forecast_async(
         effort_level=effort_level if effort_level is not None else UNSET,
         output_field=output_field,
         units=units,
+        categories_field=categories_field,
+        thresholds_field=thresholds_field,
     )
 
     response = await _call_and_check(
