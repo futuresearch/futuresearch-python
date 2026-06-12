@@ -941,7 +941,13 @@ async def forecast(
     forecaster ensemble, validated against FutureSearch's past-casting environment.
 
     The input table should contain at minimum a ``question`` column.  Recommended
-    additional columns: ``resolution_criteria``, ``resolution_date``, ``background``.
+    additional columns: ``resolution_criteria``, ``resolution_date``, ``background``;
+    for questions tied to a prediction market or forecasting platform (Polymarket,
+    Kalshi, Metaculus, ...), also ``market_creation_date`` and ``market_price``
+    (with its as-of date).  Pass resolution criteria verbatim from the platform,
+    including any fine print — don't paraphrase.  Self-contained questions (e.g.
+    "When will Anthropic IPO?") need none of these.  All columns are passed to
+    the research agents and forecasters.
 
     Args:
         input: The input table.  Each row should contain the question/scenario to

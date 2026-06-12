@@ -766,8 +766,13 @@ async def futuresearch_forecast(
       Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
-    columns: ``resolution_criteria``, ``resolution_date``, ``background``.  All
-    columns are passed to the research agents and forecasters.
+    columns: ``resolution_criteria``, ``resolution_date``, ``background``; for
+    questions tied to a prediction market or forecasting platform (Polymarket,
+    Kalshi, Metaculus, ...), also ``market_creation_date`` and ``market_price``
+    (with its as-of date).  Fetch these from the platform API and pass resolution
+    criteria verbatim, including any fine print — don't paraphrase.  Self-contained
+    questions (e.g. "When will Anthropic IPO?") need none of these.  All columns
+    are passed to the research agents and forecasters.
 
     The optional ``context`` parameter provides batch-level instructions that apply
     to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the

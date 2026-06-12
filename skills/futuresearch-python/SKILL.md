@@ -406,11 +406,14 @@ result = await forecast(
         {"question": "Will the US Federal Reserve cut rates by at least 25bp before July 1, 2027?",
          "resolution_criteria": "Resolves YES if the Fed announces at least one rate cut of 25bp or more."},
     ]),
+    forecast_type="binary",
 )
 print(result.data[["question", "probability", "rationale"]])
 ```
 
-Parameters: `input`, `context`, `session`
+Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"`), `effort_level`, `context`, `output_field` (required for numeric/date), `units` (required for numeric), `session`
+
+Recommended input columns beyond `question`: `resolution_criteria`, `resolution_date`, `background`. For questions tied to a prediction market or forecasting platform (Polymarket, Kalshi, Metaculus, ...), also pass `market_creation_date` and `market_price` (with its as-of date), and copy resolution criteria verbatim from the platform — including fine print. Self-contained questions (e.g. "When will Anthropic IPO?") need none of these.
 
 ### single_agent - Single input task
 
