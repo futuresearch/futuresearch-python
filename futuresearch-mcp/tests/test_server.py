@@ -57,6 +57,7 @@ from futuresearch_mcp.models import (
     UploadDataInput,
     UseListInput,
 )
+from futuresearch_mcp.tool_helpers import format_sdk_error
 from futuresearch_mcp.tools import (
     _RESULTS_ANNOTATIONS,
     futuresearch_agent,
@@ -373,7 +374,7 @@ class TestProgress:
             patch(
                 "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
                 new_callable=AsyncMock,
-                side_effect=FuturesearchClientError("Task not found", status_code=404),
+                side_effect=FuturesearchClientError("Bad request", status_code=400),
             ),
             patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
         ):
@@ -384,8 +385,45 @@ class TestProgress:
         assert len(result) == 1
         text = result[0].text
         assert f"polling task {task_id}" in text
-        assert "Task not found" in text
+        assert "Bad request" in text
         assert "Fix the request" in text
+
+    @pytest.mark.asyncio
+    async def test_progress_task_not_found(self):
+        """A 404 forks off the generic SDK-error path and records a Sentry event.
+
+        Only the structural invariants are pinned — the exact wording of the
+        agent-facing message and the Sentry text are implementation details
+        that should be free to evolve.
+        """
+        mock_client = _make_mock_client()
+        ctx = make_test_context(mock_client)
+        task_id = str(uuid4())
+        exc = FuturesearchClientError("Task not found", status_code=404)
+
+        with (
+            patch(
+                "futuresearch_mcp.tools.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+                new_callable=AsyncMock,
+                side_effect=exc,
+            ),
+            patch("futuresearch_mcp.tools.asyncio.sleep", new_callable=AsyncMock),
+            patch("futuresearch_mcp.tools.sentry_sdk.capture_message") as mock_capture,
+        ):
+            params = ProgressInput(task_id=task_id)
+            result = await futuresearch_progress(params, ctx)
+
+        assert len(result) == 1
+        # The 404 response is NOT the generic format_sdk_error output — the
+        # special-case branch ran. (If both produced the same text, the special
+        # case is doing nothing useful.)
+        generic = format_sdk_error(exc, doing=f"polling task {task_id}")
+        assert result[0].text != generic
+        # Task ID appears in the response so the agent knows which task is in
+        # question (relevant when multiple tasks are in flight).
+        assert task_id in result[0].text
+        # The event was captured once for monitoring.
+        mock_capture.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_progress_running_task(self):

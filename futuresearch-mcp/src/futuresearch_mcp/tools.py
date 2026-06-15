@@ -10,8 +10,13 @@ from typing import Any
 from uuid import UUID
 
 import pandas as pd
+import sentry_sdk
 from futuresearch.built_in_lists import list_built_in_datasets, use_built_in_list
-from futuresearch.errors import FuturesearchError, _call_and_check
+from futuresearch.errors import (
+    FuturesearchClientError,
+    FuturesearchError,
+    _call_and_check,
+)
 from futuresearch.generated.api.billing import get_billing_balance_billing_get
 from futuresearch.generated.api.tasks import get_task_status_tasks_task_id_status_get
 from futuresearch.generated.models.task_cost_status import TaskCostStatus
@@ -52,6 +57,7 @@ from futuresearch_mcp.models import (
     UploadDataInput,
     UseListInput,
 )
+from futuresearch_mcp.request_context import get_conversation_id
 from futuresearch_mcp.result_store import (
     _build_result_response,
     _get_csv_url,
@@ -1081,6 +1087,33 @@ async def _fetch_summaries(
     return None, cursor
 
 
+def _report_progress_task_not_found(task_id: str) -> str:
+    """Handle a 404 from the task status endpoint during progress polling.
+
+    Records the event to Sentry (tagged so we can count and break down by
+    conversation) and returns the text shown to the agent. The dominant cause
+    of this 404 on internal clients is the agent fabricating a task ID — but
+    cross-account access is also possible, so the message stays neutral.
+    """
+    conv_id = get_conversation_id() or ""
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("event", "hallucinated_task_poll")
+        scope.set_tag("tool", "futuresearch_progress")
+        if conv_id:
+            scope.set_tag("conversation_id", conv_id)
+        scope.set_context(
+            "polling",
+            {"task_id": task_id, "conversation_id": conv_id or None},
+        )
+        sentry_sdk.capture_message(
+            "futuresearch_progress: task ID not found — likely hallucinated",
+            level="warning",
+        )
+    return dedent(f"""\
+        Task {task_id} not found.
+        Check that this is a real task_id from an earlier submit or progress tool result in this conversation, and not one you may have generated from memory. If you can't trace it to a prior tool result, the task isn't yours to poll — stop and continue with other work rather than retrying.""")
+
+
 @mcp.tool(
     name="futuresearch_progress",
     structured_output=False,
@@ -1120,6 +1153,13 @@ async def futuresearch_progress(
         )
     except FuturesearchError as e:
         logger.warning(f"Failed to poll task {task_id}: {e!r}")
+        if isinstance(e, FuturesearchClientError) and e.status_code == 404:
+            return [
+                TextContent(
+                    type="text",
+                    text=_report_progress_task_not_found(task_id),
+                )
+            ]
         return [
             TextContent(
                 type="text",
