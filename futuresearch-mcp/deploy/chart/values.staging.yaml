@@ -9,7 +9,13 @@ env:
   FUTURESEARCH_API_URL: "https://engine-staging.futuresearch.ai/api/v0"
   MCP_SERVER_URL: "https://mcp-staging.futuresearch.ai"
   SUPABASE_URL: "https://jmraczchpxwbrnngyjuf.supabase.co"
-  REDIS_DB: "14"
+  # Was DB 14 on old redis (a DB shared with other apps, e.g. litellm).
+  # DB 14 is already in use on albert-valkey by another tenant, so staging
+  # moves to free DB 12 (valkey uses 5/6/11/14/15; 12 is unused). This also
+  # makes staging's keyspace exclusive instead of shared.
+  REDIS_DB: "12"
+  # REDIS_SENTINEL_ENDPOINTS / REDIS_SENTINEL_MASTER_NAME inherited from
+  # values.yaml (albert-valkey.utils.svc.cluster.local:26379 / mymaster).
 
 httproute:
   host: mcp-staging.futuresearch.ai
