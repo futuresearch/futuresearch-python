@@ -5,6 +5,10 @@ description: Deploy the FutureSearch MCP server to staging or production on GKE.
 
 # Deploying the MCP Server
 
+> **Deploying more than just the MCP server?** Start from the `deploy-to-staging` skill (repo
+> root `.claude/skills/`) — it routes a change through every layer of the stack in dependency
+> order. This skill owns only the MCP layer.
+
 ## Quick Deploy
 
 ### Staging (from main)
@@ -80,12 +84,32 @@ kubectl scale deploy futuresearch-mcp-staging -n futuresearch-mcp-staging --repl
 
 ## Environments
 
-| Environment | Namespace | Host | Redis DB |
-|---|---|---|---|
-| Staging | `futuresearch-mcp-staging` | `mcp-staging.futuresearch.ai` | 14 |
-| Production | `futuresearch-mcp` | `mcp.futuresearch.ai` | (default in values.yaml) |
+| Environment | Namespace | Host | Upstream FutureSearch API | Redis DB |
+|---|---|---|---|---|
+| Staging | `futuresearch-mcp-staging` | `mcp-staging.futuresearch.ai` | `engine-staging.futuresearch.ai/api/v0` (staging engine) | 14 |
+| Production | `futuresearch-mcp` | `mcp.futuresearch.ai` | `futuresearch.ai/api/v0` (prod engine) | (default in values.yaml) |
 
-Both environments hit the **same production FutureSearch API** — there is no staging API.
+**The two environments are fully separated, including their upstream engine.** Staging MCP
+calls the **staging** engine API (`FUTURESEARCH_API_URL` in `values.staging.yaml`), not prod —
+so `everyrow-cc-staging → mcp-staging → engine-staging` (cohort-staging) is a self-contained
+**pure staging route** end to end. Production has its own matching chain. This means a branch
+that changes both the engine API and the MCP tools can be exercised entirely on staging,
+provided you deploy each piece from your branch (see below).
+
+### Testing a branch end to end on staging
+
+Because the chain is `cc-staging → mcp-staging → engine-staging`, a full staging test of a
+feature branch needs each layer the branch touches deployed from that branch:
+
+- **MCP tool / model change** (e.g. a new tool param in `models.py`/`tools.py`/`ops.py`):
+  deploy the MCP server from your branch (`-f branch=<your-branch> -f deploy_staging=true`),
+  or the staging MCP keeps serving the old tool schema and rejects the new arg.
+- **Engine change** the MCP forwards (e.g. a new operation field): deploy cohort-staging from
+  your branch too — see the `manage-cohort-staging` skill — since staging MCP calls
+  `engine-staging`.
+- **everyrow-cc change**: deploy it from your branch — see `manage-everyrow-cc-staging`.
+
+A change confined to one layer only needs that layer redeployed.
 
 ## Updating Secrets
 
