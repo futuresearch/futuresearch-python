@@ -35,7 +35,8 @@ Then sign in with Google.
 | **[agent_map()](https://futuresearch.ai/docs/reference/RESEARCH)**       | One researcher per row of a dataset         | 1–11¢     | 10k rows  |
 | **[rank()](https://futuresearch.ai/docs/reference/RANK)**                | Research, then score                        | 1-5¢      | 10k rows  |
 | **[classify()](https://futuresearch.ai/docs/reference/CLASSIFY)**        | Research, then categorize                   | 0.1-0.7¢  | 10k rows  |
-| **[dedupe() and merge()](https://futuresearch.ai/docs/reference/MERGE)** | Find matching rows                          | 0.2-0.5¢  | 20k rows  |
+| **[dedupe()](https://futuresearch.ai/docs/reference/DEDUPE)**            | Find duplicate rows                         | 0.2-0.5¢  | 50k rows  |
+| **[merge()](https://futuresearch.ai/docs/reference/MERGE)**              | Find matching rows between two tables       | 0.2-0.5¢  | 20k rows  |
 
 See the full [API reference](https://futuresearch.ai/docs/api), [guides](https://futuresearch.ai/docs/guides), and [case studies](https://futuresearch.ai/docs/case-studies), (for example, see our [case study](https://futuresearch.ai/docs/case-studies/llm-web-research-agents-at-scale) running a `Research` task on 10k rows, running agents that used 120k LLM calls.)
 
