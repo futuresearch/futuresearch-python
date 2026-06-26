@@ -450,31 +450,28 @@ class ForecastInput(_SingleSourceInput):
         "Leave empty when the rows are self-contained.",
     )
     forecast_type: Literal[
-        "binary", "numeric", "date", "categorical", "thresholded", "conditional"
+        "binary", "numeric", "date", "categorical", "thresholded"
     ] = Field(
-        description="Type of forecast. 'binary': yes/no probability (0-100) for questions like "
-        "'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like "
-        "'What will the price/value/count be?'. 'date': date percentile estimates (p10-p90) "
-        "as YYYY-MM-DD strings for timing questions like 'When will X happen?'. "
-        "'categorical': one probability per listed outcome + a single rationale, for "
-        "questions like 'Who will win: A, B, C or D?' (requires categories_field). "
-        "'thresholded': one probability per listed threshold condition + a single "
-        "rationale, for nested conditions on one outcome like 'oil above $80 / $90 "
-        "/ $100' or 'launch before 2027 / 2026' (requires thresholds_field). "
-        "'conditional': how an outcome's probability depends on a condition. For two "
-        "yes/no questions A (the condition) and B (the outcome), forecasts P(B|A) and "
-        "P(B|not A) jointly so the two estimates stay coherent. Use it when the "
-        "question is about the relationship between two events rather than each one's "
-        "standalone probability. Supply A and B either as per-row columns "
-        "(condition_field + outcome_field) or as single shared question strings "
-        "(condition + outcome) mapped over a list of entities such as companies. "
-        "Requires output_field when 'numeric' or 'date'.",
+        description="Type of the outcome being forecast. 'binary': yes/no probability "
+        "(0-100) for questions like 'Will X happen?'. 'numeric': percentile estimates "
+        "(p10-p90) for questions like 'What will the price/value/count be?'. 'date': "
+        "date percentile estimates (p10-p90) as YYYY-MM-DD strings for timing questions "
+        "like 'When will X happen?'. 'categorical': one probability per listed outcome + "
+        "a single rationale, for questions like 'Who will win: A, B, C or D?' (requires "
+        "categories_field). 'thresholded': one probability per listed threshold condition "
+        "+ a single rationale, for nested conditions on one outcome like 'oil above $80 / "
+        "$90 / $100' or 'launch before 2027 / 2026' (requires thresholds_field). Requires "
+        "output_field when 'numeric' or 'date'. To make any of these CONDITIONAL "
+        "(forecasting the outcome in the worlds where a condition does and does not "
+        "hold), supply 'condition' or 'condition_field'; the forecast_type still "
+        "describes the outcome.",
     )
     effort_level: ForecastEffortLevel | None = Field(
         default=None,
         description="Effort level for the forecast. 'low' tends to be faster and cheaper. "
         "'high' tends to be more accurate. When not specified, defaults to 'high'. "
-        "'categorical' and 'thresholded' require 'high'.",
+        "'categorical' and 'thresholded' forecasts, and any conditional forecast "
+        "(condition / condition_field), require 'high'.",
     )
     output_field: str | None = Field(
         default=None,
@@ -507,33 +504,26 @@ class ForecastInput(_SingleSourceInput):
         "row. The output 'probabilities' column holds a JSON object mapping each "
         "condition to the probability (0-100) that it is satisfied.",
     )
-    condition_field: str | None = Field(
-        default=None,
-        description="Per-row-column conditional mode: name of the input column "
-        "holding each row's own question A (the binary condition). Use with "
-        "outcome_field; mutually exclusive with condition/outcome.",
-    )
-    outcome_field: str | None = Field(
-        default=None,
-        description="Per-row-column conditional mode: name of the input column "
-        "holding each row's own question B (the outcome). Output columns are "
-        "'prob_b_given_a' (P(B|A)) and 'prob_b_given_not_a' (P(B|not A)), each an "
-        "integer 0-100, plus 'rationale'.",
-    )
     condition: str | None = Field(
         default=None,
-        description="Shared-question conditional mode: a single question A (the "
-        "binary condition), the same for every input row and mapped over the list "
-        "(e.g. a list of companies). State it in plain language; where it refers to "
-        "the entity (e.g. 'the company'), the agent grounds it in each row. Use with "
-        "outcome; mutually exclusive with condition_field/outcome_field.",
+        description="Makes the forecast conditional: a single condition, the same for "
+        "every input row and mapped over the list (e.g. a list of companies). The "
+        "outcome (a forecast of forecast_type, taken from each row's question) is "
+        "forecast both in the world where this condition holds and the world where it "
+        "does not. State it in plain language; where it refers to the entity (e.g. 'the "
+        "company'), the agent grounds it in each row. The output contains per-branch "
+        "columns suffixed '_given_condition' and '_given_not_condition'. Mutually "
+        "exclusive with condition_field.",
     )
-    outcome: str | None = Field(
+    condition_field: str | None = Field(
         default=None,
-        description="Shared-question conditional mode: a single question B (the "
-        "binary outcome), the same for every input row. State it in plain language; "
-        "where it refers to the entity (e.g. 'the company'), the agent grounds it in "
-        "each row.",
+        description="Makes the forecast conditional using a per-row condition: the name "
+        "of the input column holding each row's own condition. Like 'condition' but "
+        "varies per row. The outcome (a forecast of forecast_type, taken from each row's "
+        "question) is forecast both in the world where this condition holds and the world "
+        "where it does not. The output contains per-branch columns suffixed "
+        "'_given_condition' and '_given_not_condition'. Mutually exclusive with "
+        "condition_field.",
     )
 
 

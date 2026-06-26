@@ -132,49 +132,47 @@ Parameters:
 ```
 
 ### futuresearch_forecast
-Forecast questions about the future. Six modes: binary probabilities, numeric
-percentiles, date percentiles, categorical (one probability per listed outcome),
-thresholded (one probability per listed threshold condition), and conditional
-(how an outcome's probability depends on a condition; see "Conditional
-forecasting" below).
+Forecast questions about the future. Five outcome types: binary probabilities,
+numeric percentiles, date percentiles, categorical (one probability per listed
+outcome), and thresholded (one probability per listed threshold condition). Any
+of them can be made conditional on a stated intervention by supplying a condition
+(see "Conditional forecasting" below).
 ```
 Parameters:
 - artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
 - data: Inline data as a list of row objects (must include "question" column)
-- forecast_type: "binary", "numeric", "date", "categorical", "thresholded", or "conditional"
+- forecast_type: "binary", "numeric", "date", "categorical", or "thresholded" (always the OUTCOME type)
 - context: (optional) Batch-level context for all questions
-- effort_level: (optional) "low" or "high" (default; required for categorical/thresholded/conditional)
+- effort_level: (optional) "low" or "high" (default; required for categorical/thresholded and for any conditional forecast)
 - output_field: Name of the forecast quantity (required for numeric/date)
 - units: Units of the forecast quantity (required for numeric)
 - categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
 - thresholds_field: Column with each row's threshold conditions as a JSON array (required for thresholded)
-- condition_field / outcome_field: Per-row-column mode — columns holding each row's own question A and B (conditional)
-- condition / outcome: Shared-question mode — single A and B strings mapped over the input list (conditional)
+- condition: (optional) Single shared condition string mapped over every row, making the forecast conditional on it
+- condition_field: (optional) Name of a per-row column holding each row's own condition (mutually exclusive with condition)
 - session_id / session_name: (optional)
 ```
 
-**Conditional forecasting.** A conditional forecast estimates how the probability
-of an outcome depends on a condition. For two yes/no questions, A (the condition) and
-B (the outcome), it returns two probabilities forecast jointly: `prob_b_given_a` =
-P(B | A) and `prob_b_given_not_a` = P(B | not A), so both reflect one coherent view of
-how A influences B rather than two independently-made binary forecasts. Reach for it
-when the question is about the relationship between two events ("if A happens, how
-likely is B, and how likely if it doesn't?"), not each event's standalone probability;
-if you only need a single event's likelihood, use `binary`. HIGH effort only. Output
-columns: `prob_b_given_a`, `prob_b_given_not_a` (both int 0-100), and `rationale`.
+**Conditional forecasting.** Conditionality is a modifier on any forecast type,
+not a type of its own. Whenever the user frames a question with a condition or
+intervention ("if A…", "given/assuming A", "conditional on A", "in the world
+where A"), pick `forecast_type` from the outcome as usual (`date` for "when will
+X", `numeric` for "what will the return be", `binary` for "will X happen", etc.)
+and add the condition. Conditional forecasts are HIGH effort only. Each output
+keeps the type's normal columns and produces them a second time, suffixed
+`_given_condition` (the world where the condition holds) and `_given_not_condition`
+(where it does not), so the two branches reflect one coherent view of how the
+condition bears on the outcome, plus a `rationale`.
 
-Two ways to supply A and B (exactly one):
+Two mutually exclusive ways to supply the condition:
 
-- **Per-row columns** (`condition_field` + `outcome_field`): each input row already
-  holds its own A and B questions. Use for a one-off pair or a curated sheet of
-  distinct conditional questions.
-- **Shared questions** (`condition` + `outcome`): one A and one B, stated once, mapped
-  over a list of entities (e.g. companies). This is the "ask the same conditional about
-  each of these" case — *"for each company, how does its chance of a 10% stock rise in
-  Q3 change if Claude Fable launches worldwide before August?"* Phrase the entity side
-  as "the company"; each row's entity is bound by the agent, no string interpolation.
-  The derived `prob_b_given_a − prob_b_given_not_a` then ranks the list by how much the
-  condition moves each entity's outcome.
+- **Shared condition** (`condition`): a single condition string applied to every
+  row. Use it for a one-off question, or for the "ask the same conditional about
+  each of these" case, where the user brings a list of entities and asks how one
+  shared intervention moves each entity's outcome (e.g. *"for each company, what
+  will its Q3 stock return be if Claude Fable launches worldwide before August?"*).
+- **Per-row column** (`condition_field`): the name of an input column holding each
+  row's own condition, for a sheet where rows carry distinct conditions.
 
 ### futuresearch_classify
 Classify each row into one of the provided categories.

@@ -743,7 +743,7 @@ async def futuresearch_forecast(
 ) -> list[TextContent]:
     """Forecast questions about the future using deep research and multi-model ensemble.
 
-    Supports six modes:
+    The ``forecast_type`` selects what kind of outcome you are forecasting:
 
     - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
       Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
@@ -771,19 +771,21 @@ async def futuresearch_forecast(
       High effort only.
       Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
 
-    - **conditional**: Estimates how an outcome's probability depends on a condition.
-      For two yes/no questions A (the condition) and B (the outcome), forecasts P(B|A)
-      and P(B|not A) together, reasoning about both branches jointly so they stay
-      coherent. Use this when the question is about the relationship between two events
-      ("if A happens, how likely is B, and how likely if it does not?") rather than
-      each event's standalone chance. Supply A and B in one of two ways:
-      ``condition_field`` + ``outcome_field`` (per-row columns, when each row carries
-      its own A/B pair), or ``condition`` + ``outcome`` (single shared question
-      strings, the same for every row, mapped over a list of entities such as
-      companies — the typical case for "ask this conditional about each of these").
-      High effort only.
-      Output columns: ``prob_b_given_a`` (int 0-100), ``prob_b_given_not_a``
-      (int 0-100), and ``rationale`` (str).
+    **Conditional forecasts** are an orthogonal modifier of any of the modes above.
+    Supply ``condition`` (a single shared condition, the same for every row and mapped
+    over the list, e.g. a list of companies) or ``condition_field`` (the name of an
+    input column holding each row's own condition); the two are mutually exclusive. The
+    ``forecast_type`` still describes the outcome, taken from each row's question, and
+    the outcome is forecast both in the world where the condition holds and the world
+    where it does not, with one ensemble reasoning about both branches jointly so they
+    stay coherent. Use this when you care how the outcome depends on a condition rather
+    than its standalone value. High effort only. The normal output columns are each
+    replaced by a ``_given_condition`` and a ``_given_not_condition`` copy, plus one
+    shared ``rationale``: for binary, ``probability_given_condition`` and
+    ``probability_given_not_condition``; for numeric and date,
+    ``{output_field}_p10_given_condition`` through ``_p90_given_condition`` and the
+    matching ``_given_not_condition`` set; for categorical and thresholded,
+    ``probabilities_given_condition`` and ``probabilities_given_not_condition``.
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
     columns: ``resolution_criteria``, ``resolution_date``, ``background``; for
@@ -829,24 +831,26 @@ async def futuresearch_forecast(
                 categories_field=params.categories_field,
                 thresholds_field=params.thresholds_field,
                 condition_field=params.condition_field,
-                outcome_field=params.outcome_field,
                 condition=params.condition,
-                outcome=params.outcome,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
+        is_conditional = bool(params.condition or params.condition_field)
         mode_label = {
             "date": "date",
             "numeric": "numeric percentile",
             "categorical": "categorical",
             "thresholded": "thresholded",
-            "conditional": "conditional",
         }.get(params.forecast_type, "probability")
+        if is_conditional:
+            mode_label = f"conditional {mode_label}"
         widget_meta: dict[str, Any] = {
             "task_type": "forecast",
             "forecast_type": params.forecast_type,
         }
+        if is_conditional:
+            widget_meta["is_conditional"] = True
         if params.output_field:
             widget_meta["output_field"] = params.output_field
         if params.units:
@@ -857,8 +861,6 @@ async def futuresearch_forecast(
             widget_meta["thresholds_field"] = params.thresholds_field
         if params.condition_field:
             widget_meta["condition_field"] = params.condition_field
-        if params.outcome_field:
-            widget_meta["outcome_field"] = params.outcome_field
         return await create_tool_response(
             task_id=task_id,
             # Deliberately no hardcoded researcher/forecaster counts in the label:
