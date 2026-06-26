@@ -465,8 +465,9 @@ class ForecastInput(_SingleSourceInput):
         "yes/no questions A (the condition) and B (the outcome), forecasts P(B|A) and "
         "P(B|not A) jointly so the two estimates stay coherent. Use it when the "
         "question is about the relationship between two events rather than each one's "
-        "standalone probability (requires condition_field and "
-        "outcome_field). "
+        "standalone probability. Supply A and B either as per-row columns "
+        "(condition_field + outcome_field) or as single shared question strings "
+        "(condition + outcome) mapped over a list of entities such as companies. "
         "Requires output_field when 'numeric' or 'date'.",
     )
     effort_level: ForecastEffortLevel | None = Field(
@@ -508,16 +509,31 @@ class ForecastInput(_SingleSourceInput):
     )
     condition_field: str | None = Field(
         default=None,
-        description="Name of the input column holding question A — the binary "
-        "condition — for a conditional forecast. Required when forecast_type is "
-        "'conditional'.",
+        description="Per-row-column conditional mode: name of the input column "
+        "holding each row's own question A (the binary condition). Use with "
+        "outcome_field; mutually exclusive with condition/outcome.",
     )
     outcome_field: str | None = Field(
         default=None,
-        description="Name of the input column holding question B — the outcome — "
-        "for a conditional forecast. Required when forecast_type is 'conditional'. "
-        "The output columns are 'prob_b_given_a' (P(B|A)) and 'prob_b_given_not_a' "
-        "(P(B|not A)), each an integer 0-100, plus 'rationale'.",
+        description="Per-row-column conditional mode: name of the input column "
+        "holding each row's own question B (the outcome). Output columns are "
+        "'prob_b_given_a' (P(B|A)) and 'prob_b_given_not_a' (P(B|not A)), each an "
+        "integer 0-100, plus 'rationale'.",
+    )
+    condition: str | None = Field(
+        default=None,
+        description="Shared-question conditional mode: a single question A (the "
+        "binary condition), the same for every input row and mapped over the list "
+        "(e.g. a list of companies). State it in plain language; where it refers to "
+        "the entity (e.g. 'the company'), the agent grounds it in each row. Use with "
+        "outcome; mutually exclusive with condition_field/outcome_field.",
+    )
+    outcome: str | None = Field(
+        default=None,
+        description="Shared-question conditional mode: a single question B (the "
+        "binary outcome), the same for every input row. State it in plain language; "
+        "where it refers to the entity (e.g. 'the company'), the agent grounds it in "
+        "each row.",
     )
 
 

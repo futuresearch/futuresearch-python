@@ -906,6 +906,8 @@ async def forecast(
     thresholds_field: str | None = None,
     condition_field: str | None = None,
     outcome_field: str | None = None,
+    condition: str | None = None,
+    outcome: str | None = None,
 ) -> TableResult:
     """Forecast questions using deep research and multi-model ensemble.
 
@@ -945,9 +947,10 @@ async def forecast(
       For two yes/no questions A (the condition) and B (the outcome), forecasts P(B|A)
       and P(B|not A), with one ensemble reasoning about both branches jointly so they
       stay coherent. Use it when you care about the relationship between two events
-      rather than each one's standalone probability. Requires ``condition_field`` and
-      ``outcome_field`` naming the input columns that hold questions A and B.
-      HIGH effort only.
+      rather than each one's standalone probability. Supply A and B either as per-row
+      columns (``condition_field`` + ``outcome_field``) or as single shared question
+      strings (``condition`` + ``outcome``) mapped over a list of entities such as
+      companies. HIGH effort only.
       Output columns: ``prob_b_given_a`` (P(B|A), int 0-100), ``prob_b_given_not_a``
       (P(B|not A), int 0-100), and ``rationale`` (str).
 
@@ -986,10 +989,14 @@ async def forecast(
         thresholds_field: Name of the input column holding each row's threshold
             conditions as a JSON array of numbers or strings (2-50 unique
             values). Required when *forecast_type* is ``"thresholded"``.
-        condition_field: Name of the input column holding question A (the binary
-            condition). Required when *forecast_type* is ``"conditional"``.
-        outcome_field: Name of the input column holding question B (the outcome).
-            Required when *forecast_type* is ``"conditional"``.
+        condition_field: Per-row-column conditional mode: input column holding each
+            row's own question A (the binary condition).
+        outcome_field: Per-row-column conditional mode: input column holding each
+            row's own question B (the outcome).
+        condition: Shared-question conditional mode: a single question A, the same
+            for every row, mapped over the input list (e.g. a list of companies).
+        outcome: Shared-question conditional mode: a single question B, the same
+            for every row.
 
     Returns:
         TableResult with forecast columns added to each input row.
@@ -1009,6 +1016,8 @@ async def forecast(
                 thresholds_field=thresholds_field,
                 condition_field=condition_field,
                 outcome_field=outcome_field,
+                condition=condition,
+                outcome=outcome,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -1026,6 +1035,8 @@ async def forecast(
         thresholds_field=thresholds_field,
         condition_field=condition_field,
         outcome_field=outcome_field,
+        condition=condition,
+        outcome=outcome,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -1048,6 +1059,8 @@ async def forecast_async(
     thresholds_field: str | None = None,
     condition_field: str | None = None,
     outcome_field: str | None = None,
+    condition: str | None = None,
+    outcome: str | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit a forecast task asynchronously.
 
@@ -1069,10 +1082,14 @@ async def forecast_async(
             of strings (required for categorical).
         thresholds_field: Input column with each row's threshold conditions as a
             JSON array of numbers or strings (required for thresholded).
-        condition_field: Input column with question A, the binary condition
-            (required for conditional).
-        outcome_field: Input column with question B, the outcome (required for
-            conditional).
+        condition_field: Per-row-column conditional mode: input column with each
+            row's question A (the binary condition).
+        outcome_field: Per-row-column conditional mode: input column with each
+            row's question B (the outcome).
+        condition: Shared-question conditional mode: a single question A, the same
+            for every row, mapped over the input list.
+        outcome: Shared-question conditional mode: a single question B, the same
+            for every row.
 
     Returns:
         EveryrowTask that resolves to a TableResult with forecast columns.
@@ -1091,6 +1108,8 @@ async def forecast_async(
         thresholds_field=thresholds_field,
         condition_field=condition_field,
         outcome_field=outcome_field,
+        condition=condition,
+        outcome=outcome,
     )
 
     response = await _call_and_check(

@@ -148,23 +148,33 @@ Parameters:
 - units: Units of the forecast quantity (required for numeric)
 - categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
 - thresholds_field: Column with each row's threshold conditions as a JSON array (required for thresholded)
-- condition_field: Column holding question A, the binary condition (required for conditional)
-- outcome_field: Column holding question B, the binary outcome (required for conditional)
+- condition_field / outcome_field: Per-row-column mode — columns holding each row's own question A and B (conditional)
+- condition / outcome: Shared-question mode — single A and B strings mapped over the input list (conditional)
 - session_id / session_name: (optional)
 ```
 
 **Conditional forecasting.** A conditional forecast estimates how the probability
-of an outcome depends on a condition. Each row pairs two yes/no questions, A (the
-condition) and B (the outcome), named by `condition_field` and `outcome_field`. It
-returns two probabilities forecast jointly: `prob_b_given_a` = P(B | A) and
-`prob_b_given_not_a` = P(B | not A), so both reflect one coherent view of how A
-influences B rather than two independently-made binary forecasts. Reach for it when
-the question is about the relationship between two events ("if A happens, how likely
-is B, and how likely if it doesn't?"), not each event's standalone probability; if
-you only need a single event's likelihood, use `binary`. The two branch
-probabilities will usually differ and either may be higher. HIGH effort only.
-Output columns: `prob_b_given_a`, `prob_b_given_not_a` (both int 0-100), and
-`rationale`.
+of an outcome depends on a condition. For two yes/no questions, A (the condition) and
+B (the outcome), it returns two probabilities forecast jointly: `prob_b_given_a` =
+P(B | A) and `prob_b_given_not_a` = P(B | not A), so both reflect one coherent view of
+how A influences B rather than two independently-made binary forecasts. Reach for it
+when the question is about the relationship between two events ("if A happens, how
+likely is B, and how likely if it doesn't?"), not each event's standalone probability;
+if you only need a single event's likelihood, use `binary`. HIGH effort only. Output
+columns: `prob_b_given_a`, `prob_b_given_not_a` (both int 0-100), and `rationale`.
+
+Two ways to supply A and B (exactly one):
+
+- **Per-row columns** (`condition_field` + `outcome_field`): each input row already
+  holds its own A and B questions. Use for a one-off pair or a curated sheet of
+  distinct conditional questions.
+- **Shared questions** (`condition` + `outcome`): one A and one B, stated once, mapped
+  over a list of entities (e.g. companies). This is the "ask the same conditional about
+  each of these" case — *"for each company, how does its chance of a 10% stock rise in
+  Q3 change if Claude Fable launches worldwide before August?"* Phrase the entity side
+  as "the company"; each row's entity is bound by the agent, no string interpolation.
+  The derived `prob_b_given_a − prob_b_given_not_a` then ranks the list by how much the
+  condition moves each entity's outcome.
 
 ### futuresearch_classify
 Classify each row into one of the provided categories.
@@ -428,9 +438,9 @@ result = await forecast(
 print(result.data[["question", "probability", "rationale"]])
 ```
 
-Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"` | `"conditional"`), `effort_level`, `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition_field` + `outcome_field` (required for conditional), `session`
+Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"` | `"conditional"`), `effort_level`, `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition_field` + `outcome_field` *or* `condition` + `outcome` (conditional), `session`
 
-For **conditional** forecasts (P(B|A) and P(B|not A) for a condition A and outcome B), see "Conditional forecasting" under `futuresearch_forecast` above — it estimates how an outcome's probability depends on a condition, for when the question is about the relationship between two events rather than each one's standalone probability.
+For **conditional** forecasts (P(B|A) and P(B|not A) for a condition A and outcome B), see "Conditional forecasting" under `futuresearch_forecast` above. Two supply modes: `condition_field`/`outcome_field` (per-row columns) or `condition`/`outcome` (single shared questions mapped over a list of entities — the "ask this conditional about each of these" case).
 
 Recommended input columns beyond `question`: `resolution_criteria`, `resolution_date`, `background`. For questions tied to a prediction market or forecasting platform (Polymarket, Kalshi, Metaculus, ...), also pass `market_creation_date` and `market_price` (with its as-of date), and copy resolution criteria verbatim from the platform — including fine print. Self-contained questions (e.g. "When will Anthropic IPO?") need none of these.
 

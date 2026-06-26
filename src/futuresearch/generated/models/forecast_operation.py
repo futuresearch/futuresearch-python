@@ -50,6 +50,11 @@ class ForecastOperation:
         outcome_field (None | str | Unset): Name of the input column holding question B — the outcome — for a conditional
             forecast. Required when forecast_type is 'conditional'. Output columns are 'prob_b_given_a' (P(B|A)) and
             'prob_b_given_not_a' (P(B|not A)), each an integer 0-100, plus 'rationale'.
+        condition (None | str | Unset): Shared-question mode for a conditional forecast: a single question A (the binary
+            condition), the same for every input row and mapped over the list. Mutually exclusive with condition_field/
+            outcome_field.
+        outcome (None | str | Unset): Shared-question mode for a conditional forecast: a single question B (the binary
+            outcome), the same for every input row.
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
             cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical',
             'thresholded', and 'conditional' require 'HIGH'.
@@ -66,6 +71,8 @@ class ForecastOperation:
     thresholds_field: None | str | Unset = UNSET
     condition_field: None | str | Unset = UNSET
     outcome_field: None | str | Unset = UNSET
+    condition: None | str | Unset = UNSET
+    outcome: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -136,6 +143,18 @@ class ForecastOperation:
         else:
             outcome_field = self.outcome_field
 
+        condition: None | str | Unset
+        if isinstance(self.condition, Unset):
+            condition = UNSET
+        else:
+            condition = self.condition
+
+        outcome: None | str | Unset
+        if isinstance(self.outcome, Unset):
+            outcome = UNSET
+        else:
+            outcome = self.outcome
+
         effort_level: None | str | Unset
         if isinstance(self.effort_level, Unset):
             effort_level = UNSET
@@ -169,6 +188,10 @@ class ForecastOperation:
             field_dict["condition_field"] = condition_field
         if outcome_field is not UNSET:
             field_dict["outcome_field"] = outcome_field
+        if condition is not UNSET:
+            field_dict["condition"] = condition
+        if outcome is not UNSET:
+            field_dict["outcome"] = outcome
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
 
@@ -295,6 +318,24 @@ class ForecastOperation:
 
         outcome_field = _parse_outcome_field(d.pop("outcome_field", UNSET))
 
+        def _parse_condition(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        condition = _parse_condition(d.pop("condition", UNSET))
+
+        def _parse_outcome(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        outcome = _parse_outcome(d.pop("outcome", UNSET))
+
         def _parse_effort_level(data: object) -> ForecastEffortLevel | None | Unset:
             if data is None:
                 return data
@@ -324,6 +365,8 @@ class ForecastOperation:
             thresholds_field=thresholds_field,
             condition_field=condition_field,
             outcome_field=outcome_field,
+            condition=condition,
+            outcome=outcome,
             effort_level=effort_level,
         )
 

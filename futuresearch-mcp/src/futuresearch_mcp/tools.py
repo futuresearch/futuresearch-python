@@ -776,9 +776,12 @@ async def futuresearch_forecast(
       and P(B|not A) together, reasoning about both branches jointly so they stay
       coherent. Use this when the question is about the relationship between two events
       ("if A happens, how likely is B, and how likely if it does not?") rather than
-      each event's standalone chance. Requires ``condition_field`` and
-      ``outcome_field`` naming the columns that hold each row's question A and
-      question B. High effort only.
+      each event's standalone chance. Supply A and B in one of two ways:
+      ``condition_field`` + ``outcome_field`` (per-row columns, when each row carries
+      its own A/B pair), or ``condition`` + ``outcome`` (single shared question
+      strings, the same for every row, mapped over a list of entities such as
+      companies — the typical case for "ask this conditional about each of these").
+      High effort only.
       Output columns: ``prob_b_given_a`` (int 0-100), ``prob_b_given_not_a``
       (int 0-100), and ``rationale`` (str).
 
@@ -827,6 +830,8 @@ async def futuresearch_forecast(
                 thresholds_field=params.thresholds_field,
                 condition_field=params.condition_field,
                 outcome_field=params.outcome_field,
+                condition=params.condition,
+                outcome=params.outcome,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
