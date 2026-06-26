@@ -450,7 +450,7 @@ class ForecastInput(_SingleSourceInput):
         "Leave empty when the rows are self-contained.",
     )
     forecast_type: Literal[
-        "binary", "numeric", "date", "categorical", "thresholded"
+        "binary", "numeric", "date", "categorical", "thresholded", "conditional"
     ] = Field(
         description="Type of forecast. 'binary': yes/no probability (0-100) for questions like "
         "'Will X happen?'. 'numeric': percentile estimates (p10-p90) for questions like "
@@ -461,6 +461,12 @@ class ForecastInput(_SingleSourceInput):
         "'thresholded': one probability per listed threshold condition + a single "
         "rationale, for nested conditions on one outcome like 'oil above $80 / $90 "
         "/ $100' or 'launch before 2027 / 2026' (requires thresholds_field). "
+        "'conditional': how an outcome's probability depends on a condition. For two "
+        "yes/no questions A (the condition) and B (the outcome), forecasts P(B|A) and "
+        "P(B|not A) jointly so the two estimates stay coherent. Use it when the "
+        "question is about the relationship between two events rather than each one's "
+        "standalone probability (requires condition_field and "
+        "outcome_field). "
         "Requires output_field when 'numeric' or 'date'.",
     )
     effort_level: ForecastEffortLevel | None = Field(
@@ -499,6 +505,19 @@ class ForecastInput(_SingleSourceInput):
         "Required when forecast_type is 'thresholded'. 2-50 unique values per "
         "row. The output 'probabilities' column holds a JSON object mapping each "
         "condition to the probability (0-100) that it is satisfied.",
+    )
+    condition_field: str | None = Field(
+        default=None,
+        description="Name of the input column holding question A — the binary "
+        "condition — for a conditional forecast. Required when forecast_type is "
+        "'conditional'.",
+    )
+    outcome_field: str | None = Field(
+        default=None,
+        description="Name of the input column holding question B — the outcome — "
+        "for a conditional forecast. Required when forecast_type is 'conditional'. "
+        "The output columns are 'prob_b_given_a' (P(B|A)) and 'prob_b_given_not_a' "
+        "(P(B|not A)), each an integer 0-100, plus 'rationale'.",
     )
 
 

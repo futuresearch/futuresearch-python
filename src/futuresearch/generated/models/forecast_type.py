@@ -4,6 +4,7 @@ from enum import Enum
 class ForecastType(str, Enum):
     BINARY = "binary"
     CATEGORICAL = "categorical"
+    CONDITIONAL = "conditional"
     DATE = "date"
     NUMERIC = "numeric"
     THRESHOLDED = "thresholded"

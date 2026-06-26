@@ -743,7 +743,7 @@ async def futuresearch_forecast(
 ) -> list[TextContent]:
     """Forecast questions about the future using deep research and multi-model ensemble.
 
-    Supports five modes:
+    Supports six modes:
 
     - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
       Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
@@ -770,6 +770,17 @@ async def futuresearch_forecast(
       JSON array of numbers or strings, ordered least strict to most strict.
       High effort only.
       Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
+
+    - **conditional**: Estimates how an outcome's probability depends on a condition.
+      For two yes/no questions A (the condition) and B (the outcome), forecasts P(B|A)
+      and P(B|not A) together, reasoning about both branches jointly so they stay
+      coherent. Use this when the question is about the relationship between two events
+      ("if A happens, how likely is B, and how likely if it does not?") rather than
+      each event's standalone chance. Requires ``condition_field`` and
+      ``outcome_field`` naming the columns that hold each row's question A and
+      question B. High effort only.
+      Output columns: ``prob_b_given_a`` (int 0-100), ``prob_b_given_not_a``
+      (int 0-100), and ``rationale`` (str).
 
     The CSV should contain at minimum a ``question`` column.  Recommended additional
     columns: ``resolution_criteria``, ``resolution_date``, ``background``; for
@@ -814,20 +825,19 @@ async def futuresearch_forecast(
                 units=params.units,
                 categories_field=params.categories_field,
                 thresholds_field=params.thresholds_field,
+                condition_field=params.condition_field,
+                outcome_field=params.outcome_field,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
 
-        if params.forecast_type == "date":
-            mode_label = "date"
-        elif params.forecast_type == "numeric":
-            mode_label = "numeric percentile"
-        elif params.forecast_type == "categorical":
-            mode_label = "categorical"
-        elif params.forecast_type == "thresholded":
-            mode_label = "thresholded"
-        else:
-            mode_label = "probability"
+        mode_label = {
+            "date": "date",
+            "numeric": "numeric percentile",
+            "categorical": "categorical",
+            "thresholded": "thresholded",
+            "conditional": "conditional",
+        }.get(params.forecast_type, "probability")
         widget_meta: dict[str, Any] = {
             "task_type": "forecast",
             "forecast_type": params.forecast_type,
@@ -840,6 +850,10 @@ async def futuresearch_forecast(
             widget_meta["categories_field"] = params.categories_field
         if params.thresholds_field:
             widget_meta["thresholds_field"] = params.thresholds_field
+        if params.condition_field:
+            widget_meta["condition_field"] = params.condition_field
+        if params.outcome_field:
+            widget_meta["outcome_field"] = params.outcome_field
         return await create_tool_response(
             task_id=task_id,
             # Deliberately no hardcoded researcher/forecaster counts in the label:

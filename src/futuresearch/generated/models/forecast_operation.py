@@ -45,9 +45,14 @@ class ForecastOperation:
             "above $90"] or ["before 2027-06", "before 2026-12"]). Required when forecast_type is 'thresholded'. 2-50 unique
             values per row. The output 'probabilities' column holds a JSON object mapping each condition to the probability
             (0-100) that it is satisfied.
+        condition_field (None | str | Unset): Name of the input column holding question A — the binary condition — for a
+            conditional forecast. Required when forecast_type is 'conditional'.
+        outcome_field (None | str | Unset): Name of the input column holding question B — the outcome — for a conditional
+            forecast. Required when forecast_type is 'conditional'. Output columns are 'prob_b_given_a' (P(B|A)) and
+            'prob_b_given_not_a' (P(B|not A)), each an integer 0-100, plus 'rationale'.
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
-            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical' and
-            'thresholded' require 'HIGH'.
+            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical',
+            'thresholded', and 'conditional' require 'HIGH'.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID
@@ -59,6 +64,8 @@ class ForecastOperation:
     units: None | str | Unset = UNSET
     categories_field: None | str | Unset = UNSET
     thresholds_field: None | str | Unset = UNSET
+    condition_field: None | str | Unset = UNSET
+    outcome_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -117,6 +124,18 @@ class ForecastOperation:
         else:
             thresholds_field = self.thresholds_field
 
+        condition_field: None | str | Unset
+        if isinstance(self.condition_field, Unset):
+            condition_field = UNSET
+        else:
+            condition_field = self.condition_field
+
+        outcome_field: None | str | Unset
+        if isinstance(self.outcome_field, Unset):
+            outcome_field = UNSET
+        else:
+            outcome_field = self.outcome_field
+
         effort_level: None | str | Unset
         if isinstance(self.effort_level, Unset):
             effort_level = UNSET
@@ -146,6 +165,10 @@ class ForecastOperation:
             field_dict["categories_field"] = categories_field
         if thresholds_field is not UNSET:
             field_dict["thresholds_field"] = thresholds_field
+        if condition_field is not UNSET:
+            field_dict["condition_field"] = condition_field
+        if outcome_field is not UNSET:
+            field_dict["outcome_field"] = outcome_field
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
 
@@ -254,6 +277,24 @@ class ForecastOperation:
 
         thresholds_field = _parse_thresholds_field(d.pop("thresholds_field", UNSET))
 
+        def _parse_condition_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        condition_field = _parse_condition_field(d.pop("condition_field", UNSET))
+
+        def _parse_outcome_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        outcome_field = _parse_outcome_field(d.pop("outcome_field", UNSET))
+
         def _parse_effort_level(data: object) -> ForecastEffortLevel | None | Unset:
             if data is None:
                 return data
@@ -281,6 +322,8 @@ class ForecastOperation:
             units=units,
             categories_field=categories_field,
             thresholds_field=thresholds_field,
+            condition_field=condition_field,
+            outcome_field=outcome_field,
             effort_level=effort_level,
         )
 
