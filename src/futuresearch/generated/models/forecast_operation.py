@@ -47,10 +47,10 @@ class ForecastOperation:
             (0-100) that it is satisfied.
         condition (None | str | Unset): Makes the forecast CONDITIONAL: a single condition, the same for every input row
             and mapped over the list (e.g. a list of companies). The outcome (a forecast of forecast_type, taken from each
-            row's question) is forecast both in the world where this condition holds and the world where it does not. The
-            output adds per-branch columns suffixed '_given_condition' and  '_given_not_condition'. State the condition
-            in plain language; where it refers to the entity (e.g. 'the company'), the agent grounds it in each row.
-            Mutually exclusive with condition_field.
+            row's question) is forecast both in the world where this condition holds and the world where it does not. State
+            it in plain language; where it refers to the entity (e.g. 'the company'), the agent grounds it in each row.
+            Mutually exclusive with condition_field. Conditional forecasts require effort_level 'HIGH'. The output adds per-
+            branch columns suffixed '_given_condition' and '_given_not_condition'.
         condition_field (None | str | Unset): Makes the forecast CONDITIONAL using a per-row condition: the name of the
             input column holding each row's own condition. Like 'condition' but varies per row. Mutually exclusive with
             condition.
@@ -68,8 +68,8 @@ class ForecastOperation:
     units: None | str | Unset = UNSET
     categories_field: None | str | Unset = UNSET
     thresholds_field: None | str | Unset = UNSET
-    condition_field: None | str | Unset = UNSET
     condition: None | str | Unset = UNSET
+    condition_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -128,17 +128,17 @@ class ForecastOperation:
         else:
             thresholds_field = self.thresholds_field
 
-        condition_field: None | str | Unset
-        if isinstance(self.condition_field, Unset):
-            condition_field = UNSET
-        else:
-            condition_field = self.condition_field
-
         condition: None | str | Unset
         if isinstance(self.condition, Unset):
             condition = UNSET
         else:
             condition = self.condition
+
+        condition_field: None | str | Unset
+        if isinstance(self.condition_field, Unset):
+            condition_field = UNSET
+        else:
+            condition_field = self.condition_field
 
         effort_level: None | str | Unset
         if isinstance(self.effort_level, Unset):
@@ -169,10 +169,10 @@ class ForecastOperation:
             field_dict["categories_field"] = categories_field
         if thresholds_field is not UNSET:
             field_dict["thresholds_field"] = thresholds_field
-        if condition_field is not UNSET:
-            field_dict["condition_field"] = condition_field
         if condition is not UNSET:
             field_dict["condition"] = condition
+        if condition_field is not UNSET:
+            field_dict["condition_field"] = condition_field
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
 
@@ -281,15 +281,6 @@ class ForecastOperation:
 
         thresholds_field = _parse_thresholds_field(d.pop("thresholds_field", UNSET))
 
-        def _parse_condition_field(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        condition_field = _parse_condition_field(d.pop("condition_field", UNSET))
-
         def _parse_condition(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -298,6 +289,15 @@ class ForecastOperation:
             return cast(None | str | Unset, data)
 
         condition = _parse_condition(d.pop("condition", UNSET))
+
+        def _parse_condition_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        condition_field = _parse_condition_field(d.pop("condition_field", UNSET))
 
         def _parse_effort_level(data: object) -> ForecastEffortLevel | None | Unset:
             if data is None:
@@ -326,8 +326,8 @@ class ForecastOperation:
             units=units,
             categories_field=categories_field,
             thresholds_field=thresholds_field,
-            condition_field=condition_field,
             condition=condition,
+            condition_field=condition_field,
             effort_level=effort_level,
         )
 
