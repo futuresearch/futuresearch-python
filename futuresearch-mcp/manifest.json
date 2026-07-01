@@ -54,7 +54,7 @@
     },
     {
       "name": "futuresearch_forecast",
-      "description": "Forecast questions about the future using deep research and multi-model ensemble."
+      "description": "Forecast questions about the future using deep research."
     },
     {
       "name": "futuresearch_classify",

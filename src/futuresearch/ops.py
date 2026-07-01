@@ -905,7 +905,7 @@ async def forecast(
     condition_field: str | None = None,
     condition: str | None = None,
 ) -> TableResult:
-    """Forecast questions using deep research and multi-model ensemble.
+    """Forecast questions using deep research.
 
     The ``forecast_type`` selects what kind of outcome you are forecasting:
 
@@ -945,8 +945,8 @@ async def forecast(
     input column holding each row's own condition). The two are mutually exclusive.
     The ``forecast_type`` still describes the outcome, taken from each row's question;
     the outcome is then forecast both in the world where the condition holds and the
-    world where it does not, with one ensemble reasoning about both branches jointly so
-    they stay coherent. Use this when you care how the outcome depends on a condition
+    world where it does not, with both branches forecast jointly so they stay
+    coherent. Use this when you care how the outcome depends on a condition
     rather than its standalone value. Conditional forecasts require HIGH effort. The
     output replaces each mode's normal forecast columns with a ``_given_condition`` and
     a ``_given_not_condition`` copy, plus one shared ``rationale``. For binary the
@@ -956,17 +956,14 @@ async def forecast(
     keeps a shared ``units``). For categorical and thresholded they are
     ``probabilities_given_condition`` and ``probabilities_given_not_condition``.
 
-    Each row is forecast using 6 parallel research agents followed by a 3-model
-    forecaster ensemble, validated against FutureSearch's past-casting environment.
-
     The input table should contain at minimum a ``question`` column.  Recommended
     additional columns: ``resolution_criteria``, ``resolution_date``, ``background``;
     for questions tied to a prediction market or forecasting platform (Polymarket,
     Kalshi, Metaculus, ...), also ``market_creation_date`` and ``market_price``
     (with its as-of date).  Pass resolution criteria verbatim from the platform,
     including any fine print — don't paraphrase.  Self-contained questions (e.g.
-    "When will Anthropic IPO?") need none of these.  All columns are passed to
-    the research agents and forecasters.
+    "When will Anthropic IPO?") need none of these.  All columns are used in the
+    forecast.
 
     Args:
         input: The input table.  Each row should contain the question/scenario to
@@ -1127,8 +1124,7 @@ async def classify(
 ) -> TableResult:
     """Classify each row of a table into one of the provided categories.
 
-    Uses a two-phase approach: Phase 1 attempts fast batch classification using
-    web research, and Phase 2 follows up with deeper research on ambiguous rows.
+    Uses web research that scales to the difficulty of the classification.
     Each row is assigned exactly one of the provided categories.
 
     Args:

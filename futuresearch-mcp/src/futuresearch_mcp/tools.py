@@ -741,7 +741,7 @@ async def futuresearch_merge(
 async def futuresearch_forecast(
     params: ForecastInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Forecast questions about the future using deep research and multi-model ensemble.
+    """Forecast questions about the future using deep research.
 
     The ``forecast_type`` selects what kind of outcome you are forecasting:
 
@@ -777,8 +777,8 @@ async def futuresearch_forecast(
     input column holding each row's own condition); the two are mutually exclusive. The
     ``forecast_type`` still describes the outcome, taken from each row's question, and
     the outcome is forecast both in the world where the condition holds and the world
-    where it does not, with one ensemble reasoning about both branches jointly so they
-    stay coherent. Use this when you care how the outcome depends on a condition rather
+    where it does not, with both branches forecast jointly so they stay coherent. Use
+    this when you care how the outcome depends on a condition rather
     than its standalone value. High effort only. The normal output columns are each
     replaced by a ``_given_condition`` and a ``_given_not_condition`` copy, plus one
     shared ``rationale``: for binary, ``probability_given_condition`` and
@@ -794,7 +794,7 @@ async def futuresearch_forecast(
     (with its as-of date).  Fetch these from the platform API and pass resolution
     criteria verbatim, including any fine print — don't paraphrase.  Self-contained
     questions (e.g. "When will Anthropic IPO?") need none of these.  All columns
-    are passed to the research agents and forecasters.
+    are used in the forecast.
 
     The optional ``context`` parameter provides batch-level instructions that apply
     to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
