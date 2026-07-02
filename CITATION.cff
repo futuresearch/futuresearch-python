@@ -4,8 +4,8 @@ type: software
 title: "futuresearch"
 abstract: "AI forecasting SDK: probabilities, dates, and numbers with a verifiable public track record of accuracy"
 license: MIT
-version: 0.21.1
-date-released: 2026-07-01
+version: 0.21.2
+date-released: 2026-07-02
 repository-code: "https://github.com/futuresearch/futuresearch-python"
 url: "https://futuresearch.ai"
 keywords:
