@@ -1,7 +1,7 @@
 [project]
 name = "futuresearch-mcp"
 version = "0.21.1"
-description = "MCP server for futuresearch: a researcher for every row"
+description = "MCP server for FutureSearch: AI forecasting with a public track record, plus dataset research tools"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.futuresearch/futuresearch-mcp",
   "title": "FutureSearch MCP Server",
-  "description": "Give your AI a research team. Forecast, score, classify, or research every row of a dataset.",
+  "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record.",
   "repository": {
     "url": "https://github.com/futuresearch/futuresearch-python",
     "source": "github",
@@ -22,7 +22,7 @@
       },
       "environmentVariables": [
         {
-          "description": "API key for the FutureSearch service, found at https://cohort.futuresearch.ai/app",
+          "description": "API key for the FutureSearch service, found at https://futuresearch.ai/app/api-key",
           "isRequired": true,
           "isSecret": true,
           "name": "FUTURESEARCH_API_KEY"

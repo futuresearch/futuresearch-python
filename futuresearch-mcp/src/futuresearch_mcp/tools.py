@@ -83,6 +83,170 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
+    name="futuresearch_forecast",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Forecast",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def futuresearch_forecast(
+    params: ForecastInput, ctx: FuturesearchContext
+) -> list[TextContent]:
+    """Forecast questions about the future using deep research.
+
+    The ``forecast_type`` selects what kind of outcome you are forecasting:
+
+    - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
+      Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
+
+    - **numeric**: Forecasts percentile estimates for continuous numeric questions.
+      Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
+      ``units`` (str), and ``rationale`` (str).
+
+    - **date**: Forecasts date percentile estimates for timing questions.
+      Requires ``output_field`` (e.g. ``"launch_date"``).
+      Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
+      (YYYY-MM-DD strings) and ``rationale`` (str).
+
+    - **categorical**: Forecasts one probability per listed outcome (mutually
+      exclusive and exhaustive, summing to 100), e.g. "Who wins: A, B, C or D?".
+      Requires ``categories_field`` naming a column that holds each row's outcomes
+      as a JSON array of strings. High effort only.
+      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
+
+    - **thresholded**: Forecasts one probability per listed threshold condition on
+      a single outcome, e.g. oil above $80 / $90 / $100. Requires
+      ``thresholds_field`` naming a column that holds each row's conditions as a
+      JSON array of numbers or strings, ordered least strict to most strict.
+      High effort only.
+      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
+
+    **Conditional forecasts** are an orthogonal modifier of any of the modes above.
+    Supply ``condition`` (a single shared condition, the same for every row and mapped
+    over the list, e.g. a list of companies) or ``condition_field`` (the name of an
+    input column holding each row's own condition); the two are mutually exclusive. The
+    ``forecast_type`` still describes the outcome, taken from each row's question, and
+    the outcome is forecast both in the world where the condition holds and the world
+    where it does not, with both branches forecast jointly so they stay coherent. Use
+    this when you care how the outcome depends on a condition rather
+    than its standalone value. High effort only. The normal output columns are each
+    replaced by a ``_given_condition`` and a ``_given_not_condition`` copy, plus one
+    shared ``rationale``: for binary, ``probability_given_condition`` and
+    ``probability_given_not_condition``; for numeric and date,
+    ``{output_field}_p10_given_condition`` through ``_p90_given_condition`` and the
+    matching ``_given_not_condition`` set; for categorical and thresholded,
+    ``probabilities_given_condition`` and ``probabilities_given_not_condition``.
+
+    The CSV should contain at minimum a ``question`` column.  Recommended additional
+    columns: ``resolution_criteria``, ``resolution_date``, ``background``; for
+    questions tied to a prediction market or forecasting platform (Polymarket,
+    Kalshi, Metaculus, ...), also ``market_creation_date`` and ``market_price``
+    (with its as-of date).  Fetch these from the platform API and pass resolution
+    criteria verbatim, including any fine print — don't paraphrase.  Self-contained
+    questions (e.g. "When will Anthropic IPO?") need none of these.  All columns
+    are used in the forecast.
+
+    The optional ``context`` parameter provides batch-level instructions that apply
+    to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
+    rows are self-contained.
+
+    This function submits the task and returns immediately with a task_id.
+
+    Then immediately follow the instructions in the response to monitor progress.
+    """
+    logger.info(
+        "futuresearch_forecast: type=%s context=%.80s rows=%s",
+        params.forecast_type,
+        params.context or "",
+        len(params.data) if params.data else "artifact",
+    )
+    log_client_info(ctx, "futuresearch_forecast")
+    client = _get_client(ctx)
+
+    input_data = params._aid_or_dataframe
+
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await forecast_async(
+                task=params.context or "",
+                session=session,
+                input=input_data,
+                forecast_type=params.forecast_type,
+                effort_level=params.effort_level,
+                output_field=params.output_field,
+                units=params.units,
+                categories_field=params.categories_field,
+                thresholds_field=params.thresholds_field,
+                condition_field=params.condition_field,
+                condition=params.condition,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+
+        is_conditional = bool(params.condition or params.condition_field)
+        mode_label = {
+            "date": "date",
+            "numeric": "numeric percentile",
+            "categorical": "categorical",
+            "thresholded": "thresholded",
+        }.get(params.forecast_type, "probability")
+        if is_conditional:
+            mode_label = f"conditional {mode_label}"
+        widget_meta: dict[str, Any] = {
+            "task_type": "forecast",
+            "forecast_type": params.forecast_type,
+        }
+        if is_conditional:
+            widget_meta["is_conditional"] = True
+        if params.output_field:
+            widget_meta["output_field"] = params.output_field
+        if params.units:
+            widget_meta["units"] = params.units
+        if params.categories_field:
+            widget_meta["categories_field"] = params.categories_field
+        if params.thresholds_field:
+            widget_meta["thresholds_field"] = params.thresholds_field
+        if params.condition_field:
+            widget_meta["condition_field"] = params.condition_field
+        return await create_tool_response(
+            task_id=task_id,
+            # Deliberately no hardcoded researcher/forecaster counts in the label:
+            # the actual numbers depend on effort_level and batching, and we don't
+            # want Claude paraphrasing stale numbers to the user. The widget UI
+            # reports the live researcher count dynamically via researcherMap.
+            label=f"Submitted: {total} rows for {mode_label} forecasting."
+            if total
+            else f"Submitted: artifact for {mode_label} forecasting.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+            widget_meta=widget_meta,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_forecast failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting forecast task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_forecast failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting forecast task.")
+        ]
+
+
+@mcp.tool(
     name="futuresearch_browse_lists",
     structured_output=False,
     annotations=ToolAnnotations(
@@ -724,170 +888,6 @@ async def futuresearch_merge(
         logger.exception("futuresearch_merge failed")
         return [
             TextContent(type="text", text="Unexpected error submitting merge task.")
-        ]
-
-
-@mcp.tool(
-    name="futuresearch_forecast",
-    structured_output=False,
-    annotations=ToolAnnotations(
-        title="Forecast",
-        readOnlyHint=False,
-        destructiveHint=False,
-        idempotentHint=False,
-        openWorldHint=True,
-    ),
-)
-async def futuresearch_forecast(
-    params: ForecastInput, ctx: FuturesearchContext
-) -> list[TextContent]:
-    """Forecast questions about the future using deep research.
-
-    The ``forecast_type`` selects what kind of outcome you are forecasting:
-
-    - **binary** (default): Forecasts probability (0-100) for YES/NO questions.
-      Output columns: ``probability`` (int, 0-100) and ``rationale`` (str).
-
-    - **numeric**: Forecasts percentile estimates for continuous numeric questions.
-      Requires ``output_field`` (e.g. ``"price"``) and ``units`` (e.g. ``"USD"``).
-      Output columns: ``{output_field}_p10`` through ``{output_field}_p90`` (float),
-      ``units`` (str), and ``rationale`` (str).
-
-    - **date**: Forecasts date percentile estimates for timing questions.
-      Requires ``output_field`` (e.g. ``"launch_date"``).
-      Output columns: ``{output_field}_p10`` through ``{output_field}_p90``
-      (YYYY-MM-DD strings) and ``rationale`` (str).
-
-    - **categorical**: Forecasts one probability per listed outcome (mutually
-      exclusive and exhaustive, summing to 100), e.g. "Who wins: A, B, C or D?".
-      Requires ``categories_field`` naming a column that holds each row's outcomes
-      as a JSON array of strings. High effort only.
-      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
-
-    - **thresholded**: Forecasts one probability per listed threshold condition on
-      a single outcome, e.g. oil above $80 / $90 / $100. Requires
-      ``thresholds_field`` naming a column that holds each row's conditions as a
-      JSON array of numbers or strings, ordered least strict to most strict.
-      High effort only.
-      Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
-
-    **Conditional forecasts** are an orthogonal modifier of any of the modes above.
-    Supply ``condition`` (a single shared condition, the same for every row and mapped
-    over the list, e.g. a list of companies) or ``condition_field`` (the name of an
-    input column holding each row's own condition); the two are mutually exclusive. The
-    ``forecast_type`` still describes the outcome, taken from each row's question, and
-    the outcome is forecast both in the world where the condition holds and the world
-    where it does not, with both branches forecast jointly so they stay coherent. Use
-    this when you care how the outcome depends on a condition rather
-    than its standalone value. High effort only. The normal output columns are each
-    replaced by a ``_given_condition`` and a ``_given_not_condition`` copy, plus one
-    shared ``rationale``: for binary, ``probability_given_condition`` and
-    ``probability_given_not_condition``; for numeric and date,
-    ``{output_field}_p10_given_condition`` through ``_p90_given_condition`` and the
-    matching ``_given_not_condition`` set; for categorical and thresholded,
-    ``probabilities_given_condition`` and ``probabilities_given_not_condition``.
-
-    The CSV should contain at minimum a ``question`` column.  Recommended additional
-    columns: ``resolution_criteria``, ``resolution_date``, ``background``; for
-    questions tied to a prediction market or forecasting platform (Polymarket,
-    Kalshi, Metaculus, ...), also ``market_creation_date`` and ``market_price``
-    (with its as-of date).  Fetch these from the platform API and pass resolution
-    criteria verbatim, including any fine print — don't paraphrase.  Self-contained
-    questions (e.g. "When will Anthropic IPO?") need none of these.  All columns
-    are used in the forecast.
-
-    The optional ``context`` parameter provides batch-level instructions that apply
-    to every row (e.g. "Focus on EU regulatory sources").  Leave it empty when the
-    rows are self-contained.
-
-    This function submits the task and returns immediately with a task_id.
-
-    Then immediately follow the instructions in the response to monitor progress.
-    """
-    logger.info(
-        "futuresearch_forecast: type=%s context=%.80s rows=%s",
-        params.forecast_type,
-        params.context or "",
-        len(params.data) if params.data else "artifact",
-    )
-    log_client_info(ctx, "futuresearch_forecast")
-    client = _get_client(ctx)
-
-    input_data = params._aid_or_dataframe
-
-    try:
-        async with create_linked_session(
-            client=client, session_id=params.session_id, name=params.session_name
-        ) as session:
-            session_id_str = str(session.session_id)
-            cohort_task = await forecast_async(
-                task=params.context or "",
-                session=session,
-                input=input_data,
-                forecast_type=params.forecast_type,
-                effort_level=params.effort_level,
-                output_field=params.output_field,
-                units=params.units,
-                categories_field=params.categories_field,
-                thresholds_field=params.thresholds_field,
-                condition_field=params.condition_field,
-                condition=params.condition,
-            )
-            task_id = str(cohort_task.task_id)
-            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
-
-        is_conditional = bool(params.condition or params.condition_field)
-        mode_label = {
-            "date": "date",
-            "numeric": "numeric percentile",
-            "categorical": "categorical",
-            "thresholded": "thresholded",
-        }.get(params.forecast_type, "probability")
-        if is_conditional:
-            mode_label = f"conditional {mode_label}"
-        widget_meta: dict[str, Any] = {
-            "task_type": "forecast",
-            "forecast_type": params.forecast_type,
-        }
-        if is_conditional:
-            widget_meta["is_conditional"] = True
-        if params.output_field:
-            widget_meta["output_field"] = params.output_field
-        if params.units:
-            widget_meta["units"] = params.units
-        if params.categories_field:
-            widget_meta["categories_field"] = params.categories_field
-        if params.thresholds_field:
-            widget_meta["thresholds_field"] = params.thresholds_field
-        if params.condition_field:
-            widget_meta["condition_field"] = params.condition_field
-        return await create_tool_response(
-            task_id=task_id,
-            # Deliberately no hardcoded researcher/forecaster counts in the label:
-            # the actual numbers depend on effort_level and batching, and we don't
-            # want Claude paraphrasing stale numbers to the user. The widget UI
-            # reports the live researcher count dynamically via researcherMap.
-            label=f"Submitted: {total} rows for {mode_label} forecasting."
-            if total
-            else f"Submitted: artifact for {mode_label} forecasting.",
-            token=client.token,
-            total=total,
-            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
-            session_id=session_id_str,
-            widget_meta=widget_meta,
-        )
-    except FuturesearchError as e:
-        logger.warning(f"futuresearch_forecast failed: {e!r}")
-        return [
-            TextContent(
-                type="text",
-                text=format_sdk_error(e, doing="submitting forecast task"),
-            )
-        ]
-    except Exception:
-        logger.exception("futuresearch_forecast failed")
-        return [
-            TextContent(type="text", text="Unexpected error submitting forecast task.")
         ]
 
 

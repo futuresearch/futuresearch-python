@@ -1,6 +1,6 @@
 {
   "name": "futuresearch",
-  "description": "Gemini extension for the futuresearch SDK - AI-powered data processing utilities for transforming, deduping, merging, ranking, and classifying dataframes",
+  "description": "Gemini extension for FutureSearch: AI forecasting (probabilities, dates, numbers) plus dataset research, ranking, and dedupe tools.",
   "version": "0.21.1",
   "mcpServers": {
     "futuresearch": {

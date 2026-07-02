@@ -1,3 +1,5 @@
+"""FutureSearch SDK: AI forecasting with a public track record (https://evals.futuresearch.ai, https://markets.futuresearch.ai), plus dataset research operations."""
+
 from importlib.metadata import version
 
 from futuresearch.api_utils import create_client

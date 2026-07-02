@@ -2,21 +2,21 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "futuresearch"
-abstract: "A researcher for every row. Run web research agents at scale to forecast, score, classify, deduplicate, merge, or enrich entire datasets."
+abstract: "AI forecasting SDK: probabilities, dates, and numbers with a verifiable public track record of accuracy"
 license: MIT
 version: 0.21.1
 date-released: 2026-07-01
-repository-code: "https://github.com/futuresearch/everyrow-sdk"
+repository-code: "https://github.com/futuresearch/futuresearch-python"
 url: "https://futuresearch.ai"
 keywords:
-  - data-processing
+  - forecasting
+  - prediction
+  - probability
+  - prediction-markets
+  - ai
+  - agents
   - pandas
   - dataframe
-  - natural-language
-  - ai
-  - deduplication
-  - data-merging
-  - web-agents
 authors:
   - name: "FutureSearch"
     website: "https://futuresearch.ai"

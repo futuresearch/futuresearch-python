@@ -79,9 +79,11 @@ async def no_auth_http_lifespan(_server: FastMCP):
 
 
 _INSTRUCTIONS_COMMON = f"""\
-You are connected to the futuresearch MCP server. FutureSearch dispatches web research \
-agents that search the internet, read pages, and return structured results for \
-every row in a dataset.
+You are connected to the FutureSearch MCP server. FutureSearch is an AI forecasting \
+service: it turns questions about the future into probabilities, dates, and numeric \
+estimates, validated against a public track record on real markets and Metaculus \
+tournaments. The server also provides web research agents and dataset tools (rank, \
+classify, dedupe, merge), typically used to build the inputs to a forecasting run.
 
 ## Getting data
 

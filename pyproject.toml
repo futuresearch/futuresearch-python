@@ -11,9 +11,16 @@ futuresearch = { workspace = true }
 [project]
 name = "futuresearch"
 version = "0.21.1"
-description = "A researcher for every row. Forecast, score, classify, or research entire datasets."
+description = "AI forecasting SDK: probabilities, dates, and numbers with a verifiable public track record of accuracy"
 readme = "README.md"
 requires-python = ">=3.12"
+keywords = ["forecasting", "prediction", "probability", "prediction-markets", "ai", "agents"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "attrs>=22.2.0",
     "httpx>=0.20.0",
@@ -21,6 +28,13 @@ dependencies = [
     "pydantic>=2.0.0,<3.0.0",
     "python-dateutil>=2.7.0",
 ]
+
+[project.urls]
+Homepage = "https://futuresearch.ai"
+Documentation = "https://futuresearch.ai/docs"
+Repository = "https://github.com/futuresearch/futuresearch-python"
+"Track record" = "https://markets.futuresearch.ai"
+Benchmarks = "https://evals.futuresearch.ai"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/futuresearch"]

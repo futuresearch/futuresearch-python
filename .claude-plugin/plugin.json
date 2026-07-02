@@ -1,6 +1,6 @@
 {
   "name": "futuresearch",
-  "description": "Give Claude Code a research team. Forecast, score, classify, or research every row of a dataset.",
+  "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record. Includes dataset research, rank, classify, dedupe, and merge tools.",
   "version": "0.21.1",
   "author": {
     "name": "FutureSearch"

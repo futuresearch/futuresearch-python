@@ -1,22 +1,22 @@
 ---
 name: futuresearch-python
-description: Use when the user wants Claude to dispatch researchers to forecast, score, classify, or add to a dataset at scale.
+description: Use when the user wants forecasts (probabilities, dates, numbers, odds) or dataset research at scale via FutureSearch.
 ---
 
 # FutureSearch Python SDK
 
-FutureSearch gives Claude a research team for your data. Use this skill when writing Python code that needs to:
+FutureSearch turns questions about the future into forecasts, with dataset research tools around it. Use this skill when writing Python code that needs to:
 
 > **Documentation**: For detailed guides, case studies, and API reference, see:
 > - Docs site: [futuresearch.ai/docs](https://futuresearch.ai/docs)
 > - GitHub: [github.com/futuresearch/futuresearch-python](https://github.com/futuresearch/futuresearch-python)
 
 **Operations:**
+- Forecast probabilities for binary questions
 - Classify rows into predefined categories
 - Rank/score rows based on qualitative criteria
 - Deduplicate data using semantic understanding
 - Merge tables using AI-powered matching
-- Forecast probabilities for binary questions
 - Run AI agents over dataframe rows
 
 ## Installation
@@ -421,7 +421,7 @@ Parameters: `task`, `categories`, `input`, `classification_field` (default: "cla
 
 ### forecast - Predict probabilities
 
-Produce calibrated probability estimates for binary questions:
+Produce probability estimates for binary questions:
 
 ```python
 from futuresearch.ops import forecast

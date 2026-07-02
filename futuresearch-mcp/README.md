@@ -2,9 +2,9 @@
 
 > Most users don't need to run the MCP server locally. Use the hosted remote server at `https://mcp.futuresearch.ai/mcp` — it authenticates via OAuth, no API key needed. See the [setup guide](https://futuresearch.ai/docs). The instructions below are for self-hosted or advanced use cases where an API key is required.
 
-MCP (Model Context Protocol) server for [FutureSearch](https://futuresearch.ai): agent ops at spreadsheet scale.
+MCP (Model Context Protocol) server for [FutureSearch](https://futuresearch.ai): AI forecasting you can verify. FutureSearch turns questions about the future into probabilities, dates, and numbers, with accuracy verifiable via our public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments ([markets.futuresearch.ai](https://markets.futuresearch.ai), [evals.futuresearch.ai](https://evals.futuresearch.ai)).
 
-This server exposes FutureSearch's core operations as MCP tools, allowing LLM applications to classify, rank, dedupe, merge, forecast, and run agents on CSV files.
+This server exposes FutureSearch's core operations as MCP tools, allowing LLM applications to forecast, classify, rank, dedupe, merge, and run agents on CSV files.
 
 **All tools operate on local CSV files.** Provide absolute file paths as input, and transformed results are written to new CSV files at your specified output path.
 
@@ -57,6 +57,25 @@ All operations follow an async pattern:
 3. **Retrieve** - Once complete, call `futuresearch_results(task_id, output_path)` to save results to CSV.
 
 ## Available Tools
+
+### futuresearch_forecast
+
+Forecast questions about the future. Five modes: binary probabilities, numeric
+percentiles, date percentiles, categorical (one probability per listed outcome),
+and thresholded (one probability per listed threshold condition).
+
+```
+Parameters:
+- forecast_type: "binary", "numeric", "date", "categorical", or "thresholded"
+- context: (optional) Batch-level context for all questions
+- effort_level: (optional) "low" or "high" (default; required for categorical/thresholded)
+- output_field: Name of the forecast quantity (required for numeric/date)
+- units: Units of the forecast quantity (required for numeric)
+- categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
+- thresholds_field: Column with each row's threshold conditions as a JSON array (required for thresholded)
+```
+
+Example: "Will the US Federal Reserve cut rates before July 2027?"
 
 ### futuresearch_rank
 
@@ -116,25 +135,6 @@ Parameters:
 ```
 
 Example: Classify companies by GICS sector with categories ["Energy", "Financials", "Information Technology", ...]
-
-### futuresearch_forecast
-
-Forecast questions about the future. Five modes: binary probabilities, numeric
-percentiles, date percentiles, categorical (one probability per listed outcome),
-and thresholded (one probability per listed threshold condition).
-
-```
-Parameters:
-- forecast_type: "binary", "numeric", "date", "categorical", or "thresholded"
-- context: (optional) Batch-level context for all questions
-- effort_level: (optional) "low" or "high" (default; required for categorical/thresholded)
-- output_field: Name of the forecast quantity (required for numeric/date)
-- units: Units of the forecast quantity (required for numeric)
-- categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
-- thresholds_field: Column with each row's threshold conditions as a JSON array (required for thresholded)
-```
-
-Example: "Will the US Federal Reserve cut rates before July 2027?"
 
 ### futuresearch_agent
 

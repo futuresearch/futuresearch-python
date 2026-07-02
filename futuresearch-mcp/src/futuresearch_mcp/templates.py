@@ -438,9 +438,9 @@ function _renderActivity(isRunning){
   if(showBanner){
     h+=`<div class="activity-banner">`;
     h+=`<div class="activity-banner-header">`;
-    h+=`<span class="activity-banner-label">researcher team activity</span>`;
+    h+=`<span class="activity-banner-label">agent activity</span>`;
     if(researchers.length>0){
-      h+=`<div class="banner-icon-row" aria-label="${researchers.length} researchers">`;
+      h+=`<div class="banner-icon-row" aria-label="${researchers.length} agents">`;
       const ICON_CAP=10;
       const shown=researchers.slice(0,ICON_CAP);
       for(let i=0;i<shown.length;i++){
@@ -456,7 +456,7 @@ function _renderActivity(isRunning){
     h+=`</div>`;
   }
   if(researchers.length===0){
-    h+=`<div class="researchers-empty">Waiting for the first researcher to report&hellip;</div>`;
+    h+=`<div class="researchers-empty">Waiting for the first agent to report&hellip;</div>`;
     activityList.innerHTML=h;
     return;
   }

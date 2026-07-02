@@ -1,16 +1,21 @@
 # FutureSearch Python SDK
 
-[PyPI version](https://pypi.org/project/futuresearch/)
-[License: MIT](https://opensource.org/licenses/MIT)
-[Python 3.12+](https://www.python.org/downloads/)
+[![PyPI version](https://img.shields.io/pypi/v/futuresearch.svg)](https://pypi.org/project/futuresearch/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
 <p align="center">
-  <img src="images/team-dispatch.svg" alt="FutureSearch dispatches a pool of web research agents that search, forecast, and synthesize answers" width="760">
+  <img src="images/team-dispatch.svg" alt="FutureSearch turns questions about the future into probabilities, dates, and numbers" width="760">
 </p>
 
-An API for forecasting and multi-agent research.
+**An API for frontier forecasting.**
 
-FutureSearch provides endpoints that use web research agents at scale, for higher accuracy than web search or single agent approaches alone can achieve. `forecast` runs a team of forecasters to predict future dates, numbers, and probabilities. `multi_agent` orchestrates multiple researchers to answer one question. `agent_map` runs one research agent over every row of a dataset, scaling to thousands of rows and agents.
+FutureSearch predicts the future. Accuracy is verifiable via our public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments.
+
+| Track Record | |
+| --- | --- |
+| [markets.futuresearch.ai](https://markets.futuresearch.ai) | Live trading on Kalshi, Polymarket, and the S&P 500. Every position, including the losers. |
+| [evals.futuresearch.ai](https://evals.futuresearch.ai) | Benchmarks: Bench To the Future, Deep Research Bench, and live forecasting tournament standings (Metaculus, ForecastBench). |
 
 Try it yourself in the [app](https://futuresearch.ai/app), or give advanced forecasting and multi-agent capabilities to your AI wherever you use it ([Claude.ai](https://futuresearch.ai/docs/claude-ai), [Claude Cowork](https://futuresearch.ai/docs/claude-cowork), [Claude Code](https://futuresearch.ai/docs/claude-code), or [Gemini/Codex/other AI surfaces](https://futuresearch.ai/docs/)), or point them to this [Python SDK](https://futuresearch.ai/docs/getting-started).
 
@@ -26,74 +31,135 @@ claude mcp add futuresearch --scope project --transport http https://mcp.futures
 
 Then sign in with Google.
 
-## Endpoints
+## Forecasting
 
-| Role                                                                     | What it does                                | Cost      | Scales To |
-| ------------------------------------------------------------------------ | ------------------------------------------- | --------- | --------- |
-| **[forecast()](https://futuresearch.ai/docs/reference/FORECAST)**        | Predict outcomes                            | 50¢-1.20¢ | 1k rows   |
-| **[multi_agent()](https://futuresearch.ai/docs/reference/MULTIAGENT)**   | A team of researchers per for each question | $0.30-$2  | 1k rows   |
-| **[agent_map()](https://futuresearch.ai/docs/reference/RESEARCH)**       | One researcher per row of a dataset         | 1–11¢     | 10k rows  |
-| **[rank()](https://futuresearch.ai/docs/reference/RANK)**                | Research, then score                        | 1-5¢      | 10k rows  |
-| **[classify()](https://futuresearch.ai/docs/reference/CLASSIFY)**        | Research, then categorize                   | 0.1-0.7¢  | 10k rows  |
-| **[dedupe()](https://futuresearch.ai/docs/reference/DEDUPE)**            | Find duplicate rows                         | 0.2-0.5¢  | 50k rows  |
-| **[merge()](https://futuresearch.ai/docs/reference/MERGE)**              | Find matching rows between two tables       | 0.2-0.5¢  | 20k rows  |
+`forecast()` takes a table of questions about the future and returns a forecast for each row, with a `rationale` column explaining each answer. Five modes cover the shapes a question can take.
 
-See the full [API reference](https://futuresearch.ai/docs/api), [guides](https://futuresearch.ai/docs/guides), and [case studies](https://futuresearch.ai/docs/case-studies), (for example, see our [case study](https://futuresearch.ai/docs/case-studies/llm-web-research-agents-at-scale) running a `Research` task on 10k rows, running agents that used 120k LLM calls.)
+Effort level is `"LOW"` or `"HIGH"`: roughly $0.15 per question at low effort and $2 at high effort. Left unset, a single question runs at high effort and a batch runs at low. Categorical, thresholded, and conditional forecasts always require `"HIGH"`.
 
-Or just ask Claude in your interface of choice:
+### Binary
 
-```
-Find every startup selling training data and evals to frontier AI labs.
-```
-
-```
-Take this 10,000-row CSV of drugs and find the FDA regulatory status of each.
-```
-
-```
-Forecast which of these 500 cancer drug trials are most likely to succeed.
-```
-
----
-
-## SDK Examples
+The probability, 0 to 100, that a YES/NO question resolves YES. Output columns: `probability` and `rationale`.
 
 ```python
-from futuresearch.ops import forecast, agent_map, multi_agent
+import asyncio
 from pandas import DataFrame
+from futuresearch.ops import forecast
 
-# A team of forecasters: research each question, then predict
+async def main():
+    result = await forecast(
+        input=DataFrame([
+            {"question": "Will the US Federal Reserve cut rates by at least 25bp before July 1, 2027?"},
+            {"question": "Will SpaceX land Starship on the Moon before 2030?"},
+        ]),
+        forecast_type="binary",
+    )
+    print(result.data[["question", "probability", "rationale"]])
+
+asyncio.run(main())
+```
+
+### Numeric
+
+Percentile estimates (p10 through p90) for a continuous quantity. Requires `output_field` and `units`.
+
+```python
+result = await forecast(
+    input=DataFrame([
+        {"question": "What will the price of Brent crude oil be on December 31, 2026?"},
+    ]),
+    forecast_type="numeric",
+    output_field="price",
+    units="USD per barrel",
+)
+print(result.data[["price_p10", "price_p50", "price_p90"]])
+```
+
+### Date
+
+Percentile dates (p10 through p90, as `YYYY-MM-DD`) for timing questions. Requires `output_field`.
+
+```python
 result = await forecast(
     input=DataFrame([
         {"question": "When will Anthropic IPO?"},
-        {"question": "When will OpenAI IPO?"},
     ]),
     forecast_type="date",
+    output_field="ipo_date",
 )
-print(result.data.head())
-
-# One web research agent per row, in parallel
-result = await agent_map(
-    task="Find this company's latest funding round and lead investors",
-    input=DataFrame([
-        {"company": "Anthropic"},
-        {"company": "OpenAI"},
-        {"company": "Mistral"},
-        # ... 100 more rows
-    ]),
-)
-print(result.data.head())
-
-# A team of agents on one question; return_list emits one row per item
-result = await multi_agent(
-    task="List the most-funded AI infrastructure startups founded since 2023",
-    input=DataFrame(),
-    return_list=True,
-)
-print(result.data.head())
+print(result.data[["ipo_date_p10", "ipo_date_p50", "ipo_date_p90"]])
 ```
 
-See the API [docs](https://futuresearch.ai/docs/reference/RESEARCH). Agents are tuned on [Deep Research Bench, Bench To the Future, on prediction markets, and in the stock market.](https://evals.futuresearch.ai/).
+### Categorical
+
+Multiple choice: one probability per outcome, forecast jointly so the probabilities sum to 100. Each row holds its own option list in the column named by `categories_field`. Make the set exhaustive; add an "Other" option when it isn't.
+
+```python
+result = await forecast(
+    input=DataFrame([
+        {
+            "question": "Which party will win the most seats at the next UK general election?",
+            "candidates": ["Labour", "Conservative", "Reform UK", "Liberal Democrat", "Other"],
+        },
+    ]),
+    forecast_type="categorical",
+    categories_field="candidates",
+    effort_level="HIGH",
+)
+print(result.data[["probabilities", "rationale"]])
+```
+
+### Thresholded
+
+One probability per threshold condition on a single quantity. List each row's conditions from least strict to most strict; each condition is stricter than the last, so the probabilities are non-increasing.
+
+```python
+result = await forecast(
+    input=DataFrame([
+        {
+            "question": "What will the price of Brent crude oil be on December 31, 2026?",
+            "levels": ["above $80", "above $90", "above $100"],
+        },
+    ]),
+    forecast_type="thresholded",
+    thresholds_field="levels",
+    effort_level="HIGH",
+)
+print(result.data[["probabilities", "rationale"]])
+```
+
+### Conditional
+
+Any mode can be made conditional on a stated scenario: pass `condition` (one condition applied to every row) or `condition_field` (a column of per-row conditions). Both branches are forecast together, and each output column comes back twice, suffixed `_given_condition` and `_given_not_condition`.
+
+```python
+result = await forecast(
+    input=DataFrame([
+        {"question": "What will Nvidia's one-day stock return be the day after its next earnings report?"},
+    ]),
+    forecast_type="numeric",
+    output_field="stock_return",
+    units="percent",
+    condition="Nvidia's next quarterly revenue comes in above $80.07B",
+    effort_level="HIGH",
+)
+print(result.data[["stock_return_p50_given_condition", "stock_return_p50_given_not_condition"]])
+```
+
+Add a `resolution_criteria` column whenever the question has an external source of truth, and copy prediction-market criteria verbatim. Full parameter and output reference: [forecast docs](https://futuresearch.ai/docs/reference/FORECAST).
+
+## Data operations
+
+The same API researches, cleans, and joins datasets, which is often how a forecasting run gets its inputs. Costs are per row; see the [docs](https://futuresearch.ai/docs) for details.
+
+- [agent_map()](https://futuresearch.ai/docs/reference/RESEARCH): web research on every row of a dataset, 1-11¢
+- [multi_agent()](https://futuresearch.ai/docs/reference/MULTIAGENT): parallel research on one question, $0.30-$2
+- [rank()](https://futuresearch.ai/docs/reference/RANK): research, then score each row, 1-5¢
+- [classify()](https://futuresearch.ai/docs/reference/CLASSIFY): research, then categorize each row, 0.1-0.7¢
+- [dedupe()](https://futuresearch.ai/docs/reference/DEDUPE): find duplicate rows, 0.2-0.5¢
+- [merge()](https://futuresearch.ai/docs/reference/MERGE): match rows between two tables, 0.2-0.5¢
+
+---
 
 ## Sessions
 
@@ -212,7 +278,7 @@ uv sync
 uv sync --group case-studies  # for notebooks
 ```
 
-Requires Python 3.12+. Then you can use the SDK directly:
+Requires Python 3.12+. Then you can use the SDK directly, as in the [Forecasting](#forecasting) examples above. Data operations follow the same pattern, for example classify:
 
 ```python
 import asyncio

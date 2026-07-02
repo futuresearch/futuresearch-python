@@ -156,7 +156,7 @@ def main():
             "EVERYROW_API_KEY"
         ):
             logging.error("Configuration error: FUTURESEARCH_API_KEY is required")
-            logging.error("Get an API key at https://cohort.futuresearch.ai/app")
+            logging.error("Get an API key at https://futuresearch.ai/app/api-key")
             sys.exit(1)
 
     mcp.run(transport=transport.value)
