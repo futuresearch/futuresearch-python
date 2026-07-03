@@ -25,6 +25,10 @@ class _BaseAgentHarness(BaseModel):
         description="Model deployment name (server-validated; requests for "
         "unsupported models are rejected)."
     )
+    # The `le` bound mirrors the server's AGENT_SDK_MAX_TURNS_CEILING
+    # (engine/services/agent_sdk/data_types.py); keep the two in sync when the
+    # ceiling changes, or requests the server would accept get rejected here
+    # (and vice versa).
     max_turns: int = Field(default=80, ge=1, le=100)
     provide_inline_citations: bool = Field(
         description="Whether the agent produces inline citations backed by a "

@@ -457,8 +457,13 @@ async def _submit_agent_map(
     if agent_harness is not None:
         # The harness replaces the ReAct loop: its knobs travel in
         # agent_harness and the ReAct knobs must be absent (the server 422s
-        # otherwise). Clearing effort_level keeps the SDK's default preset
-        # from colliding with an explicit harness.
+        # otherwise). effort_level needs special handling because, unlike
+        # llm/iteration_budget, it has a non-None DEFAULT: a caller who never
+        # touched effort_level would still send the ReAct preset alongside the
+        # harness and get a 422. The preset only parameterizes the ReAct loop
+        # the harness replaces, so an untouched default is cleared rather than
+        # rejected; an explicit effort_level=... alongside a harness is
+        # indistinguishable from the default and is cleared the same way.
         if llm is not None or iteration_budget is not None:
             raise FuturesearchError(
                 "agent_harness cannot be combined with llm/iteration_budget"
