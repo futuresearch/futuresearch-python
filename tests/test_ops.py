@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pandas as pd
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
+from futuresearch.agent_harness import ClaudeAgentHarness, OpenAIAgentHarness
+from futuresearch.errors import FuturesearchError
 from futuresearch.generated.models import (
     CreateArtifactResponse,
     ForecastEffortLevel,
@@ -802,3 +804,90 @@ async def test_forecast_grouped_types_thread_field_params(
     assert body.forecast_type == expected_type
     assert body.categories_field == kwargs.get("categories_field")
     assert body.thresholds_field == kwargs.get("thresholds_field")
+
+
+@pytest.mark.asyncio
+async def test_agent_map_with_agent_harness_sends_harness_and_no_react_knobs(
+    mocker, mock_session
+):
+    """agent_harness travels in the request body (via additional_properties
+    until the OpenAPI regen types it) and clears the ReAct preset."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id, [{"country": "India", "answer": "New Delhi"}], artifact_id
+    )
+
+    harness = ClaudeAgentHarness(
+        model="claude-opus-4-8-anthropic",
+        provide_inline_citations=False,
+    )
+    result = await agent_map(
+        task="What is the capital?",
+        session=mock_session,
+        input=pd.DataFrame([{"country": "India"}]),
+        agent_harness=harness,
+    )
+    assert isinstance(result, TableResult)
+
+    body = mock_submit.call_args.kwargs["body"]
+    sent = body.to_dict()
+    assert sent["agent_harness"] == {
+        "type": "claude_agent_sdk",
+        "model": "claude-opus-4-8-anthropic",
+        "max_turns": 80,
+        "max_budget_usd": 15.0,
+        "effort": "xhigh",
+        "provide_inline_citations": False,
+    }
+    # ReAct preset cleared: no effort_level in the payload.
+    assert "effort_level" not in sent
+
+
+@pytest.mark.asyncio
+async def test_agent_map_agent_harness_conflicts_raise(mock_session):
+    harness = OpenAIAgentHarness(model="gpt-5.5-openai", provide_inline_citations=False)
+    with pytest.raises(FuturesearchError, match="cannot be combined"):
+        await agent_map(
+            task="t",
+            session=mock_session,
+            input=pd.DataFrame([{"q": "x"}]),
+            agent_harness=harness,
+            llm=LLM.GEMINI_3_1_PRO_HIGH,
+        )
+    with pytest.raises(FuturesearchError, match="return_table"):
+        await agent_map(
+            task="t",
+            session=mock_session,
+            input=pd.DataFrame([{"q": "x"}]),
+            agent_harness=harness,
+            return_table=True,
+        )
+
+
+def test_agent_harness_requires_provide_inline_citations():
+    with pytest.raises(ValidationError, match="provide_inline_citations"):
+        ClaudeAgentHarness.model_validate({"model": "claude-opus-4-8-anthropic"})

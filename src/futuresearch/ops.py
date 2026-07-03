@@ -6,6 +6,7 @@ from uuid import UUID
 from pandas import DataFrame
 from pydantic import BaseModel
 
+from futuresearch.agent_harness import AgentHarness
 from futuresearch.errors import FuturesearchError, _call_and_check
 from futuresearch.generated.api.artifacts import upload_data_artifacts_upload_post
 from futuresearch.generated.api.operations import (
@@ -367,6 +368,7 @@ async def agent_map(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    agent_harness: AgentHarness | None = None,
 ) -> TableResult:
     """Execute an AI agent task on each row of the input table.
 
@@ -409,6 +411,7 @@ async def agent_map(
                 document_query_llm=document_query_llm,
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
+                agent_harness=agent_harness,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -427,6 +430,7 @@ async def agent_map(
         document_query_llm=document_query_llm,
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        agent_harness=agent_harness,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
@@ -447,8 +451,25 @@ async def _submit_agent_map(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    agent_harness: AgentHarness | None = None,
 ) -> SubmittedTask:
     """Build and submit an agent_map request."""
+    if agent_harness is not None:
+        # The harness replaces the ReAct loop: its knobs travel in
+        # agent_harness and the ReAct knobs must be absent (the server 422s
+        # otherwise). Clearing effort_level keeps the SDK's default preset
+        # from colliding with an explicit harness.
+        if llm is not None or iteration_budget is not None:
+            raise FuturesearchError(
+                "agent_harness cannot be combined with llm/iteration_budget"
+            )
+        if extra_notification_text is not None:
+            raise FuturesearchError(
+                "agent_harness cannot be combined with extra_notification_text"
+            )
+        if return_table:
+            raise FuturesearchError("agent_harness does not support return_table yet")
+        effort_level = None
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
 
     body = AgentMapOperation(
@@ -474,6 +495,8 @@ async def _submit_agent_map(
         if extra_notification_text is not None
         else UNSET,
     )
+    if agent_harness is not None:
+        body.additional_properties["agent_harness"] = agent_harness.to_payload()
 
     response = await _call_and_check(
         agent_map_operations_agent_map_post.asyncio_detailed(
@@ -496,6 +519,7 @@ async def agent_map_async(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    agent_harness: AgentHarness | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit an agent_map task asynchronously."""
     submitted = await _submit_agent_map(
@@ -511,6 +535,7 @@ async def agent_map_async(
         document_query_llm=document_query_llm,
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        agent_harness=agent_harness,
     )
 
     cohort_task = EveryrowTask(
