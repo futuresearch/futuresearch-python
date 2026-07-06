@@ -7,7 +7,11 @@ from pandas import DataFrame
 from pydantic import BaseModel
 
 from futuresearch.agent_harness import AgentHarness
-from futuresearch.errors import FuturesearchError, _call_and_check
+from futuresearch.errors import (
+    FuturesearchError,
+    FuturesearchValidationError,
+    _call_and_check,
+)
 from futuresearch.generated.api.artifacts import upload_data_artifacts_upload_post
 from futuresearch.generated.api.operations import (
     agent_map_operations_agent_map_post,
@@ -642,7 +646,7 @@ async def _submit_rank(
     # Validate that the sort field exists in the schema
     properties = response_schema.get("properties", {})
     if field_name not in properties:
-        raise ValueError(
+        raise FuturesearchValidationError(
             f"field_name '{field_name}' not found in response_schema properties: {list(properties)}"
         )
 

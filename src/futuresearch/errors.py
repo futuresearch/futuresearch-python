@@ -33,6 +33,16 @@ class FuturesearchError(Exception):
         self.details = details
 
 
+class FuturesearchValidationError(FuturesearchError, ValueError):
+    """Caller-supplied arguments failed validation before the task was submitted.
+
+    Subclasses ``ValueError`` so existing SDK callers (and tests) that catch
+    ``ValueError`` keep working, and ``FuturesearchError`` so MCP tool handlers
+    surface it as a graceful, user-facing error instead of paging it as an
+    unexpected exception.
+    """
+
+
 class FuturesearchClientError(FuturesearchError):
     """A 4xx response: the request was invalid; do not retry without changing it."""
 
