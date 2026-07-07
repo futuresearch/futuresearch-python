@@ -500,8 +500,10 @@ class ForecastInput(_SingleSourceInput):
         "conditions as a JSON array of numbers or strings, ordered from least "
         "strict to most strict (e.g. [80, 90, 100] or "
         '["above $80", "above $90"] or ["before 2027-06", "before 2026-12"]). '
-        "Required when forecast_type is 'thresholded'. 2-50 unique values per "
-        "row. The output 'probabilities' column holds a JSON object mapping each "
+        "Required when forecast_type is 'thresholded'. 1-50 unique values per "
+        "row (a single condition is accepted but is really a yes/no question — "
+        "prefer forecast_type='binary' for a clean probability column). The "
+        "output 'probabilities' column holds a JSON object mapping each "
         "condition to the probability (0-100) that it is satisfied.",
     )
     condition: str | None = Field(

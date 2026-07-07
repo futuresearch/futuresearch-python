@@ -1021,8 +1021,10 @@ async def forecast(
             outcomes as a JSON array of strings (2-50 unique options). Required
             when *forecast_type* is ``"categorical"``.
         thresholds_field: Name of the input column holding each row's threshold
-            conditions as a JSON array of numbers or strings (2-50 unique
-            values). Required when *forecast_type* is ``"thresholded"``.
+            conditions as a JSON array of numbers or strings (1-50 unique
+            values). Required when *forecast_type* is ``"thresholded"``. A single
+            condition is accepted but is really a yes/no question — prefer
+            ``forecast_type="binary"`` for a clean ``probability`` column.
         condition: Makes the forecast conditional: a single condition, the same
             for every row and mapped over the input list (e.g. a list of
             companies). Mutually exclusive with *condition_field*.

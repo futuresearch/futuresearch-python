@@ -125,6 +125,8 @@ async def futuresearch_forecast(
       JSON array of numbers or strings, ordered least strict to most strict.
       High effort only.
       Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
+      A single condition is really a yes/no question — use **binary** instead for
+      a clean ``probability`` column.
 
     **Conditional forecasts** are an orthogonal modifier of any of the modes above.
     Supply ``condition`` (a single shared condition, the same for every row and mapped
