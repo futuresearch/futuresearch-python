@@ -938,6 +938,7 @@ async def forecast(
     thresholds_field: str | None = None,
     condition_field: str | None = None,
     condition: str | None = None,
+    config: dict[str, Any] | None = None,
 ) -> TableResult:
     """Forecast questions using deep research.
 
@@ -1031,6 +1032,22 @@ async def forecast(
         condition_field: Makes the forecast conditional using a per-row condition:
             the name of the input column holding each row's own condition. Mutually
             exclusive with *condition*.
+        config: Experimental per-task overrides of internal forecast pipeline
+            parameters (forecaster/refiner ensembles, summarizer model,
+            iteration budget). Internal FutureSearch accounts only. Passed
+            through opaquely and validated server-side at submit time: the
+            server is the source of truth for the schema, unknown keys are a
+            422, every field is optional (omitted fields keep the effort
+            level's default), and a supplied list replaces the default
+            ensemble wholesale. Example::
+
+                config={
+                    "forecaster_slots": [
+                        {"type": "claude_agent_sdk"},
+                        {"type": "react", "llm": "GPT_5_5_HIGH"},
+                    ],
+                    "iteration_budget": 12,
+                }
 
     Returns:
         TableResult with forecast columns added to each input row.
@@ -1050,6 +1067,7 @@ async def forecast(
                 thresholds_field=thresholds_field,
                 condition_field=condition_field,
                 condition=condition,
+                config=config,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -1067,6 +1085,7 @@ async def forecast(
         thresholds_field=thresholds_field,
         condition_field=condition_field,
         condition=condition,
+        config=config,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -1087,6 +1106,7 @@ async def forecast_async(
     thresholds_field: str | None = None,
     condition_field: str | None = None,
     condition: str | None = None,
+    config: dict[str, Any] | None = None,
 ) -> EveryrowTask[BaseModel]:
     """Submit a forecast task asynchronously.
 
@@ -1114,6 +1134,9 @@ async def forecast_async(
         condition_field: Makes the forecast conditional using a per-row condition:
             the name of the input column holding each row's own condition. Mutually
             exclusive with ``condition``.
+        config: Experimental per-task overrides of internal forecast pipeline
+            parameters. Internal FutureSearch accounts only; opaque here,
+            validated server-side. See :func:`forecast`.
 
     Returns:
         EveryrowTask that resolves to a TableResult with forecast columns.
@@ -1133,6 +1156,10 @@ async def forecast_async(
         condition_field=condition_field,
         condition=condition,
     )
+    if config is not None:
+        # Opaque passthrough (same mechanism as agent_map's agent_harness):
+        # the server owns the schema, so new knobs need no SDK release.
+        body.additional_properties["config"] = config
 
     response = await _call_and_check(
         forecast_operations_forecast_post.asyncio_detailed(

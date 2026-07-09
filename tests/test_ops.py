@@ -807,6 +807,70 @@ async def test_forecast_grouped_types_thread_field_params(
 
 
 @pytest.mark.asyncio
+async def test_forecast_config_is_opaque_passthrough(mocker, mock_session):
+    """The config blob travels verbatim in the request body (via
+    additional_properties, like agent_harness) and is absent when not given."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.forecast_operations_forecast_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id,
+        [{"question": "Will it rain tomorrow?", "probability": 60}],
+        artifact_id,
+    )
+
+    input_df = pd.DataFrame([{"question": "Will it rain tomorrow?"}])
+    config = {
+        "forecaster_slots": [
+            {"type": "claude_agent_sdk"},
+            {"type": "react", "llm": "GPT_5_5_HIGH"},
+        ],
+        "iteration_budget": 12,
+    }
+    await forecast(
+        input=input_df,
+        session=mock_session,
+        forecast_type="binary",
+        config=config,
+    )
+    body = mock_submit.call_args.kwargs["body"]
+    assert body.additional_properties["config"] == config
+    assert body.to_dict()["config"] == config
+
+    await forecast(
+        input=input_df,
+        session=mock_session,
+        forecast_type="binary",
+    )
+    body = mock_submit.call_args.kwargs["body"]
+    assert "config" not in body.to_dict()
+
+
+@pytest.mark.asyncio
 async def test_agent_map_with_agent_harness_sends_harness_and_no_react_knobs(
     mocker, mock_session
 ):
