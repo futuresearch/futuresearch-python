@@ -11,7 +11,7 @@
       "name": "futuresearch",
       "source": "./",
       "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record. Includes dataset research, rank, classify, dedupe, and merge tools.",
-      "version": "0.21.2"
+      "version": "0.22.0"
     }
   ]
 }

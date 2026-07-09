@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "futuresearch-mcp",
   "display_name": "FutureSearch MCP Server",
-  "version": "0.21.2",
+  "version": "0.22.0",
   "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record. Includes dataset research, rank, classify, dedupe, and merge tools.",
   "long_description": "MCP server for FutureSearch: AI forecasting for your AI. Turn questions about the future into probabilities, dates, and numbers, backed by a public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments. Also includes tools to research, rank, classify, deduplicate, and merge datasets at scale.",
   "author": {

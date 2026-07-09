@@ -10,7 +10,7 @@ futuresearch = { workspace = true }
 
 [project]
 name = "futuresearch"
-version = "0.21.2"
+version = "0.22.0"
 description = "AI forecasting SDK: probabilities, dates, and numbers with a verifiable public track record of accuracy"
 readme = "README.md"
 requires-python = ">=3.12"

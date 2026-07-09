@@ -1,12 +1,12 @@
 [project]
 name = "futuresearch-mcp"
-version = "0.21.2"
+version = "0.22.0"
 description = "MCP server for FutureSearch: AI forecasting with a public track record, plus dataset research tools"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "PyJWT[crypto]>=2.8.0",
-    "futuresearch>=0.21.2",
+    "futuresearch>=0.22.0",
     "httpx>=0.27.0",
     "jsonschema>=4.0.0",
     "mcp[cli]>=1.0.0",
