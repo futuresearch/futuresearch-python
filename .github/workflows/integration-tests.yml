@@ -30,3 +30,25 @@ jobs:
         run: |
           uv run pip install pytest-xdist
           uv run pytest -n 8 tests/integration/ -v -m integration --tb=short
+
+  # Mirrors the everyrow-cc smoke-test alert: a real test failure posts to
+  # Slack. These tests run against production, so a red run can mean a prod
+  # regression (rank results shipped unsorted for weeks before anyone noticed
+  # the red checkmarks). SLACK_WEBHOOK_URL is a repo secret on
+  # futuresearch-python; the workflow only runs on push-to-main and manual
+  # dispatch, so the secret is never exposed to fork PRs.
+  on-failure:
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.integration-tests.result == 'failure' }}
+    needs: [integration-tests]
+    steps:
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_USERNAME: Github Actions
+          SLACK_TITLE: SDK Integration Tests Failed
+          MSG_MINIMAL: actions url
+          SLACK_MESSAGE: "Triggered by: ${{ github.event_name }}. View run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: "#FF0000"
+          SLACK_ICON: https://github.gallerycdn.vsassets.io/extensions/github/vscode-github-actions/0.27.1/1738268153156/Microsoft.VisualStudio.Services.Icons.Default
