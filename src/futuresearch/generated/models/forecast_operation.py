@@ -42,9 +42,10 @@ class ForecastOperation:
             holds a JSON object mapping each option to its probability (0-100).
         thresholds_field (None | str | Unset): Name of the input column holding each row's threshold conditions as a
             JSON array of numbers or strings, ordered from least strict to most strict (e.g. [80, 90, 100] or ["above $80",
-            "above $90"] or ["before 2027-06", "before 2026-12"]). Required when forecast_type is 'thresholded'. 2-50 unique
-            values per row. The output 'probabilities' column holds a JSON object mapping each condition to the probability
-            (0-100) that it is satisfied.
+            "above $90"] or ["before 2027-06", "before 2026-12"]). Required when forecast_type is 'thresholded'. 1-50 unique
+            values per row (a single condition is accepted but is really a yes/no question — prefer forecast_type='binary'
+            for a clean probability column). The output 'probabilities' column holds a JSON object mapping each condition to
+            the probability (0-100) that it is satisfied.
         condition (None | str | Unset): Makes the forecast CONDITIONAL: a single condition, the same for every input row
             and mapped over the list (e.g. a list of companies). The outcome (a forecast of forecast_type, taken from each
             row's question) is forecast both in the world where this condition holds and the world where it does not. State

@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from ..models.agent_map_operation_input_type_1_item import AgentMapOperationInputType1Item
     from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
     from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+    from ..models.claude_agent_harness import ClaudeAgentHarness
+    from ..models.open_ai_agent_harness import OpenAiAgentHarness
 
 
 T = TypeVar("T", bound="AgentMapOperation")
@@ -57,6 +59,9 @@ class AgentMapOperation:
         extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
             task prompt.
+        agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
+            agent SDK (Claude Agent SDK or OpenAI Agents SDK) instead of the native ReAct loop. Mutually exclusive with
+            effort_level/llm/iteration_budget/extra_notification_text and with return_list. Internal accounts only.
     """
 
     input_: AgentMapOperationInputType2 | list[AgentMapOperationInputType1Item] | UUID
@@ -74,10 +79,13 @@ class AgentMapOperation:
     document_query_llm: LLMEnumPublic | None | Unset = UNSET
     return_list: bool | Unset = False
     extra_notification_text: None | str | Unset = UNSET
+    agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+        from ..models.claude_agent_harness import ClaudeAgentHarness
+        from ..models.open_ai_agent_harness import OpenAiAgentHarness
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
@@ -169,6 +177,16 @@ class AgentMapOperation:
         else:
             extra_notification_text = self.extra_notification_text
 
+        agent_harness: dict[str, Any] | None | Unset
+        if isinstance(self.agent_harness, Unset):
+            agent_harness = UNSET
+        elif isinstance(self.agent_harness, ClaudeAgentHarness):
+            agent_harness = self.agent_harness.to_dict()
+        elif isinstance(self.agent_harness, OpenAiAgentHarness):
+            agent_harness = self.agent_harness.to_dict()
+        else:
+            agent_harness = self.agent_harness
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -203,6 +221,8 @@ class AgentMapOperation:
             field_dict["return_list"] = return_list
         if extra_notification_text is not UNSET:
             field_dict["extra_notification_text"] = extra_notification_text
+        if agent_harness is not UNSET:
+            field_dict["agent_harness"] = agent_harness
 
         return field_dict
 
@@ -211,6 +231,8 @@ class AgentMapOperation:
         from ..models.agent_map_operation_input_type_1_item import AgentMapOperationInputType1Item
         from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
         from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+        from ..models.claude_agent_harness import ClaudeAgentHarness
+        from ..models.open_ai_agent_harness import OpenAiAgentHarness
 
         d = dict(src_dict)
 
@@ -382,6 +404,31 @@ class AgentMapOperation:
 
         extra_notification_text = _parse_extra_notification_text(d.pop("extra_notification_text", UNSET))
 
+        def _parse_agent_harness(data: object) -> ClaudeAgentHarness | None | OpenAiAgentHarness | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                agent_harness_type_0_type_0 = ClaudeAgentHarness.from_dict(data)
+
+                return agent_harness_type_0_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                agent_harness_type_0_type_1 = OpenAiAgentHarness.from_dict(data)
+
+                return agent_harness_type_0_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(ClaudeAgentHarness | None | OpenAiAgentHarness | Unset, data)
+
+        agent_harness = _parse_agent_harness(d.pop("agent_harness", UNSET))
+
         agent_map_operation = cls(
             input_=input_,
             task=task,
@@ -398,6 +445,7 @@ class AgentMapOperation:
             document_query_llm=document_query_llm,
             return_list=return_list,
             extra_notification_text=extra_notification_text,
+            agent_harness=agent_harness,
         )
 
         agent_map_operation.additional_properties = d

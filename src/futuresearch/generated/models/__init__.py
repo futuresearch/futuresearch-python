@@ -16,6 +16,8 @@ from .cancel_task_response import CancelTaskResponse
 from .classify_operation import ClassifyOperation
 from .classify_operation_input_type_1_item import ClassifyOperationInputType1Item
 from .classify_operation_input_type_2 import ClassifyOperationInputType2
+from .claude_agent_harness import ClaudeAgentHarness
+from .claude_agent_harness_effort import ClaudeAgentHarnessEffort
 from .create_artifact_response import CreateArtifactResponse
 from .create_session import CreateSession
 from .dedupe_operation import DedupeOperation
@@ -45,6 +47,8 @@ from .multi_agent_operation import MultiAgentOperation
 from .multi_agent_operation_input_type_1_item import MultiAgentOperationInputType1Item
 from .multi_agent_operation_input_type_2 import MultiAgentOperationInputType2
 from .multi_agent_operation_response_schema_type_0 import MultiAgentOperationResponseSchemaType0
+from .open_ai_agent_harness import OpenAiAgentHarness
+from .open_ai_agent_harness_reasoning_effort_type_0 import OpenAiAgentHarnessReasoningEffortType0
 from .operation_response import OperationResponse
 from .partial_rows_response import PartialRowsResponse
 from .partial_rows_response_rows_item import PartialRowsResponseRowsItem
@@ -109,6 +113,8 @@ __all__ = (
     "ClassifyOperation",
     "ClassifyOperationInputType1Item",
     "ClassifyOperationInputType2",
+    "ClaudeAgentHarness",
+    "ClaudeAgentHarnessEffort",
     "CreateArtifactResponse",
     "CreateSession",
     "DedupeOperation",
@@ -138,6 +144,8 @@ __all__ = (
     "MultiAgentOperationInputType1Item",
     "MultiAgentOperationInputType2",
     "MultiAgentOperationResponseSchemaType0",
+    "OpenAiAgentHarness",
+    "OpenAiAgentHarnessReasoningEffortType0",
     "OperationResponse",
     "PartialRowsResponse",
     "PartialRowsResponseRowsItem",

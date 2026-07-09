@@ -1,2 +1,9 @@
 project_name_override: src/futuresearch
 package_name_override: generated
+# Restrict the generator's lint/format hooks to the generated package. The
+# defaults ("ruff check --fix-only .", "ruff format .") run in the project dir
+# (src/futuresearch) and would reformat the handwritten SDK modules with the
+# generator's own ruff config.
+post_hooks:
+  - "ruff check --fix-only generated"
+  - "ruff format generated"
