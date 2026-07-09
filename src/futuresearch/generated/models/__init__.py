@@ -18,6 +18,9 @@ from .classify_operation_input_type_1_item import ClassifyOperationInputType1Ite
 from .classify_operation_input_type_2 import ClassifyOperationInputType2
 from .claude_agent_harness import ClaudeAgentHarness
 from .claude_agent_harness_effort import ClaudeAgentHarnessEffort
+from .claude_sdk_forecaster_slot import ClaudeSdkForecasterSlot
+from .claude_sdk_forecaster_slot_effort import ClaudeSdkForecasterSlotEffort
+from .consistency_footprint import ConsistencyFootprint
 from .create_artifact_response import CreateArtifactResponse
 from .create_session import CreateSession
 from .dedupe_operation import DedupeOperation
@@ -30,11 +33,14 @@ from .forecast_effort_level import ForecastEffortLevel
 from .forecast_operation import ForecastOperation
 from .forecast_operation_input_type_1_item import ForecastOperationInputType1Item
 from .forecast_operation_input_type_2 import ForecastOperationInputType2
+from .forecast_task_config import ForecastTaskConfig
 from .forecast_type import ForecastType
 from .health_response import HealthResponse
 from .http_validation_error import HTTPValidationError
 from .insufficient_balance_response import InsufficientBalanceResponse
+from .llm_enum import LLMEnum
 from .llm_enum_public import LLMEnumPublic
+from .low_effort_forecaster_slot import LowEffortForecasterSlot
 from .merge_breakdown_response import MergeBreakdownResponse
 from .merge_operation import MergeOperation
 from .merge_operation_left_input_type_1_item import MergeOperationLeftInputType1Item
@@ -49,6 +55,8 @@ from .multi_agent_operation_input_type_2 import MultiAgentOperationInputType2
 from .multi_agent_operation_response_schema_type_0 import MultiAgentOperationResponseSchemaType0
 from .open_ai_agent_harness import OpenAiAgentHarness
 from .open_ai_agent_harness_reasoning_effort_type_0 import OpenAiAgentHarnessReasoningEffortType0
+from .open_ai_sdk_forecaster_slot import OpenAiSdkForecasterSlot
+from .open_ai_sdk_forecaster_slot_reasoning_effort_type_0 import OpenAiSdkForecasterSlotReasoningEffortType0
 from .operation_response import OperationResponse
 from .partial_rows_response import PartialRowsResponse
 from .partial_rows_response_rows_item import PartialRowsResponseRowsItem
@@ -60,6 +68,8 @@ from .rank_operation import RankOperation
 from .rank_operation_input_type_1_item import RankOperationInputType1Item
 from .rank_operation_input_type_2 import RankOperationInputType2
 from .rank_operation_response_schema_type_0 import RankOperationResponseSchemaType0
+from .re_act_forecaster_slot import ReActForecasterSlot
+from .refiner_slot import RefinerSlot
 from .request_upload_request import RequestUploadRequest
 from .request_upload_response import RequestUploadResponse
 from .session_list_item import SessionListItem
@@ -81,6 +91,7 @@ from .task_result_response_data_type_0_item import TaskResultResponseDataType0It
 from .task_result_response_data_type_1 import TaskResultResponseDataType1
 from .task_status import TaskStatus
 from .task_status_response import TaskStatusResponse
+from .task_status_response_forecast_consistency_type_0 import TaskStatusResponseForecastConsistencyType0
 from .update_session import UpdateSession
 from .upload_complete_response import UploadCompleteResponse
 from .upload_data_artifacts_upload_post_files_body import UploadDataArtifactsUploadPostFilesBody
@@ -115,6 +126,9 @@ __all__ = (
     "ClassifyOperationInputType2",
     "ClaudeAgentHarness",
     "ClaudeAgentHarnessEffort",
+    "ClaudeSdkForecasterSlot",
+    "ClaudeSdkForecasterSlotEffort",
+    "ConsistencyFootprint",
     "CreateArtifactResponse",
     "CreateSession",
     "DedupeOperation",
@@ -127,11 +141,14 @@ __all__ = (
     "ForecastOperation",
     "ForecastOperationInputType1Item",
     "ForecastOperationInputType2",
+    "ForecastTaskConfig",
     "ForecastType",
     "HealthResponse",
     "HTTPValidationError",
     "InsufficientBalanceResponse",
+    "LLMEnum",
     "LLMEnumPublic",
+    "LowEffortForecasterSlot",
     "MergeBreakdownResponse",
     "MergeOperation",
     "MergeOperationLeftInputType1Item",
@@ -146,6 +163,8 @@ __all__ = (
     "MultiAgentOperationResponseSchemaType0",
     "OpenAiAgentHarness",
     "OpenAiAgentHarnessReasoningEffortType0",
+    "OpenAiSdkForecasterSlot",
+    "OpenAiSdkForecasterSlotReasoningEffortType0",
     "OperationResponse",
     "PartialRowsResponse",
     "PartialRowsResponseRowsItem",
@@ -157,6 +176,8 @@ __all__ = (
     "RankOperationInputType1Item",
     "RankOperationInputType2",
     "RankOperationResponseSchemaType0",
+    "ReActForecasterSlot",
+    "RefinerSlot",
     "RequestUploadRequest",
     "RequestUploadResponse",
     "SessionListItem",
@@ -178,6 +199,7 @@ __all__ = (
     "TaskResultResponseDataType1",
     "TaskStatus",
     "TaskStatusResponse",
+    "TaskStatusResponseForecastConsistencyType0",
     "UpdateSession",
     "UploadCompleteResponse",
     "UploadDataArtifactsUploadPostFilesBody",

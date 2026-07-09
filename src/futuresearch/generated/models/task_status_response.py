@@ -15,6 +15,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.task_progress_info import TaskProgressInfo
+    from ..models.task_status_response_forecast_consistency_type_0 import TaskStatusResponseForecastConsistencyType0
 
 
 T = TypeVar("T", bound="TaskStatusResponse")
@@ -37,6 +38,8 @@ class TaskStatusResponse:
         pool_size (int | None | Unset): User's researcher pool size (concurrent task capacity)
         active_workers (int | None | Unset): Number of semaphore entries currently held by this task
         user_active_workers (int | None | Unset): Total semaphore entries across all of this user's tasks
+        forecast_consistency (None | TaskStatusResponseForecastConsistencyType0 | Unset): For forecasts: per-question
+            footprint keyed by stringified row index. Indicates how each question was weighed against related forecasts.
     """
 
     task_id: UUID
@@ -52,10 +55,12 @@ class TaskStatusResponse:
     pool_size: int | None | Unset = UNSET
     active_workers: int | None | Unset = UNSET
     user_active_workers: int | None | Unset = UNSET
+    forecast_consistency: None | TaskStatusResponseForecastConsistencyType0 | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.task_progress_info import TaskProgressInfo
+        from ..models.task_status_response_forecast_consistency_type_0 import TaskStatusResponseForecastConsistencyType0
 
         task_id = str(self.task_id)
 
@@ -121,6 +126,14 @@ class TaskStatusResponse:
         else:
             user_active_workers = self.user_active_workers
 
+        forecast_consistency: dict[str, Any] | None | Unset
+        if isinstance(self.forecast_consistency, Unset):
+            forecast_consistency = UNSET
+        elif isinstance(self.forecast_consistency, TaskStatusResponseForecastConsistencyType0):
+            forecast_consistency = self.forecast_consistency.to_dict()
+        else:
+            forecast_consistency = self.forecast_consistency
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -146,12 +159,15 @@ class TaskStatusResponse:
             field_dict["active_workers"] = active_workers
         if user_active_workers is not UNSET:
             field_dict["user_active_workers"] = user_active_workers
+        if forecast_consistency is not UNSET:
+            field_dict["forecast_consistency"] = forecast_consistency
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.task_progress_info import TaskProgressInfo
+        from ..models.task_status_response_forecast_consistency_type_0 import TaskStatusResponseForecastConsistencyType0
 
         d = dict(src_dict)
         task_id = UUID(d.pop("task_id"))
@@ -269,6 +285,23 @@ class TaskStatusResponse:
 
         user_active_workers = _parse_user_active_workers(d.pop("user_active_workers", UNSET))
 
+        def _parse_forecast_consistency(data: object) -> None | TaskStatusResponseForecastConsistencyType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                forecast_consistency_type_0 = TaskStatusResponseForecastConsistencyType0.from_dict(data)
+
+                return forecast_consistency_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | TaskStatusResponseForecastConsistencyType0 | Unset, data)
+
+        forecast_consistency = _parse_forecast_consistency(d.pop("forecast_consistency", UNSET))
+
         task_status_response = cls(
             task_id=task_id,
             session_id=session_id,
@@ -283,6 +316,7 @@ class TaskStatusResponse:
             pool_size=pool_size,
             active_workers=active_workers,
             user_active_workers=user_active_workers,
+            forecast_consistency=forecast_consistency,
         )
 
         task_status_response.additional_properties = d

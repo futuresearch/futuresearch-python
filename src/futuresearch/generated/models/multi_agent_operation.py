@@ -35,8 +35,9 @@ class MultiAgentOperation:
             effort_level.
         response_schema (MultiAgentOperationResponseSchemaType0 | None | Unset): JSON Schema for the synthesized
             response. If not provided, defaults to a simple {answer: string} schema.
-        effort_level (None | PublicEffortLevel | Unset): Controls the number of parallel direction agents: low (3
-            agents), medium (4 agents), high (6 agents). Default: PublicEffortLevel.MEDIUM.
+        effort_level (None | PublicEffortLevel | Unset): Controls the parallel direction agents: low (3 Gemini Flash
+            agents), medium (4 Gemini Flash agents), high (2 large agents — GPT-5.5 high + Opus 4.8 xhigh — for deeper
+            research). No per-agent spend cap. Default: PublicEffortLevel.MEDIUM.
         join_with_input (bool | Unset): If True, merge the synthesized output with the input row. Default: True.
         return_list (bool | Unset): If True, treat each row's synthesized output as a list of records and emit one
             output row per item (with an `_expand_index` column). The `response_schema` should describe a single item; the

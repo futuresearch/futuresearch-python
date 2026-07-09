@@ -14,6 +14,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.forecast_operation_input_type_1_item import ForecastOperationInputType1Item
     from ..models.forecast_operation_input_type_2 import ForecastOperationInputType2
+    from ..models.forecast_task_config import ForecastTaskConfig
 
 
 T = TypeVar("T", bound="ForecastOperation")
@@ -58,6 +59,10 @@ class ForecastOperation:
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
             cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical' and
             'thresholded' forecasts, and any conditional forecast (condition / condition_field), require 'HIGH'.
+        config (ForecastTaskConfig | None | Unset): Experimental per-task overrides of internal forecast pipeline
+            parameters (forecaster/refiner ensembles, summarizer model, iteration budget). Internal accounts only. Every
+            field is optional and defaults to the effort level's stock value; supplied list fields replace the default
+            ensemble wholesale. Unknown keys and effort-mismatched fields are rejected at submit time.
     """
 
     input_: ForecastOperationInputType2 | list[ForecastOperationInputType1Item] | UUID
@@ -72,9 +77,12 @@ class ForecastOperation:
     condition: None | str | Unset = UNSET
     condition_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
+    config: ForecastTaskConfig | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.forecast_task_config import ForecastTaskConfig
+
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
             input_ = str(self.input_)
@@ -149,6 +157,14 @@ class ForecastOperation:
         else:
             effort_level = self.effort_level
 
+        config: dict[str, Any] | None | Unset
+        if isinstance(self.config, Unset):
+            config = UNSET
+        elif isinstance(self.config, ForecastTaskConfig):
+            config = self.config.to_dict()
+        else:
+            config = self.config
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -176,6 +192,8 @@ class ForecastOperation:
             field_dict["condition_field"] = condition_field
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
+        if config is not UNSET:
+            field_dict["config"] = config
 
         return field_dict
 
@@ -183,6 +201,7 @@ class ForecastOperation:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.forecast_operation_input_type_1_item import ForecastOperationInputType1Item
         from ..models.forecast_operation_input_type_2 import ForecastOperationInputType2
+        from ..models.forecast_task_config import ForecastTaskConfig
 
         d = dict(src_dict)
 
@@ -317,6 +336,23 @@ class ForecastOperation:
 
         effort_level = _parse_effort_level(d.pop("effort_level", UNSET))
 
+        def _parse_config(data: object) -> ForecastTaskConfig | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                config_type_0 = ForecastTaskConfig.from_dict(data)
+
+                return config_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(ForecastTaskConfig | None | Unset, data)
+
+        config = _parse_config(d.pop("config", UNSET))
+
         forecast_operation = cls(
             input_=input_,
             task=task,
@@ -330,6 +366,7 @@ class ForecastOperation:
             condition=condition,
             condition_field=condition_field,
             effort_level=effort_level,
+            config=config,
         )
 
         forecast_operation.additional_properties = d
