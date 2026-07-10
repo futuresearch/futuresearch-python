@@ -78,7 +78,7 @@ def sync_detailed(
     """Multi-agent parallel research
 
      Run multiple AI agents in parallel on different research angles, then synthesize results into a
-    single output per row. Supports up to 6 parallel direction agents.
+    single output per row. Runs parallel direction agents, each exploring a different angle.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -113,7 +113,7 @@ def sync(
     """Multi-agent parallel research
 
      Run multiple AI agents in parallel on different research angles, then synthesize results into a
-    single output per row. Supports up to 6 parallel direction agents.
+    single output per row. Runs parallel direction agents, each exploring a different angle.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -143,7 +143,7 @@ async def asyncio_detailed(
     """Multi-agent parallel research
 
      Run multiple AI agents in parallel on different research angles, then synthesize results into a
-    single output per row. Supports up to 6 parallel direction agents.
+    single output per row. Runs parallel direction agents, each exploring a different angle.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -176,7 +176,7 @@ async def asyncio(
     """Multi-agent parallel research
 
      Run multiple AI agents in parallel on different research angles, then synthesize results into a
-    single output per row. Supports up to 6 parallel direction agents.
+    single output per row. Runs parallel direction agents, each exploring a different angle.
 
     Args:
         x_cohort_source (None | str | Unset):

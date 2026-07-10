@@ -87,9 +87,9 @@ def sync_detailed(
     **Configuration options** (mutually exclusive):
 
     1. **Use a preset** - set `effort_level` to one of:
-       - `low`: Fast, minimal research (Gemini Flash, 0 iterations, no provenance)
-       - `medium`: Balanced (Gemini Flash High, 5 iterations, with provenance)
-       - `high`: Thorough research (Claude Opus, 10 iterations, with provenance)
+       - `low`: Fast, minimal research (0 iterations, no provenance)
+       - `medium`: Balanced (5 iterations, with provenance)
+       - `high`: Thorough research (10 iterations, with provenance)
 
     2. **Fully customize** - set `effort_level=null` and provide ALL of:
        - `llm`: The LLM model to use
@@ -140,9 +140,9 @@ def sync(
     **Configuration options** (mutually exclusive):
 
     1. **Use a preset** - set `effort_level` to one of:
-       - `low`: Fast, minimal research (Gemini Flash, 0 iterations, no provenance)
-       - `medium`: Balanced (Gemini Flash High, 5 iterations, with provenance)
-       - `high`: Thorough research (Claude Opus, 10 iterations, with provenance)
+       - `low`: Fast, minimal research (0 iterations, no provenance)
+       - `medium`: Balanced (5 iterations, with provenance)
+       - `high`: Thorough research (10 iterations, with provenance)
 
     2. **Fully customize** - set `effort_level=null` and provide ALL of:
        - `llm`: The LLM model to use
@@ -188,9 +188,9 @@ async def asyncio_detailed(
     **Configuration options** (mutually exclusive):
 
     1. **Use a preset** - set `effort_level` to one of:
-       - `low`: Fast, minimal research (Gemini Flash, 0 iterations, no provenance)
-       - `medium`: Balanced (Gemini Flash High, 5 iterations, with provenance)
-       - `high`: Thorough research (Claude Opus, 10 iterations, with provenance)
+       - `low`: Fast, minimal research (0 iterations, no provenance)
+       - `medium`: Balanced (5 iterations, with provenance)
+       - `high`: Thorough research (10 iterations, with provenance)
 
     2. **Fully customize** - set `effort_level=null` and provide ALL of:
        - `llm`: The LLM model to use
@@ -239,9 +239,9 @@ async def asyncio(
     **Configuration options** (mutually exclusive):
 
     1. **Use a preset** - set `effort_level` to one of:
-       - `low`: Fast, minimal research (Gemini Flash, 0 iterations, no provenance)
-       - `medium`: Balanced (Gemini Flash High, 5 iterations, with provenance)
-       - `high`: Thorough research (Claude Opus, 10 iterations, with provenance)
+       - `low`: Fast, minimal research (0 iterations, no provenance)
+       - `medium`: Balanced (5 iterations, with provenance)
+       - `high`: Thorough research (10 iterations, with provenance)
 
     2. **Fully customize** - set `effort_level=null` and provide ALL of:
        - `llm`: The LLM model to use

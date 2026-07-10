@@ -94,7 +94,7 @@ Otherwise, help them find one:
 Call with no filters to see all available lists. Many analyses start from one of these.
 2. **URLs** — upload from a URL or Google Sheet via `futuresearch_upload_data`.
 3. **From memory** — if you know a good starting list, generate it as inline `data`.
-4. **multi_agent** — dispatch parallel research agents (3-6, by `effort_level`) on \
+4. **multi_agent** — dispatch parallel research agents (by `effort_level`) on \
 different angles, then synthesize. Slow (3-5 min) so prefer the options above. \
 **To generate a list from nothing, pass `data=[]` (empty list), set `return_table=True`, \
 and provide a `response_schema` defining the fields per item.** Without these, results \

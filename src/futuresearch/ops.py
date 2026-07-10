@@ -1395,7 +1395,7 @@ async def multi_agent_async(
         session: Active session.
         input: Input data.
         directions: Up to 6 explicit research directions.
-        effort_level: ``"low"`` (3 agents), ``"medium"`` (4), ``"high"`` (6).
+        effort_level: ``"low"`` (3 agents) and ``"medium"`` (4) run fast; ``"high"`` runs 2 frontier agents for deeper but slower research.
         response_schema: JSON Schema for the synthesized output.
         join_with_input: If True, merge output with input row.
         return_list: If True, emit one output row per synthesized item.

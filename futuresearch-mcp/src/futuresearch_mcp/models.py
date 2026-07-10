@@ -795,8 +795,9 @@ class MultiAgentInput(_SingleSourceInput):
     )
     effort_level: EffortLevel | None = Field(
         default=EffortLevel.MEDIUM,
-        description="Controls the number of parallel direction agents: "
-        '"low" (3 agents), "medium" (4 agents), "high" (6 agents).',
+        description="Controls the parallel direction agents: "
+        '"low" (3 agents) and "medium" (4 agents) run fast; '
+        '"high" (2 frontier agents) does deeper but slower research.',
     )
     return_table: bool = Field(
         default=False,
