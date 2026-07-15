@@ -164,6 +164,7 @@ class TestMcpProtocol:
                     "futuresearch_browse_lists",
                     "futuresearch_cancel",
                     "futuresearch_classify",
+                    "futuresearch_decision",
                     "futuresearch_dedupe",
                     "futuresearch_forecast",
                     "futuresearch_list_session_tasks",

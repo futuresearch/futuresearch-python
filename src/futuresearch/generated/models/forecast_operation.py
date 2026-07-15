@@ -47,18 +47,33 @@ class ForecastOperation:
             values per row (a single condition is accepted but is really a yes/no question — prefer forecast_type='binary'
             for a clean probability column). The output 'probabilities' column holds a JSON object mapping each condition to
             the probability (0-100) that it is satisfied.
+        alternatives_field (None | str | Unset): Name of the input column holding each row's mutually exclusive decision
+            alternatives as a JSON array of numbers or strings (e.g. ["$0 (no grant)", "$1-$100k", "more than $1m"]).
+            Required when forecast_type is 'decision'. 2-50 unique alternatives per row; a binary decision ('do X' / 'don't
+            do X') is the 2-alternative case. Exactly one alternative will be chosen, and the row's outcome is forecast
+            under each alternative as its own hypothetical — the probabilities need not sum to 100 and need not be
+            monotonic. The output 'probabilities' column holds a JSON object mapping each alternative to the outcome's
+            probability (0-100) given that alternative is chosen.
+        intervention (None | str | Unset): Decision forecasts only: the intervention assumptions — what executing an
+            alternative means (publicity and signaling, timing, how the rest of the world responds in each branch). Omit to
+            apply the default assumptions: the decision maker is deciding soon, all downstream consequences count (including
+            other agents' reactions), the world responds realistically in every branch, and the forecast reasons through
+            mechanism, never through what the decision would reveal about the world. Supplying this text replaces the
+            default wholesale, so state the full assumptions (e.g. 'Assume the donation is anonymous and no other funder
+            backfills.'). The same assumptions apply to every row of the task.
         condition (None | str | Unset): Makes the forecast CONDITIONAL: a single condition, the same for every input row
             and mapped over the list (e.g. a list of companies). The outcome (a forecast of forecast_type, taken from each
             row's question) is forecast both in the world where this condition holds and the world where it does not. State
             it in plain language; where it refers to the entity (e.g. 'the company'), the agent grounds it in each row.
             Mutually exclusive with condition_field. Conditional forecasts require effort_level 'HIGH'. The output adds per-
-            branch columns suffixed '_given_condition' and '_given_not_condition'.
+            branch columns suffixed '_given_condition' and '_given_not_condition'. For a decision the user controls, prefer
+            forecast_type='decision' instead.
         condition_field (None | str | Unset): Makes the forecast CONDITIONAL using a per-row condition: the name of the
             input column holding each row's own condition. Like 'condition' but varies per row. Mutually exclusive with
             condition.
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
-            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical' and
-            'thresholded' forecasts, and any conditional forecast (condition / condition_field), require 'HIGH'.
+            cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical', 'thresholded'
+            and 'decision' forecasts, and any conditional forecast (condition / condition_field), require 'HIGH'.
         config (ForecastTaskConfig | None | Unset): Experimental per-task overrides of internal forecast pipeline
             parameters (forecaster/refiner ensembles, summarizer model, iteration budget). Internal accounts only. Every
             field is optional and defaults to the effort level's stock value; supplied list fields replace the default
@@ -74,6 +89,8 @@ class ForecastOperation:
     units: None | str | Unset = UNSET
     categories_field: None | str | Unset = UNSET
     thresholds_field: None | str | Unset = UNSET
+    alternatives_field: None | str | Unset = UNSET
+    intervention: None | str | Unset = UNSET
     condition: None | str | Unset = UNSET
     condition_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
@@ -137,6 +154,18 @@ class ForecastOperation:
         else:
             thresholds_field = self.thresholds_field
 
+        alternatives_field: None | str | Unset
+        if isinstance(self.alternatives_field, Unset):
+            alternatives_field = UNSET
+        else:
+            alternatives_field = self.alternatives_field
+
+        intervention: None | str | Unset
+        if isinstance(self.intervention, Unset):
+            intervention = UNSET
+        else:
+            intervention = self.intervention
+
         condition: None | str | Unset
         if isinstance(self.condition, Unset):
             condition = UNSET
@@ -186,6 +215,10 @@ class ForecastOperation:
             field_dict["categories_field"] = categories_field
         if thresholds_field is not UNSET:
             field_dict["thresholds_field"] = thresholds_field
+        if alternatives_field is not UNSET:
+            field_dict["alternatives_field"] = alternatives_field
+        if intervention is not UNSET:
+            field_dict["intervention"] = intervention
         if condition is not UNSET:
             field_dict["condition"] = condition
         if condition_field is not UNSET:
@@ -301,6 +334,24 @@ class ForecastOperation:
 
         thresholds_field = _parse_thresholds_field(d.pop("thresholds_field", UNSET))
 
+        def _parse_alternatives_field(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        alternatives_field = _parse_alternatives_field(d.pop("alternatives_field", UNSET))
+
+        def _parse_intervention(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        intervention = _parse_intervention(d.pop("intervention", UNSET))
+
         def _parse_condition(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -363,6 +414,8 @@ class ForecastOperation:
             units=units,
             categories_field=categories_field,
             thresholds_field=thresholds_field,
+            alternatives_field=alternatives_field,
+            intervention=intervention,
             condition=condition,
             condition_field=condition_field,
             effort_level=effort_level,

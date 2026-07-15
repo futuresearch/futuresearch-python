@@ -30,6 +30,7 @@ from futuresearch.ops import (
     agent_map,
     create_scalar_artifact,
     create_table_artifact,
+    decision,
     forecast,
     rank_async,
     single_agent,
@@ -756,7 +757,7 @@ async def test_forecast_with_session_threads_effort_level(mocker, mock_session):
 async def test_forecast_grouped_types_thread_field_params(
     mocker, mock_session, forecast_type, kwargs, expected_type
 ):
-    """categorical/thresholded forecast types thread their field params to the wire body."""
+    """Grouped forecast types thread their field params to the wire body."""
     task_id = uuid.uuid4()
     artifact_id = uuid.uuid4()
 
@@ -791,7 +792,14 @@ async def test_forecast_grouped_types_thread_field_params(
     )
 
     input_df = pd.DataFrame(
-        [{"question": "Who wins?", "options": '["A", "B"]', "thresholds": "[80, 90]"}]
+        [
+            {
+                "question": "Who wins?",
+                "options": '["A", "B"]',
+                "thresholds": "[80, 90]",
+                "scenarios": '["$0", "$1m"]',
+            }
+        ]
     )
     await forecast(
         input=input_df,
@@ -804,6 +812,59 @@ async def test_forecast_grouped_types_thread_field_params(
     assert body.forecast_type == expected_type
     assert body.categories_field == kwargs.get("categories_field")
     assert body.thresholds_field == kwargs.get("thresholds_field")
+
+
+@pytest.mark.asyncio
+async def test_decision_threads_params_to_the_forecast_wire_body(mocker, mock_session):
+    """decision() submits a forecast operation with forecast_type='decision'
+    and threads alternatives_field and intervention to the wire body."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+
+    mock_submit = mocker.patch(
+        "futuresearch.ops.forecast_operations_forecast_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id,
+        [{"question": "Will it ship?", "probabilities": "{}"}],
+        artifact_id,
+    )
+
+    input_df = pd.DataFrame(
+        [{"question": "Will it ship?", "scenarios": '["$0", "$1m"]'}]
+    )
+    await decision(
+        input=input_df,
+        session=mock_session,
+        alternatives_field="scenarios",
+        intervention="Assume the donation is anonymous.",
+    )
+
+    body = mock_submit.call_args.kwargs["body"]
+    assert body.forecast_type == ForecastType.DECISION
+    assert body.alternatives_field == "scenarios"
+    assert body.intervention == "Assume the donation is anonymous."
 
 
 @pytest.mark.asyncio

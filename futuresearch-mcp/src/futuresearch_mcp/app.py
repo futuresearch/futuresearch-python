@@ -132,8 +132,8 @@ is what controls the output structure
 1. **Ingest data** — pass `data` (inline list of dicts) or an `artifact_id` \
 (from `futuresearch_upload_data` or `futuresearch_request_upload_url`) to any processing tool.
 2. **Submit** — call a processing tool (futuresearch_agent, futuresearch_classify, \
-futuresearch_rank, futuresearch_dedupe, futuresearch_merge, futuresearch_forecast). \
-It returns a task_id immediately.
+futuresearch_rank, futuresearch_dedupe, futuresearch_merge, futuresearch_forecast, \
+futuresearch_decision). It returns a task_id immediately.
 3. **Poll** — follow the instruction in the submission response. It will tell you \
 exactly which tool to call next (`futuresearch_status` or `futuresearch_progress`). \
 Do NOT override that instruction — use the tool it specifies.

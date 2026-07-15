@@ -974,6 +974,11 @@ async def forecast(
       Output columns: ``probabilities`` (JSON object mapping each condition to
       its probability, 0-100) and ``rationale`` (str).
 
+    For causal decision support on a choice the user controls ("if I fund X at
+    $0 / $300k / $2M, will Y happen?"), use :func:`decision` instead — it
+    forecasts the outcome under each mutually exclusive alternative of the
+    decision, under explicit intervention assumptions.
+
     **Conditional forecasts** are an orthogonal modifier of any of the modes above:
     supply ``condition`` (a single shared condition, the same for every row and mapped
     over the list, e.g. a list of companies) or ``condition_field`` (the name of an
@@ -1028,7 +1033,8 @@ async def forecast(
             ``forecast_type="binary"`` for a clean ``probability`` column.
         condition: Makes the forecast conditional: a single condition, the same
             for every row and mapped over the input list (e.g. a list of
-            companies). Mutually exclusive with *condition_field*.
+            companies). Mutually exclusive with *condition_field*. For a decision
+            the user controls, prefer :func:`decision`.
         condition_field: Makes the forecast conditional using a per-row condition:
             the name of the input column holding each row's own condition. Mutually
             exclusive with *condition*.
@@ -1155,6 +1161,161 @@ async def forecast_async(
         thresholds_field=thresholds_field,
         condition_field=condition_field,
         condition=condition,
+    )
+    if config is not None:
+        # Opaque passthrough (same mechanism as agent_map's agent_harness):
+        # the server owns the schema, so new knobs need no SDK release.
+        body.additional_properties["config"] = config
+
+    response = await _call_and_check(
+        forecast_operations_forecast_post.asyncio_detailed(
+            client=session.client, body=body
+        )
+    )
+
+    cohort_task: EveryrowTask[BaseModel] = EveryrowTask(
+        response_model=BaseModel, is_map=True, is_expand=False
+    )
+    cohort_task.set_submitted(response.task_id, response.session_id, session.client)
+    return cohort_task
+
+
+# --- Decision ---
+
+
+async def decision(
+    input: DataFrame | UUID | TableResult,
+    context: str | None = None,
+    session: Session | None = None,
+    *,
+    alternatives_field: str,
+    intervention: str | None = None,
+    config: dict[str, Any] | None = None,
+) -> TableResult:
+    """Forecast a decision: the outcome under each alternative of a choice the
+    user controls.
+
+    Causal decision support, e.g. "If I fund this organization at $0 / $300k /
+    $2M, will it ship its study by 2027?". Each row states a yes/no outcome
+    question and lists the decision's mutually exclusive alternatives (in the
+    column named by ``alternatives_field``, as a JSON array of 2-50 numbers or
+    strings; a binary "do X / don't do X" decision is the 2-alternative case).
+    Exactly one alternative will be chosen, and the row's outcome is forecast
+    under each alternative as its own hypothetical, all alternatives researched
+    jointly so their differences reflect the decision's real effect. The
+    probabilities need not sum to 100 and need not be monotonic.
+
+    The forecast applies explicit intervention assumptions (see
+    ``intervention``), which are also why decision forecasts are not scored:
+    only one branch ever resolves. Decisions always run at HIGH effort.
+
+    Unlike :func:`forecast` with a ``condition``, which answers the
+    correlational question ("in worlds where X happens, what else is true?"),
+    a decision forecast answers the causal one ("what does choosing X actually
+    cause?") — use it whenever the "if" clause is a choice the user controls.
+
+    The input table should contain the outcome question (a ``question``
+    column) and the alternatives column; recommended additional columns:
+    ``resolution_criteria``, ``resolution_date``, ``background``. All columns
+    are used in the forecast.
+
+    Args:
+        input: The input table. Each row should contain the yes/no outcome
+            question and the row's alternatives (in ``alternatives_field``).
+        context: Optional batch-level context or instructions that apply to
+            every row. Leave *None* when the rows are self-contained.
+        session: Optional session. If not provided, one will be created
+            automatically.
+        alternatives_field: Name of the input column holding each row's
+            mutually exclusive decision alternatives as a JSON array of
+            numbers or strings (2-50 unique values).
+        intervention: The intervention assumptions — what executing an
+            alternative means (publicity and signaling, timing, how the rest
+            of the world responds in each branch). Omit to apply the default
+            assumptions: the decision maker is deciding soon, all downstream
+            consequences count (including other agents' reactions), the world
+            responds realistically in every branch, and the forecast reasons
+            through mechanism, never through what the decision would reveal
+            about the world. Supplying this text replaces the default
+            wholesale, so state the full assumptions (e.g. "Assume the
+            donation is anonymous and no other funder backfills."). Applies
+            to every row.
+        config: Experimental per-task overrides of internal forecast pipeline
+            parameters. Internal FutureSearch accounts only; opaque here,
+            validated server-side. See :func:`forecast`.
+
+    Returns:
+        TableResult with ``probabilities`` (JSON object mapping each
+        alternative to the outcome's probability, 0-100, given that
+        alternative is chosen) and ``rationale`` (str) columns added to each
+        input row.
+    """
+    task = context or ""
+    if session is None:
+        async with create_session() as internal_session:
+            cohort_task = await decision_async(
+                task=task,
+                session=internal_session,
+                input=input,
+                alternatives_field=alternatives_field,
+                intervention=intervention,
+                config=config,
+            )
+            result = await cohort_task.await_result(on_progress=print_progress)
+            if isinstance(result, TableResult):
+                return result
+            raise FuturesearchError("Decision task did not return a table result")
+    cohort_task = await decision_async(
+        task=task,
+        session=session,
+        input=input,
+        alternatives_field=alternatives_field,
+        intervention=intervention,
+        config=config,
+    )
+    result = await cohort_task.await_result(on_progress=print_progress)
+    if isinstance(result, TableResult):
+        return result
+    raise FuturesearchError("Decision task did not return a table result")
+
+
+async def decision_async(
+    task: str,
+    session: Session,
+    input: DataFrame | UUID | TableResult,
+    *,
+    alternatives_field: str,
+    intervention: str | None = None,
+    config: dict[str, Any] | None = None,
+) -> EveryrowTask[BaseModel]:
+    """Submit a decision task asynchronously.
+
+    Args:
+        task: Context or instructions for the decision forecast.
+        session: Active session.
+        input: Input data.
+        alternatives_field: Input column with each row's mutually exclusive
+            decision alternatives as a JSON array (2-50 unique values).
+        intervention: The intervention assumptions. Omit for the defaults;
+            supplied text replaces them wholesale. See :func:`decision`.
+        config: Experimental per-task overrides of internal forecast pipeline
+            parameters. Internal FutureSearch accounts only; opaque here,
+            validated server-side. See :func:`forecast`.
+
+    Returns:
+        EveryrowTask that resolves to a TableResult with decision columns.
+    """
+    input_data = _prepare_table_input(input, ForecastOperationInputType1Item)
+
+    # A decision is a forecast operation on the wire: same endpoint, its own
+    # forecast_type. Only the SDK surface splits them.
+    body = ForecastOperation(
+        input_=input_data,
+        task=task,
+        session_id=session.session_id,
+        forecast_type=ForecastType.DECISION,
+        alternatives_field=alternatives_field,
+        intervention=intervention,
     )
     if config is not None:
         # Opaque passthrough (same mechanism as agent_map's agent_harness):

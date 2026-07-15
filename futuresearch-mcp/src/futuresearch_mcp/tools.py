@@ -27,6 +27,7 @@ from futuresearch.ops import (
     _submit_rank,
     classify_async,
     create_table_artifact,
+    decision_async,
     dedupe_async,
     forecast_async,
     merge_async,
@@ -43,6 +44,7 @@ from futuresearch_mcp.models import (
     BrowseListsInput,
     CancelInput,
     ClassifyInput,
+    DecisionInput,
     DedupeInput,
     ForecastInput,
     HttpResultsInput,
@@ -127,6 +129,10 @@ async def futuresearch_forecast(
       Output columns: ``probabilities`` (JSON object) and ``rationale`` (str).
       A single condition is really a yes/no question — use **binary** instead for
       a clean ``probability`` column.
+
+    For causal decision support on a choice the user controls ("if I do X, will Y
+    happen?"), use the ``futuresearch_decision`` tool instead — it forecasts the
+    outcome under each mutually exclusive alternative of the user's own decision.
 
     **Conditional forecasts** are an orthogonal modifier of any of the modes above.
     Supply ``condition`` (a single shared condition, the same for every row and mapped
@@ -245,6 +251,108 @@ async def futuresearch_forecast(
         logger.exception("futuresearch_forecast failed")
         return [
             TextContent(type="text", text="Unexpected error submitting forecast task.")
+        ]
+
+
+@mcp.tool(
+    name="futuresearch_decision",
+    structured_output=False,
+    annotations=ToolAnnotations(
+        title="Decision",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
+async def futuresearch_decision(
+    params: DecisionInput, ctx: FuturesearchContext
+) -> list[TextContent]:
+    """Forecast a decision: the outcome under each alternative of the user's choice.
+
+    Causal decision support, e.g. "If I fund this organization at $0 / $300k /
+    $2M, will it ship its study by 2027?". Each row states a single yes/no
+    outcome question, and ``alternatives_field`` names a column holding that
+    row's mutually exclusive alternatives as a JSON array (2-50 entries; a
+    binary "do X / don't do X" decision is the 2-alternative case). The outcome
+    is forecast under each alternative as its own hypothetical, all alternatives
+    researched jointly, under explicit intervention assumptions
+    (``intervention``; sensible defaults apply when omitted — tell the user what
+    assumptions were active when presenting results).
+
+    Use this tool — not ``futuresearch_forecast`` with a ``condition`` —
+    whenever the user asks "what happens if I do X": it answers the causal
+    question about their own decision rather than the correlational "in worlds
+    where X happens" question. Decisions always run at high effort.
+    Probabilities need not sum to 100 and need not be monotonic. Decision
+    forecasts are not scored (only one branch ever resolves).
+
+    Output columns: ``probabilities`` (JSON object mapping each alternative to
+    the outcome's probability given that alternative is chosen) and
+    ``rationale`` (str).
+
+    The row should contain at minimum a ``question`` column (the yes/no outcome
+    question) and the alternatives column. Recommended additional columns:
+    ``resolution_criteria``, ``resolution_date``, ``background``. The optional
+    ``context`` parameter provides batch-level instructions.
+
+    This function submits the task and returns immediately with a task_id.
+
+    Then immediately follow the instructions in the response to monitor progress.
+    """
+    logger.info(
+        "futuresearch_decision: context=%.80s rows=%s",
+        params.context or "",
+        len(params.data) if params.data else "artifact",
+    )
+    log_client_info(ctx, "futuresearch_decision")
+    client = _get_client(ctx)
+
+    input_data = params._aid_or_dataframe
+
+    try:
+        async with create_linked_session(
+            client=client, session_id=params.session_id, name=params.session_name
+        ) as session:
+            session_id_str = str(session.session_id)
+            cohort_task = await decision_async(
+                task=params.context or "",
+                session=session,
+                input=input_data,
+                alternatives_field=params.alternatives_field,
+                intervention=params.intervention,
+            )
+            task_id = str(cohort_task.task_id)
+            total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
+
+        widget_meta: dict[str, Any] = {
+            "task_type": "forecast",
+            "forecast_type": "decision",
+            "alternatives_field": params.alternatives_field,
+        }
+        return await create_tool_response(
+            task_id=task_id,
+            label=f"Submitted: {total} rows for decision forecasting."
+            if total
+            else "Submitted: artifact for decision forecasting.",
+            token=client.token,
+            total=total,
+            mcp_server_url=ctx.request_context.lifespan_context.mcp_server_url,
+            session_id=session_id_str,
+            widget_meta=widget_meta,
+        )
+    except FuturesearchError as e:
+        logger.warning(f"futuresearch_decision failed: {e!r}")
+        return [
+            TextContent(
+                type="text",
+                text=format_sdk_error(e, doing="submitting decision task"),
+            )
+        ]
+    except Exception:
+        logger.exception("futuresearch_decision failed")
+        return [
+            TextContent(type="text", text="Unexpected error submitting decision task.")
         ]
 
 

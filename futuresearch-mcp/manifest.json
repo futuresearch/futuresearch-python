@@ -37,6 +37,10 @@
       "description": "Forecast questions about the future using deep research."
     },
     {
+      "name": "futuresearch_decision",
+      "description": "Forecast a decision: the outcome under each alternative of the user's choice."
+    },
+    {
       "name": "futuresearch_rank",
       "description": "Score and sort rows in a CSV file based on any criteria."
     },

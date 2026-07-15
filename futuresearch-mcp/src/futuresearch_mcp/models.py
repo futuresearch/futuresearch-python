@@ -464,7 +464,8 @@ class ForecastInput(_SingleSourceInput):
         "output_field when 'numeric' or 'date'. To make any of these CONDITIONAL "
         "(forecasting the outcome in the worlds where a condition does and does not "
         "hold), supply 'condition' or 'condition_field'; the forecast_type still "
-        "describes the outcome.",
+        "describes the outcome. For a decision the user controls, use the "
+        "futuresearch_decision tool instead.",
     )
     effort_level: ForecastEffortLevel | None = Field(
         default=None,
@@ -515,7 +516,8 @@ class ForecastInput(_SingleSourceInput):
         "does not. State it in plain language; where it refers to the entity (e.g. 'the "
         "company'), the agent grounds it in each row. The output contains per-branch "
         "columns suffixed '_given_condition' and '_given_not_condition'. Mutually "
-        "exclusive with condition_field.",
+        "exclusive with condition_field. For a decision the user controls, use the "
+        "futuresearch_decision tool instead.",
     )
     condition_field: str | None = Field(
         default=None,
@@ -525,7 +527,40 @@ class ForecastInput(_SingleSourceInput):
         "question) is forecast both in the world where this condition holds and the world "
         "where it does not. The output contains per-branch columns suffixed "
         "'_given_condition' and '_given_not_condition'. Mutually exclusive with "
-        "condition_field.",
+        "condition.",
+    )
+
+
+class DecisionInput(_SingleSourceInput):
+    """Input for the decision operation."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    context: str | None = Field(
+        default=None,
+        description="Optional table-level context or instructions that apply to every "
+        "row. Leave empty when the rows are self-contained.",
+    )
+    alternatives_field: str = Field(
+        ...,
+        min_length=1,
+        description="Name of the input column holding each row's mutually exclusive "
+        "decision alternatives as a JSON array of numbers or strings (e.g. "
+        '["$0 (no grant)", "$1-$100k", "more than $1m"]). 2-50 unique alternatives '
+        "per row; a binary decision ('do X' / 'don't do X') is the 2-alternative "
+        "case. The output 'probabilities' column holds a JSON object mapping each "
+        "alternative to the outcome's probability (0-100) given that alternative is "
+        "chosen; the probabilities need not sum to 100 and need not be monotonic.",
+    )
+    intervention: str | None = Field(
+        default=None,
+        description="The intervention assumptions — what executing an alternative "
+        "means (publicity and signaling, timing, how the rest of the world responds "
+        "in each branch). Omit to apply the default assumptions (decision made soon, "
+        "all downstream consequences count including other agents' reactions, world "
+        "responds realistically in every branch, reasoning through mechanism). "
+        "Supplying this text replaces the default wholesale, so state the full "
+        "assumptions. Applies to every row.",
     )
 
 
