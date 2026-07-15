@@ -5,6 +5,7 @@ class ForecastType(str, Enum):
     BINARY = "binary"
     CATEGORICAL = "categorical"
     DATE = "date"
+    DECISION = "decision"
     NUMERIC = "numeric"
     THRESHOLDED = "thresholded"
 
