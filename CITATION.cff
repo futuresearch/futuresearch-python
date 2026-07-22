@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "futuresearch"
-abstract: "AI forecasting SDK: probabilities, dates, and numbers with a verifiable public track record of accuracy"
+abstract: "AI forecasting SDK from the team first in Metaculus's Summer 2026 FutureEval tournament. Probabilities, dates, and numbers with a verifiable public track record of accuracy."
 license: MIT
 version: 0.23.0
 date-released: 2026-07-16

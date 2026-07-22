@@ -10,7 +10,7 @@
 
 **An API for frontier forecasting.**
 
-FutureSearch predicts the future. Accuracy is verifiable via our public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments.
+FutureSearch predicts the future. Accuracy is verifiable via our public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments. As of July 2026 that record shows the forecaster first in Metaculus's Summer 2026 FutureEval tournament, above the superforecaster median on ForecastBench, and holding the best pooled score on BTF-3, our 1,907-question pastcasting benchmark. Every forecast draws on a [shared world model](https://futuresearch.ai/blog/world-modeling) that reconciles related questions against each other; it improved all eight base forecasters we tested.
 
 | Track Record | |
 | --- | --- |
@@ -326,7 +326,7 @@ uv run basedpyright                                    # type check
 
 Built by [FutureSearch](https://futuresearch.ai).
 
-[futuresearch.ai](https://futuresearch.ai) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/) · [evals](https://evals.futuresearch.ai/)
+[futuresearch.ai](https://futuresearch.ai) (app/dashboard) · [case studies](https://futuresearch.ai/solutions/) · [research](https://futuresearch.ai/research/) · [evals](https://evals.futuresearch.ai/) · papers: [Bench to the Future](https://arxiv.org/abs/2506.21558), [Deep Research Bench](https://arxiv.org/abs/2506.06287), [question generation and resolution](https://arxiv.org/abs/2601.22444)
 
 **Citing FutureSearch:** If you use this software in your research, please cite it using the metadata in [CITATION.cff](CITATION.cff) or the BibTeX below:
 
