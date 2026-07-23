@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
+
+from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="SubscriptionInfo")
 
@@ -17,14 +19,14 @@ class SubscriptionInfo:
         status (str):
         stripe_subscription_id (str):
         stripe_price_id (str):
-        period_ends_at (str):
+        period_ends_at (None | str | Unset):
     """
 
     id: str
     status: str
     stripe_subscription_id: str
     stripe_price_id: str
-    period_ends_at: str
+    period_ends_at: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -36,7 +38,11 @@ class SubscriptionInfo:
 
         stripe_price_id = self.stripe_price_id
 
-        period_ends_at = self.period_ends_at
+        period_ends_at: None | str | Unset
+        if isinstance(self.period_ends_at, Unset):
+            period_ends_at = UNSET
+        else:
+            period_ends_at = self.period_ends_at
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -46,9 +52,10 @@ class SubscriptionInfo:
                 "status": status,
                 "stripe_subscription_id": stripe_subscription_id,
                 "stripe_price_id": stripe_price_id,
-                "period_ends_at": period_ends_at,
             }
         )
+        if period_ends_at is not UNSET:
+            field_dict["period_ends_at"] = period_ends_at
 
         return field_dict
 
@@ -63,7 +70,14 @@ class SubscriptionInfo:
 
         stripe_price_id = d.pop("stripe_price_id")
 
-        period_ends_at = d.pop("period_ends_at")
+        def _parse_period_ends_at(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        period_ends_at = _parse_period_ends_at(d.pop("period_ends_at", UNSET))
 
         subscription_info = cls(
             id=id,
