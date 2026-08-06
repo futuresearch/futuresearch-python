@@ -1,5 +1,7 @@
 # FutureSearch Python SDK
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.futuresearch%2Ffuturesearch-mcp.svg)](https://mcptoplist.com/server/io.github.futuresearch%2Ffuturesearch-mcp)
+
 [![PyPI version](https://img.shields.io/pypi/v/futuresearch.svg)](https://pypi.org/project/futuresearch/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
