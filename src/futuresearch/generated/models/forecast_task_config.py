@@ -29,7 +29,7 @@ class ForecastTaskConfig:
 
         Attributes:
             forecaster_slots (list[ClaudeSdkForecasterSlot | OpenAiSdkForecasterSlot | ReActForecasterSlot] | None | Unset):
-                Complete replacement for the HIGH-effort estimate ensemble (default: 2x Claude SDK + ReAct gpt-5.5).
+                Complete replacement for the HIGH-effort estimate ensemble (default: ReAct 2x opus-5.5 + gpt-5.5).
             refiner_slots (list[RefinerSlot] | None | Unset): Complete replacement for the HIGH-effort refiner ensemble
                 (default: opus + gpt + gemini).
             summarizer_model (LLMEnum | None | Unset): Model for the HIGH-effort rationale summarizer.
