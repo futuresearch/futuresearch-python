@@ -35,7 +35,6 @@ class ForecastTaskConfig:
             summarizer_model (LLMEnum | None | Unset): Model for the HIGH-effort rationale summarizer.
             low_effort_forecaster_models (list[LowEffortForecasterSlot] | None | Unset): Complete replacement for the LOW-
                 effort combine ensemble (default: 2x gemini + gpt).
-            batch_size (int | None | Unset): Rows per LOW-effort batch (default 4).
             iteration_budget (int | None | Unset): Steps per ReAct estimate / dimension agent (default: 10 HIGH, 5 LOW).
     """
 
@@ -45,7 +44,6 @@ class ForecastTaskConfig:
     refiner_slots: list[RefinerSlot] | None | Unset = UNSET
     summarizer_model: LLMEnum | None | Unset = UNSET
     low_effort_forecaster_models: list[LowEffortForecasterSlot] | None | Unset = UNSET
-    batch_size: int | None | Unset = UNSET
     iteration_budget: int | None | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
@@ -103,12 +101,6 @@ class ForecastTaskConfig:
         else:
             low_effort_forecaster_models = self.low_effort_forecaster_models
 
-        batch_size: int | None | Unset
-        if isinstance(self.batch_size, Unset):
-            batch_size = UNSET
-        else:
-            batch_size = self.batch_size
-
         iteration_budget: int | None | Unset
         if isinstance(self.iteration_budget, Unset):
             iteration_budget = UNSET
@@ -126,8 +118,6 @@ class ForecastTaskConfig:
             field_dict["summarizer_model"] = summarizer_model
         if low_effort_forecaster_models is not UNSET:
             field_dict["low_effort_forecaster_models"] = low_effort_forecaster_models
-        if batch_size is not UNSET:
-            field_dict["batch_size"] = batch_size
         if iteration_budget is not UNSET:
             field_dict["iteration_budget"] = iteration_budget
 
@@ -260,15 +250,6 @@ class ForecastTaskConfig:
 
         low_effort_forecaster_models = _parse_low_effort_forecaster_models(d.pop("low_effort_forecaster_models", UNSET))
 
-        def _parse_batch_size(data: object) -> int | None | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(int | None | Unset, data)
-
-        batch_size = _parse_batch_size(d.pop("batch_size", UNSET))
-
         def _parse_iteration_budget(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -283,7 +264,6 @@ class ForecastTaskConfig:
             refiner_slots=refiner_slots,
             summarizer_model=summarizer_model,
             low_effort_forecaster_models=low_effort_forecaster_models,
-            batch_size=batch_size,
             iteration_budget=iteration_budget,
         )
 

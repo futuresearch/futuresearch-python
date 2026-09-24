@@ -85,6 +85,7 @@ Parameters:
 - forecast_type: "binary", "numeric", "date", "categorical", or "thresholded" (always the OUTCOME type)
 - context: (optional) Batch-level context for all questions
 - effort_level: (optional) "low" or "high" (default; required for categorical/thresholded and for any conditional forecast)
+- batch_size: (optional) Rows researched together per forecasting agent — see "Batching related questions" below
 - output_field: Name of the forecast quantity (required for numeric/date)
 - units: Units of the forecast quantity (required for numeric)
 - categories_field: Column with each row's outcomes as a JSON array of strings (required for categorical)
@@ -93,6 +94,22 @@ Parameters:
 - condition_field: (optional) Name of a per-row column holding each row's own condition (mutually exclusive with condition)
 - session_id / session_name: (optional)
 ```
+
+**Batching related questions.** Decide by research overlap, not row count. When
+the rows are variants of one subject — the same entity, product, market, or
+scenario asked across several horizons, metrics, or cases (e.g. three games x
+{first-month revenue, year-one revenue}) — the research is shared, so set
+`batch_size` to the number of rows (max 8 at high effort): the forecasting
+agents research the batch once and still forecast and refine each row
+independently, at roughly half the cost of unbatched research. When the rows are
+independent subjects (six unrelated geopolitics questions), leave `batch_size`
+unset so each row earns its own research pass — batching unrelated rows saves
+money but starves each question of research depth. For a mixed table, split it
+and submit the related cluster batched and the rest per-row. At high effort,
+batching requires a plain unconditional binary/numeric/date forecast
+(categorical/thresholded, decision, and conditional forecasts always run
+per-row). Tell the user which mode you chose and roughly what it changes in
+cost, so an expensive per-row run is a choice they saw, not a surprise.
 
 **Conditional forecasting.** Conditionality is a modifier on any forecast type,
 not a type of its own. Whenever the user frames a question with a condition or
@@ -362,7 +379,7 @@ result = await forecast(
 print(result.data[["question", "probability", "rationale"]])
 ```
 
-Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"`), `effort_level`, `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition` *or* `condition_field` (makes any type conditional), `session`
+Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"`), `effort_level`, `batch_size` (rows researched together — see "Batching related questions" under `futuresearch_forecast` above), `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition` *or* `condition_field` (makes any type conditional), `session`
 
 For **conditional** forecasts (P(B|A) and P(B|not A) for a condition A and outcome B), see "Conditional forecasting" under `futuresearch_forecast` above. Conditionality is a modifier on any `forecast_type`, not a type of its own: keep `forecast_type` describing the outcome B (taken from each row's `question`) and supply the condition A via `condition` (a single shared condition mapped over every row) or `condition_field` (a per-row condition column). The two are mutually exclusive.
 

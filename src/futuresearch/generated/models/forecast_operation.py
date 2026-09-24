@@ -81,6 +81,14 @@ class ForecastOperation:
         effort_level (ForecastEffortLevel | None | Unset): Effort level for the forecast. 'LOW' tends to be faster and
             cheaper. 'HIGH' tends to be more accurate. When not specified, defaults to 'HIGH'. 'categorical' and
             'thresholded' forecasts, as well as any conditional forecast, require 'HIGH'.
+        batch_size (int | None | Unset): Rows researched together per forecasting agent. Decide by research overlap, not
+            row count: when the rows are RELATED questions about one subject (one entity, market, or scenario across several
+            horizons, variants, or metrics), set batch_size to the number of rows (up to 8) — the agents research the batch
+            once and forecast each row, which costs roughly half of per-row research at the same effort level. When the rows
+            are INDEPENDENT subjects, leave it unset: each row gets its own research pass (the default, and the right call
+            when rows share little context). With effort_level 'high', batching requires a plain unconditional 'binary',
+            'numeric', or 'date' forecast (categorical/thresholded, decision, and conditional forecasts always run per-row).
+            With effort_level 'low', this is the rows-per-batch of the batched pipeline (default 4).
         config (ForecastTaskConfig | None | Unset): Experimental per-task overrides of internal forecast pipeline
             parameters (forecaster/refiner ensembles, summarizer model, iteration budget). Internal accounts only. Every
             field is optional and defaults to the effort level's stock value; supplied list fields replace the default
@@ -101,6 +109,7 @@ class ForecastOperation:
     condition: None | str | Unset = UNSET
     condition_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
+    batch_size: int | None | Unset = UNSET
     config: ForecastTaskConfig | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -193,6 +202,12 @@ class ForecastOperation:
         else:
             effort_level = self.effort_level
 
+        batch_size: int | None | Unset
+        if isinstance(self.batch_size, Unset):
+            batch_size = UNSET
+        else:
+            batch_size = self.batch_size
+
         config: dict[str, Any] | None | Unset
         if isinstance(self.config, Unset):
             config = UNSET
@@ -232,6 +247,8 @@ class ForecastOperation:
             field_dict["condition_field"] = condition_field
         if effort_level is not UNSET:
             field_dict["effort_level"] = effort_level
+        if batch_size is not UNSET:
+            field_dict["batch_size"] = batch_size
         if config is not UNSET:
             field_dict["config"] = config
 
@@ -394,6 +411,15 @@ class ForecastOperation:
 
         effort_level = _parse_effort_level(d.pop("effort_level", UNSET))
 
+        def _parse_batch_size(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        batch_size = _parse_batch_size(d.pop("batch_size", UNSET))
+
         def _parse_config(data: object) -> ForecastTaskConfig | None | Unset:
             if data is None:
                 return data
@@ -426,6 +452,7 @@ class ForecastOperation:
             condition=condition,
             condition_field=condition_field,
             effort_level=effort_level,
+            batch_size=batch_size,
             config=config,
         )
 

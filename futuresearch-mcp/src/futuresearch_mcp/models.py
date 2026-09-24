@@ -474,6 +474,23 @@ class ForecastInput(_SingleSourceInput):
         "'categorical' and 'thresholded' forecasts, and any conditional forecast "
         "(condition / condition_field), require 'high'.",
     )
+    batch_size: int | None = Field(
+        default=None,
+        ge=1,
+        le=8,
+        description="Rows researched together per forecasting agent. Decide by "
+        "research overlap, not row count: when the rows are RELATED questions "
+        "about one subject (one entity, market, or scenario across several "
+        "horizons, variants, or metrics), set it to the number of rows (up to "
+        "8) — the agents research the batch once and forecast each row, at "
+        "roughly half the cost of per-row research. When the rows are "
+        "INDEPENDENT subjects, leave it unset so each row gets its own "
+        "research pass. With effort_level 'high', batching requires a plain "
+        "unconditional 'binary', 'numeric', or 'date' forecast "
+        "(categorical/thresholded and conditional forecasts run per-row). "
+        "Tell the user which mode you chose and roughly what it changes in "
+        "cost.",
+    )
     output_field: str | None = Field(
         default=None,
         description="Name of the numeric quantity being forecast (e.g. 'price', 'count'). "

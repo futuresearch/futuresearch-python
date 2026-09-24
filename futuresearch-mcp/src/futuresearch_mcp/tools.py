@@ -195,6 +195,7 @@ async def futuresearch_forecast(
                 input=input_data,
                 forecast_type=params.forecast_type,
                 effort_level=params.effort_level,
+                batch_size=params.batch_size,
                 output_field=params.output_field,
                 units=params.units,
                 categories_field=params.categories_field,

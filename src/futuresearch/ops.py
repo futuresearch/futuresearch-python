@@ -940,6 +940,7 @@ async def forecast(
     *,
     forecast_type: Literal["binary", "numeric", "date", "categorical", "thresholded"],
     effort_level: ForecastEffortLevel | None = None,
+    batch_size: int | None = None,
     output_field: str | None = None,
     units: str | None = None,
     categories_field: str | None = None,
@@ -1027,6 +1028,17 @@ async def forecast(
         effort_level: affects accuracy and cost of forecast. Default: high.
             ``"categorical"``, ``"thresholded"``, and any conditional forecast
             (``condition`` / ``condition_field``) require high.
+        batch_size: Rows researched together per forecasting agent. Decide by
+            research overlap, not row count: when the rows are RELATED
+            questions about one subject (one entity, market, or scenario
+            across several horizons, variants, or metrics), set it to the
+            number of rows (up to 8 at high effort) — the agents research the
+            batch once and forecast each row, which costs roughly half of
+            per-row research. When the rows are INDEPENDENT subjects, leave it
+            unset: each row gets its own research pass. At high effort,
+            batching requires a plain unconditional ``"binary"``,
+            ``"numeric"``, or ``"date"`` forecast. At low effort this is the
+            rows-per-batch of the batched pipeline (default 4).
         output_field: Name of the quantity being forecast (required for numeric
             and date, e.g. ``"price"``, ``"launch_date"``).
         units: Units for numeric forecasts (e.g. ``"USD per barrel"``).
@@ -1075,6 +1087,7 @@ async def forecast(
                 input=input,
                 forecast_type=forecast_type,
                 effort_level=effort_level,
+                batch_size=batch_size,
                 output_field=output_field,
                 units=units,
                 categories_field=categories_field,
@@ -1093,6 +1106,7 @@ async def forecast(
         input=input,
         forecast_type=forecast_type,
         effort_level=effort_level,
+        batch_size=batch_size,
         output_field=output_field,
         units=units,
         categories_field=categories_field,
@@ -1114,6 +1128,7 @@ async def forecast_async(
     *,
     forecast_type: Literal["binary", "numeric", "date", "categorical", "thresholded"],
     effort_level: ForecastEffortLevel | None = None,
+    batch_size: int | None = None,
     output_field: str | None = None,
     units: str | None = None,
     categories_field: str | None = None,
@@ -1136,6 +1151,9 @@ async def forecast_async(
         effort_level: affects accuracy and cost of forecast. Default: high.
             ``"categorical"``, ``"thresholded"``, and any conditional forecast
             (``condition`` / ``condition_field``) require high.
+        batch_size: Rows researched together per forecasting agent — set to the
+            row count (max 8 at high effort) for related questions about one
+            subject, leave unset for independent subjects. See :func:`forecast`.
         output_field: Name of the quantity (required for numeric and date).
         units: Units for numeric forecasts (required for numeric).
         categories_field: Input column with each row's outcomes as a JSON array
@@ -1163,6 +1181,7 @@ async def forecast_async(
         session_id=session.session_id,
         forecast_type=ForecastOperationForecastType(forecast_type),
         effort_level=effort_level if effort_level is not None else UNSET,
+        batch_size=batch_size if batch_size is not None else UNSET,
         output_field=output_field,
         units=units,
         categories_field=categories_field,
