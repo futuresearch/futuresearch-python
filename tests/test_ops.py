@@ -35,6 +35,7 @@ from futuresearch.ops import (
     rank_async,
     single_agent,
 )
+from futuresearch.page_reader import LlmPageReader, PaginatedPageReader
 from futuresearch.result import ScalarResult, TableResult
 from futuresearch.session import Session
 from futuresearch.task import LLM, EffortLevel
@@ -1073,3 +1074,86 @@ async def test_agent_map_agent_harness_conflicts_raise(mock_session):
 def test_agent_harness_requires_provide_inline_citations():
     with pytest.raises(ValidationError, match="provide_inline_citations"):
         ClaudeAgentHarness.model_validate({"model": "claude-opus-4-8-anthropic"})
+
+
+@pytest.mark.asyncio
+async def test_agent_map_page_reader_travels_in_body(mocker, mock_session):
+    """page_reader travels as the typed field on the generated AgentMapOperation,
+    with the same shape the server's PublicPageReader validates."""
+    task_id = uuid.uuid4()
+    artifact_id = uuid.uuid4()
+    mock_submit = mocker.patch(
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_submit.return_value = _wrap(
+        OperationResponse(
+            task_id=task_id,
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+    mock_status = mocker.patch(
+        "futuresearch.task.get_task_status_tasks_task_id_status_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_status.return_value = _make_status_response(
+        task_id, mock_session.session_id, artifact_id
+    )
+    mock_result = mocker.patch(
+        "futuresearch.task.get_task_result_tasks_task_id_result_get.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    mock_result.return_value = _make_table_result(
+        task_id, [{"country": "India", "answer": "New Delhi"}], artifact_id
+    )
+
+    await agent_map(
+        task="What is the capital?",
+        session=mock_session,
+        input=pd.DataFrame([{"country": "India"}]),
+        page_reader=PaginatedPageReader(page_size_chars=20_000),
+    )
+    sent = mock_submit.call_args.kwargs["body"].to_dict()
+    assert sent["page_reader"] == {
+        "type": "paginated",
+        "page_size_chars": 20000,
+        "include_links": True,
+    }
+
+    mock_submit.reset_mock()
+    await agent_map(
+        task="What is the capital?",
+        session=mock_session,
+        input=pd.DataFrame([{"country": "India"}]),
+        page_reader=LlmPageReader(model=LLM.CLAUDE_4_5_HAIKU),
+    )
+    sent = mock_submit.call_args.kwargs["body"].to_dict()
+    assert sent["page_reader"] == {"type": "llm", "model": LLM.CLAUDE_4_5_HAIKU.value}
+
+
+@pytest.mark.asyncio
+async def test_agent_map_page_reader_conflicts_with_document_query_llm(mock_session):
+    with pytest.raises(FuturesearchError, match="cannot be combined"):
+        await agent_map(
+            task="t",
+            session=mock_session,
+            input=pd.DataFrame([{"q": "x"}]),
+            page_reader=LlmPageReader(),
+            document_query_llm=LLM.CLAUDE_4_5_HAIKU,
+        )
+
+
+def test_page_reader_models_reject_unknown_and_out_of_range_knobs():
+    with pytest.raises(ValidationError):
+        PaginatedPageReader.model_validate({"page_size_chars": 500})
+    with pytest.raises(ValidationError):
+        PaginatedPageReader.model_validate({"model": "x"})  # llm-only knob
+    with pytest.raises(ValidationError):
+        LlmPageReader.model_validate({"page_size_chars": 50000})
+    assert PaginatedPageReader().to_payload() == {
+        "type": "paginated",
+        "page_size_chars": 50000,
+        "include_links": True,
+    }
+    assert LlmPageReader().to_payload() == {"type": "llm"}

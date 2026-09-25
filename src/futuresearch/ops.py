@@ -56,7 +56,14 @@ from futuresearch.generated.models import (
     UploadDataArtifactsUploadPostJsonBodyDataType0Item,
     UploadDataArtifactsUploadPostJsonBodyDataType1,
 )
+from futuresearch.generated.models import (
+    LlmPageReader as GeneratedLlmPageReader,
+)
+from futuresearch.generated.models import (
+    PaginatedPageReader as GeneratedPaginatedPageReader,
+)
 from futuresearch.generated.types import UNSET
+from futuresearch.page_reader import LlmPageReader, PageReader, PaginatedPageReader
 from futuresearch.result import MergeResult, Result, ScalarResult, TableResult
 from futuresearch.session import Session, create_session
 from futuresearch.task import (
@@ -379,6 +386,7 @@ async def agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     agent_harness: AgentHarness | None = None,
+    page_reader: PageReader | None = None,
 ) -> TableResult:
     """Execute an AI agent task on each row of the input table.
 
@@ -400,6 +408,10 @@ async def agent_map(
         extra_notification_text: Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem
             reminder) without changing the task prompt.
+        page_reader: How the agents read web pages: ``LlmPageReader`` (default; a reader LLM
+            answers the agent's query about each page) or ``PaginatedPageReader`` (the agent
+            reads the page text itself, one page at a time). Mutually exclusive with
+            ``document_query_llm``. Internal accounts only.
 
     Returns:
         TableResult containing the agent results merged with input rows.
@@ -422,6 +434,7 @@ async def agent_map(
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
                 agent_harness=agent_harness,
+                page_reader=page_reader,
             )
             result = await cohort_task.await_result()
             if isinstance(result, TableResult):
@@ -441,11 +454,24 @@ async def agent_map(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         agent_harness=agent_harness,
+        page_reader=page_reader,
     )
     result = await cohort_task.await_result()
     if isinstance(result, TableResult):
         return result
     raise FuturesearchError("Agent map task did not return a table result")
+
+
+def _to_generated_page_reader(
+    page_reader: PageReader,
+) -> GeneratedLlmPageReader | GeneratedPaginatedPageReader:
+    """Our ergonomic model -> the generated wire model (typed field on the
+    generated AgentMapOperation since the OpenAPI regen in the same change)."""
+    payload = page_reader.to_payload()
+    if isinstance(page_reader, PaginatedPageReader):
+        return GeneratedPaginatedPageReader.from_dict(payload)
+    assert isinstance(page_reader, LlmPageReader)
+    return GeneratedLlmPageReader.from_dict(payload)
 
 
 async def _submit_agent_map(
@@ -462,6 +488,7 @@ async def _submit_agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     agent_harness: AgentHarness | None = None,
+    page_reader: PageReader | None = None,
 ) -> SubmittedTask:
     """Build and submit an agent_map request."""
     if agent_harness is not None:
@@ -485,6 +512,11 @@ async def _submit_agent_map(
         if return_table:
             raise FuturesearchError("agent_harness does not support return_table yet")
         effort_level = None
+    if page_reader is not None and document_query_llm is not None:
+        raise FuturesearchError(
+            "page_reader cannot be combined with document_query_llm; set the reader "
+            "model as LlmPageReader(model=...) instead"
+        )
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
 
     body = AgentMapOperation(
@@ -509,6 +541,7 @@ async def _submit_agent_map(
         extra_notification_text=extra_notification_text
         if extra_notification_text is not None
         else UNSET,
+        page_reader=_to_generated_page_reader(page_reader) if page_reader else UNSET,
     )
     if agent_harness is not None:
         body.additional_properties["agent_harness"] = agent_harness.to_payload()
@@ -535,6 +568,7 @@ async def agent_map_async(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     agent_harness: AgentHarness | None = None,
+    page_reader: PageReader | None = None,
 ) -> FuturesearchTask[BaseModel]:
     """Submit an agent_map task asynchronously."""
     submitted = await _submit_agent_map(
@@ -551,6 +585,7 @@ async def agent_map_async(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         agent_harness=agent_harness,
+        page_reader=page_reader,
     )
 
     cohort_task = FuturesearchTask(

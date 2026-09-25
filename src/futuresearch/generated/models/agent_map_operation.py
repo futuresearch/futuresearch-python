@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
     from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
     from ..models.claude_agent_harness import ClaudeAgentHarness
+    from ..models.llm_page_reader import LlmPageReader
     from ..models.open_ai_agent_harness import OpenAiAgentHarness
+    from ..models.paginated_page_reader import PaginatedPageReader
 
 
 T = TypeVar("T", bound="AgentMapOperation")
@@ -62,6 +64,10 @@ class AgentMapOperation:
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
             agent SDK (Claude Agent SDK or OpenAI Agents SDK) instead of the native ReAct loop. Mutually exclusive with
             effort_level/llm/iteration_budget/extra_notification_text and with return_list. Internal accounts only.
+        page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",
+            "model": ...} (a reader LLM answers the agent's query about the page; the default) or {"type": "paginated",
+            "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). Mutually exclusive with
+            document_query_llm. Internal accounts only.
     """
 
     input_: AgentMapOperationInputType2 | list[AgentMapOperationInputType1Item] | UUID
@@ -80,12 +86,15 @@ class AgentMapOperation:
     return_list: bool | Unset = False
     extra_notification_text: None | str | Unset = UNSET
     agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
+    page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
         from ..models.claude_agent_harness import ClaudeAgentHarness
+        from ..models.llm_page_reader import LlmPageReader
         from ..models.open_ai_agent_harness import OpenAiAgentHarness
+        from ..models.paginated_page_reader import PaginatedPageReader
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
         if isinstance(self.input_, UUID):
@@ -187,6 +196,16 @@ class AgentMapOperation:
         else:
             agent_harness = self.agent_harness
 
+        page_reader: dict[str, Any] | None | Unset
+        if isinstance(self.page_reader, Unset):
+            page_reader = UNSET
+        elif isinstance(self.page_reader, LlmPageReader):
+            page_reader = self.page_reader.to_dict()
+        elif isinstance(self.page_reader, PaginatedPageReader):
+            page_reader = self.page_reader.to_dict()
+        else:
+            page_reader = self.page_reader
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -223,6 +242,8 @@ class AgentMapOperation:
             field_dict["extra_notification_text"] = extra_notification_text
         if agent_harness is not UNSET:
             field_dict["agent_harness"] = agent_harness
+        if page_reader is not UNSET:
+            field_dict["page_reader"] = page_reader
 
         return field_dict
 
@@ -232,7 +253,9 @@ class AgentMapOperation:
         from ..models.agent_map_operation_input_type_2 import AgentMapOperationInputType2
         from ..models.agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
         from ..models.claude_agent_harness import ClaudeAgentHarness
+        from ..models.llm_page_reader import LlmPageReader
         from ..models.open_ai_agent_harness import OpenAiAgentHarness
+        from ..models.paginated_page_reader import PaginatedPageReader
 
         d = dict(src_dict)
 
@@ -429,6 +452,31 @@ class AgentMapOperation:
 
         agent_harness = _parse_agent_harness(d.pop("agent_harness", UNSET))
 
+        def _parse_page_reader(data: object) -> LlmPageReader | None | PaginatedPageReader | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                page_reader_type_0_type_0 = LlmPageReader.from_dict(data)
+
+                return page_reader_type_0_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                page_reader_type_0_type_1 = PaginatedPageReader.from_dict(data)
+
+                return page_reader_type_0_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LlmPageReader | None | PaginatedPageReader | Unset, data)
+
+        page_reader = _parse_page_reader(d.pop("page_reader", UNSET))
+
         agent_map_operation = cls(
             input_=input_,
             task=task,
@@ -446,6 +494,7 @@ class AgentMapOperation:
             return_list=return_list,
             extra_notification_text=extra_notification_text,
             agent_harness=agent_harness,
+            page_reader=page_reader,
         )
 
         agent_map_operation.additional_properties = d

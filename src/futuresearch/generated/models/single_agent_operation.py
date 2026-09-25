@@ -12,6 +12,8 @@ from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.llm_page_reader import LlmPageReader
+    from ..models.paginated_page_reader import PaginatedPageReader
     from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
     from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
     from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
@@ -47,6 +49,10 @@ class SingleAgentOperation:
         extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
             task prompt.
+        page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",
+            "model": ...} (a reader LLM answers the agent's query about the page; the default) or {"type": "paginated",
+            "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). Mutually exclusive with
+            document_query_llm. Internal accounts only.
     """
 
     input_: list[SingleAgentOperationInputType1Item] | SingleAgentOperationInputType2 | UUID
@@ -61,9 +67,12 @@ class SingleAgentOperation:
     include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     extra_notification_text: None | str | Unset = UNSET
+    page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.llm_page_reader import LlmPageReader
+        from ..models.paginated_page_reader import PaginatedPageReader
         from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
 
         input_: dict[str, Any] | list[dict[str, Any]] | str
@@ -144,6 +153,16 @@ class SingleAgentOperation:
         else:
             extra_notification_text = self.extra_notification_text
 
+        page_reader: dict[str, Any] | None | Unset
+        if isinstance(self.page_reader, Unset):
+            page_reader = UNSET
+        elif isinstance(self.page_reader, LlmPageReader):
+            page_reader = self.page_reader.to_dict()
+        elif isinstance(self.page_reader, PaginatedPageReader):
+            page_reader = self.page_reader.to_dict()
+        else:
+            page_reader = self.page_reader
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -172,11 +191,15 @@ class SingleAgentOperation:
             field_dict["include_research"] = include_research
         if extra_notification_text is not UNSET:
             field_dict["extra_notification_text"] = extra_notification_text
+        if page_reader is not UNSET:
+            field_dict["page_reader"] = page_reader
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.llm_page_reader import LlmPageReader
+        from ..models.paginated_page_reader import PaginatedPageReader
         from ..models.single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
         from ..models.single_agent_operation_input_type_2 import SingleAgentOperationInputType2
         from ..models.single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
@@ -332,6 +355,31 @@ class SingleAgentOperation:
 
         extra_notification_text = _parse_extra_notification_text(d.pop("extra_notification_text", UNSET))
 
+        def _parse_page_reader(data: object) -> LlmPageReader | None | PaginatedPageReader | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                page_reader_type_0_type_0 = LlmPageReader.from_dict(data)
+
+                return page_reader_type_0_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                page_reader_type_0_type_1 = PaginatedPageReader.from_dict(data)
+
+                return page_reader_type_0_type_1
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(LlmPageReader | None | PaginatedPageReader | Unset, data)
+
+        page_reader = _parse_page_reader(d.pop("page_reader", UNSET))
+
         single_agent_operation = cls(
             input_=input_,
             task=task,
@@ -345,6 +393,7 @@ class SingleAgentOperation:
             include_reasoning=include_reasoning,
             include_research=include_research,
             extra_notification_text=extra_notification_text,
+            page_reader=page_reader,
         )
 
         single_agent_operation.additional_properties = d
