@@ -51,8 +51,9 @@ class SingleAgentOperation:
             task prompt.
         page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",
             "model": ...} (a reader LLM answers the agent's query about the page; the default) or {"type": "paginated",
-            "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). Mutually exclusive with
-            document_query_llm. Internal accounts only.
+            "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). An llm page_reader cannot
+            be combined with document_query_llm (give the reader model once, as page_reader.model); a paginated one can, in
+            which case document_query_llm is only the checklist-extraction model. Internal accounts only.
     """
 
     input_: list[SingleAgentOperationInputType1Item] | SingleAgentOperationInputType2 | UUID

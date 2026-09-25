@@ -401,7 +401,10 @@ async def agent_map(
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema. When ``return_table`` is True,
             this should describe a single item; the worker wraps it in a list automatically.
-        document_query_llm: LLM to use for the document query tool (QDLLM) when scraping web pages.
+        document_query_llm: LLM for the document query tool (QDLLM) when scraping web pages. It is
+            also the model used to extract the task checklist at high effort, so it is the knob
+            to set for accounts restricted to dedicated deployments (the checklist otherwise runs
+            on the system default model).
         return_table: If True, each per-row agent emits a list of records and the result table
             contains one row per item (with an ``_expand_index`` column). Output rows can exceed
             input rows. Default: False (one output row per input row).
@@ -410,8 +413,10 @@ async def agent_map(
             reminder) without changing the task prompt.
         page_reader: How the agents read web pages: ``LlmPageReader`` (default; a reader LLM
             answers the agent's query about each page) or ``PaginatedPageReader`` (the agent
-            reads the page text itself, one page at a time). Mutually exclusive with
-            ``document_query_llm``. Internal accounts only.
+            reads the page text itself, one page at a time). ``LlmPageReader`` cannot be
+            combined with ``document_query_llm`` (set its model as ``LlmPageReader(model=...)``);
+            ``PaginatedPageReader`` can, in which case ``document_query_llm`` is only the
+            checklist-extraction model. Internal accounts only.
 
     Returns:
         TableResult containing the agent results merged with input rows.
@@ -512,10 +517,15 @@ async def _submit_agent_map(
         if return_table:
             raise FuturesearchError("agent_harness does not support return_table yet")
         effort_level = None
-    if page_reader is not None and document_query_llm is not None:
+    if isinstance(page_reader, LlmPageReader) and document_query_llm is not None:
+        # An llm reader names its model as LlmPageReader(model=...); giving
+        # document_query_llm as well is ambiguous. A PaginatedPageReader may
+        # carry document_query_llm: the engine then uses it only as the
+        # checklist-extraction model, which accounts restricted to dedicated
+        # deployments need to be able to set (mirrors the engine validator).
         raise FuturesearchError(
-            "page_reader cannot be combined with document_query_llm; set the reader "
-            "model as LlmPageReader(model=...) instead"
+            "LlmPageReader cannot be combined with document_query_llm; set the "
+            "reader model as LlmPageReader(model=...) instead"
         )
     input_data = _prepare_table_input(input, AgentMapOperationInputType1Item)
 

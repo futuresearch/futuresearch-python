@@ -28,6 +28,7 @@ from futuresearch.generated.models import (
 from futuresearch.generated.types import UNSET, Response
 from futuresearch.ops import (
     agent_map,
+    agent_map_async,
     create_scalar_artifact,
     create_table_artifact,
     decision,
@@ -1133,15 +1134,50 @@ async def test_agent_map_page_reader_travels_in_body(mocker, mock_session):
 
 
 @pytest.mark.asyncio
-async def test_agent_map_page_reader_conflicts_with_document_query_llm(mock_session):
+@pytest.mark.parametrize(
+    "reader", [LlmPageReader(), LlmPageReader(model=LLM.CLAUDE_4_5_HAIKU)]
+)
+async def test_agent_map_llm_page_reader_conflicts_with_document_query_llm(
+    mock_session, reader
+):
     with pytest.raises(FuturesearchError, match="cannot be combined"):
         await agent_map(
             task="t",
             session=mock_session,
             input=pd.DataFrame([{"q": "x"}]),
-            page_reader=LlmPageReader(),
+            page_reader=reader,
             document_query_llm=LLM.CLAUDE_4_5_HAIKU,
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reader", [PaginatedPageReader()])
+async def test_agent_map_paginated_page_reader_with_document_query_llm_sends_both(
+    mocker, mock_session, reader
+):
+    """document_query_llm doubles as the checklist model, so a paginated reader
+    must be able to carry it (dedicated-deployment accounts depend on this)."""
+    post = mocker.patch(
+        "futuresearch.ops.agent_map_operations_agent_map_post.asyncio_detailed",
+        new_callable=AsyncMock,
+    )
+    post.return_value = _wrap(
+        OperationResponse(
+            task_id=uuid.uuid4(),
+            session_id=mock_session.session_id,
+            status=TaskStatus.PENDING,
+        )
+    )
+    await agent_map_async(
+        task="t",
+        session=mock_session,
+        input=pd.DataFrame([{"q": "x"}]),
+        page_reader=reader,
+        document_query_llm=LLM.CLAUDE_4_5_HAIKU,
+    )
+    body = post.call_args.kwargs["body"]
+    assert body.page_reader.to_dict() == reader.to_payload()
+    assert body.document_query_llm.value == LLM.CLAUDE_4_5_HAIKU.value
 
 
 def test_page_reader_models_reject_unknown_and_out_of_range_knobs():
