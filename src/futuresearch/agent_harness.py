@@ -47,6 +47,12 @@ class ClaudeAgentHarness(_BaseAgentHarness):
     type: Literal["claude_agent_sdk"] = "claude_agent_sdk"
     max_budget_usd: float = Field(default=15.0, ge=0.5, le=20.0)
     effort: ClaudeEffort = "xhigh"
+    extended_context: bool = Field(
+        default=False,
+        description="Request the 1M-token context window for the agent model "
+        "(models the context-1m beta covers); off, the window is the 200k "
+        "default. Backend agents never auto-compact either way.",
+    )
 
 
 class OpenAIAgentHarness(_BaseAgentHarness):

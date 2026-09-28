@@ -43,7 +43,7 @@ class AgentMapOperation:
             include_reasoning).
         join_with_input (bool | Unset): If True, merge agent output with input row. If False, output only agent results.
             Default: True.
-        iteration_budget (int | None | Unset): Number of agent iterations per row (0-20). Required when effort_level is
+        iteration_budget (int | None | Unset): Number of agent iterations per row (0-100). Required when effort_level is
             not set.
         include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.

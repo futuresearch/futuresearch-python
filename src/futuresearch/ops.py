@@ -245,7 +245,7 @@ async def single_agent[T: BaseModel](
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
             custom params (llm, iteration_budget, include_reasoning). Default: medium.
         llm: LLM to use. Required when effort_level is None.
-        iteration_budget: Number of agent iterations (0-20). Required when effort_level is None.
+        iteration_budget: Number of agent iterations (0-100). Required when effort_level is None.
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema.
         return_table: If True, return a TableResult instead of ScalarResult.
@@ -397,7 +397,7 @@ async def agent_map(
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
             custom params (llm, iteration_budget, include_reasoning). Default: medium.
         llm: LLM to use for each agent. Required when effort_level is None.
-        iteration_budget: Number of agent iterations per row (0-20). Required when effort_level is None.
+        iteration_budget: Number of agent iterations per row (0-100). Required when effort_level is None.
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema. When ``return_table`` is True,
             this should describe a single item; the worker wraps it in a list automatically.

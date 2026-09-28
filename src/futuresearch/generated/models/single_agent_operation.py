@@ -41,7 +41,8 @@ class SingleAgentOperation:
             include_reasoning).
         return_list (bool | Unset): If True, treat the output as a list of responses instead of a single response.
             Default: False.
-        iteration_budget (int | None | Unset): Number of agent iterations (0-20). Required when effort_level is not set.
+        iteration_budget (int | None | Unset): Number of agent iterations (0-100). Required when effort_level is not
+            set.
         include_reasoning (bool | None | Unset): Include reasoning notes in the response. Required when effort_level is
             not set.
         include_research (bool | None | Unset): Deprecated: use include_reasoning instead. Include research notes in the

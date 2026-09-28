@@ -1046,6 +1046,7 @@ async def test_agent_map_with_agent_harness_sends_harness_and_no_react_knobs(
         "max_budget_usd": 15.0,
         "effort": "xhigh",
         "provide_inline_citations": False,
+        "extended_context": False,
     }
     # ReAct preset cleared: no effort_level in the payload.
     assert "effort_level" not in sent

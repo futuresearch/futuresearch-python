@@ -23,6 +23,7 @@ class ClaudeSdkForecasterSlot:
         type_ (Literal['claude_agent_sdk'] | Unset):  Default: 'claude_agent_sdk'.
         max_budget_usd (float | Unset):  Default: 15.0.
         effort (ClaudeSdkForecasterSlotEffort | Unset):  Default: ClaudeSdkForecasterSlotEffort.XHIGH.
+        extended_context (bool | Unset):  Default: False.
     """
 
     variant_idx: int | Unset = 0
@@ -32,6 +33,7 @@ class ClaudeSdkForecasterSlot:
     type_: Literal["claude_agent_sdk"] | Unset = "claude_agent_sdk"
     max_budget_usd: float | Unset = 15.0
     effort: ClaudeSdkForecasterSlotEffort | Unset = ClaudeSdkForecasterSlotEffort.XHIGH
+    extended_context: bool | Unset = False
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +53,8 @@ class ClaudeSdkForecasterSlot:
         if not isinstance(self.effort, Unset):
             effort = self.effort.value
 
+        extended_context = self.extended_context
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -68,6 +72,8 @@ class ClaudeSdkForecasterSlot:
             field_dict["max_budget_usd"] = max_budget_usd
         if effort is not UNSET:
             field_dict["effort"] = effort
+        if extended_context is not UNSET:
+            field_dict["extended_context"] = extended_context
 
         return field_dict
 
@@ -95,6 +101,8 @@ class ClaudeSdkForecasterSlot:
         else:
             effort = ClaudeSdkForecasterSlotEffort(_effort)
 
+        extended_context = d.pop("extended_context", UNSET)
+
         claude_sdk_forecaster_slot = cls(
             variant_idx=variant_idx,
             model=model,
@@ -103,6 +111,7 @@ class ClaudeSdkForecasterSlot:
             type_=type_,
             max_budget_usd=max_budget_usd,
             effort=effort,
+            extended_context=extended_context,
         )
 
         claude_sdk_forecaster_slot.additional_properties = d

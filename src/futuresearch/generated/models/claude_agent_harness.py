@@ -23,6 +23,9 @@ class ClaudeAgentHarness:
         max_budget_usd (float | Unset): USD spend cap for the row's SDK run. Default: 15.0.
         effort (ClaudeAgentHarnessEffort | Unset): Claude Agent SDK effort level. Default:
             ClaudeAgentHarnessEffort.XHIGH.
+        extended_context (bool | Unset): Request the 1M-token context window for the agent model (models the context-1m
+            beta covers). Off, the window is the CLI's 200k default. Backend agents never auto-compact either way. Default:
+            False.
     """
 
     model: str
@@ -31,6 +34,7 @@ class ClaudeAgentHarness:
     type_: Literal["claude_agent_sdk"] | Unset = "claude_agent_sdk"
     max_budget_usd: float | Unset = 15.0
     effort: ClaudeAgentHarnessEffort | Unset = ClaudeAgentHarnessEffort.XHIGH
+    extended_context: bool | Unset = False
 
     def to_dict(self) -> dict[str, Any]:
         model = self.model
@@ -46,6 +50,8 @@ class ClaudeAgentHarness:
         effort: str | Unset = UNSET
         if not isinstance(self.effort, Unset):
             effort = self.effort.value
+
+        extended_context = self.extended_context
 
         field_dict: dict[str, Any] = {}
 
@@ -63,6 +69,8 @@ class ClaudeAgentHarness:
             field_dict["max_budget_usd"] = max_budget_usd
         if effort is not UNSET:
             field_dict["effort"] = effort
+        if extended_context is not UNSET:
+            field_dict["extended_context"] = extended_context
 
         return field_dict
 
@@ -88,6 +96,8 @@ class ClaudeAgentHarness:
         else:
             effort = ClaudeAgentHarnessEffort(_effort)
 
+        extended_context = d.pop("extended_context", UNSET)
+
         claude_agent_harness = cls(
             model=model,
             provide_inline_citations=provide_inline_citations,
@@ -95,6 +105,7 @@ class ClaudeAgentHarness:
             type_=type_,
             max_budget_usd=max_budget_usd,
             effort=effort,
+            extended_context=extended_context,
         )
 
         return claude_agent_harness
