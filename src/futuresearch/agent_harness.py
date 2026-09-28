@@ -15,7 +15,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # The full effort vocabularies the server accepts (a server-side test keeps
 # these in sync with the vendor SDK types).
 ClaudeEffort = Literal["low", "medium", "high", "xhigh", "max"]
-OpenAIReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+OpenAIReasoningEffort = Literal[
+    "none", "minimal", "low", "medium", "high", "xhigh", "max"
+]
 
 
 class _BaseAgentHarness(BaseModel):

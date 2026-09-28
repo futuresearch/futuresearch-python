@@ -4,6 +4,7 @@ from enum import Enum
 class OpenAiAgentHarnessReasoningEffortType0(str, Enum):
     HIGH = "high"
     LOW = "low"
+    MAX = "max"
     MEDIUM = "medium"
     MINIMAL = "minimal"
     NONE = "none"
