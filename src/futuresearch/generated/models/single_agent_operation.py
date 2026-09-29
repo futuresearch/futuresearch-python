@@ -60,9 +60,8 @@ class SingleAgentOperation:
         parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
             research). Default keeps parallel tool calls on.
         prompt_style (None | SingleAgentOperationPromptStyleType0 | Unset): 'minimal' strips the agent's system prompt
-            and loop scaffold to the bare protocol (no behavioral coaching). 'minimal' is for live tasks: its system prompt
-            omits the retro date/cutoff blocks. 'minimal_retro' is the same plus the date line, so pastcasting tasks get
-            their anchor date as today.
+            and loop scaffold to the bare protocol (no behavioral coaching). Retro tasks keep the one-line date block so the
+            agent takes the anchor date as today; live tasks get no date line.
         tool_description_style (None | SingleAgentOperationToolDescriptionStyleType0 | Unset): 'brief' sends each tool's
             plain description instead of the long-form usage guidance.
         page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",

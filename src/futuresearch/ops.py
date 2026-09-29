@@ -208,7 +208,7 @@ async def single_agent[T: BaseModel](
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> ScalarResult[T]: ...
 
@@ -227,7 +227,7 @@ async def single_agent(
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> TableResult: ...
 
@@ -245,7 +245,7 @@ async def single_agent[T: BaseModel](
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
@@ -326,7 +326,7 @@ async def _submit_single_agent(
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> SubmittedTask:
     """Build and submit a single_agent request."""
@@ -388,7 +388,7 @@ async def single_agent_async[T: BaseModel](
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> FuturesearchTask[T]:
     """Submit a single_agent task asynchronously.
@@ -439,7 +439,7 @@ async def agent_map(
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
@@ -561,7 +561,7 @@ async def _submit_agent_map(
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
@@ -678,7 +678,7 @@ async def agent_map_async(
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal", "minimal_retro"] | None = None,
+    prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
