@@ -9,6 +9,7 @@ from attrs import field as _attrs_field
 
 from ..models.llm_enum_public import LLMEnumPublic
 from ..models.public_effort_level import PublicEffortLevel
+from ..models.single_agent_operation_budget_awareness_type_0 import SingleAgentOperationBudgetAwarenessType0
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -50,6 +51,9 @@ class SingleAgentOperation:
         extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
             task prompt.
+        budget_awareness (None | SingleAgentOperationBudgetAwarenessType0 | Unset): How the per-turn status line frames
+            the agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-
+            window usage so the agent can pace itself and report before the window runs out.
         page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",
             "model": ...} (a reader LLM answers the agent's query about the page; the default) or {"type": "paginated",
             "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). An llm page_reader cannot
@@ -69,6 +73,7 @@ class SingleAgentOperation:
     include_reasoning: bool | None | Unset = UNSET
     include_research: bool | None | Unset = UNSET
     extra_notification_text: None | str | Unset = UNSET
+    budget_awareness: None | SingleAgentOperationBudgetAwarenessType0 | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -155,6 +160,14 @@ class SingleAgentOperation:
         else:
             extra_notification_text = self.extra_notification_text
 
+        budget_awareness: None | str | Unset
+        if isinstance(self.budget_awareness, Unset):
+            budget_awareness = UNSET
+        elif isinstance(self.budget_awareness, SingleAgentOperationBudgetAwarenessType0):
+            budget_awareness = self.budget_awareness.value
+        else:
+            budget_awareness = self.budget_awareness
+
         page_reader: dict[str, Any] | None | Unset
         if isinstance(self.page_reader, Unset):
             page_reader = UNSET
@@ -193,6 +206,8 @@ class SingleAgentOperation:
             field_dict["include_research"] = include_research
         if extra_notification_text is not UNSET:
             field_dict["extra_notification_text"] = extra_notification_text
+        if budget_awareness is not UNSET:
+            field_dict["budget_awareness"] = budget_awareness
         if page_reader is not UNSET:
             field_dict["page_reader"] = page_reader
 
@@ -357,6 +372,23 @@ class SingleAgentOperation:
 
         extra_notification_text = _parse_extra_notification_text(d.pop("extra_notification_text", UNSET))
 
+        def _parse_budget_awareness(data: object) -> None | SingleAgentOperationBudgetAwarenessType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                budget_awareness_type_0 = SingleAgentOperationBudgetAwarenessType0(data)
+
+                return budget_awareness_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | SingleAgentOperationBudgetAwarenessType0 | Unset, data)
+
+        budget_awareness = _parse_budget_awareness(d.pop("budget_awareness", UNSET))
+
         def _parse_page_reader(data: object) -> LlmPageReader | None | PaginatedPageReader | Unset:
             if data is None:
                 return data
@@ -395,6 +427,7 @@ class SingleAgentOperation:
             include_reasoning=include_reasoning,
             include_research=include_research,
             extra_notification_text=extra_notification_text,
+            budget_awareness=budget_awareness,
             page_reader=page_reader,
         )
 

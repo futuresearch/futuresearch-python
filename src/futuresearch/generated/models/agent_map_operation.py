@@ -7,6 +7,7 @@ from uuid import UUID
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.agent_map_operation_budget_awareness_type_0 import AgentMapOperationBudgetAwarenessType0
 from ..models.llm_enum_public import LLMEnumPublic
 from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
@@ -61,6 +62,9 @@ class AgentMapOperation:
         extra_notification_text (None | str | Unset): Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem reminder) without changing the
             task prompt.
+        budget_awareness (AgentMapOperationBudgetAwarenessType0 | None | Unset): How the per-turn status line frames the
+            agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-window
+            usage so the agent can pace itself and report before the window runs out.
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
             agent SDK (Claude Agent SDK or OpenAI Agents SDK) instead of the native ReAct loop. Mutually exclusive with
             effort_level/llm/iteration_budget/extra_notification_text and with return_list. Internal accounts only.
@@ -86,6 +90,7 @@ class AgentMapOperation:
     document_query_llm: LLMEnumPublic | None | Unset = UNSET
     return_list: bool | Unset = False
     extra_notification_text: None | str | Unset = UNSET
+    budget_awareness: AgentMapOperationBudgetAwarenessType0 | None | Unset = UNSET
     agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -187,6 +192,14 @@ class AgentMapOperation:
         else:
             extra_notification_text = self.extra_notification_text
 
+        budget_awareness: None | str | Unset
+        if isinstance(self.budget_awareness, Unset):
+            budget_awareness = UNSET
+        elif isinstance(self.budget_awareness, AgentMapOperationBudgetAwarenessType0):
+            budget_awareness = self.budget_awareness.value
+        else:
+            budget_awareness = self.budget_awareness
+
         agent_harness: dict[str, Any] | None | Unset
         if isinstance(self.agent_harness, Unset):
             agent_harness = UNSET
@@ -241,6 +254,8 @@ class AgentMapOperation:
             field_dict["return_list"] = return_list
         if extra_notification_text is not UNSET:
             field_dict["extra_notification_text"] = extra_notification_text
+        if budget_awareness is not UNSET:
+            field_dict["budget_awareness"] = budget_awareness
         if agent_harness is not UNSET:
             field_dict["agent_harness"] = agent_harness
         if page_reader is not UNSET:
@@ -428,6 +443,23 @@ class AgentMapOperation:
 
         extra_notification_text = _parse_extra_notification_text(d.pop("extra_notification_text", UNSET))
 
+        def _parse_budget_awareness(data: object) -> AgentMapOperationBudgetAwarenessType0 | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                budget_awareness_type_0 = AgentMapOperationBudgetAwarenessType0(data)
+
+                return budget_awareness_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(AgentMapOperationBudgetAwarenessType0 | None | Unset, data)
+
+        budget_awareness = _parse_budget_awareness(d.pop("budget_awareness", UNSET))
+
         def _parse_agent_harness(data: object) -> ClaudeAgentHarness | None | OpenAiAgentHarness | Unset:
             if data is None:
                 return data
@@ -494,6 +526,7 @@ class AgentMapOperation:
             document_query_llm=document_query_llm,
             return_list=return_list,
             extra_notification_text=extra_notification_text,
+            budget_awareness=budget_awareness,
             agent_harness=agent_harness,
             page_reader=page_reader,
         )

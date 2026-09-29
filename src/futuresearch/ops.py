@@ -25,6 +25,7 @@ from futuresearch.generated.api.operations import (
 )
 from futuresearch.generated.models import (
     AgentMapOperation,
+    AgentMapOperationBudgetAwarenessType0,
     AgentMapOperationInputType1Item,
     AgentMapOperationResponseSchemaType0,
     ClassifyOperation,
@@ -49,6 +50,7 @@ from futuresearch.generated.models import (
     RankOperationInputType1Item,
     RankOperationResponseSchemaType0,
     SingleAgentOperation,
+    SingleAgentOperationBudgetAwarenessType0,
     SingleAgentOperationInputType1Item,
     SingleAgentOperationInputType2,
     SingleAgentOperationResponseSchemaType0,
@@ -200,6 +202,7 @@ async def single_agent[T: BaseModel](
     response_model: type[T] = DefaultAgentResponse,
     return_table: Literal[False] = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
 ) -> ScalarResult[T]: ...
 
 
@@ -215,6 +218,7 @@ async def single_agent(
     response_model: type[BaseModel] = DefaultAgentResponse,
     return_table: Literal[True] = True,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
 ) -> TableResult: ...
 
 
@@ -229,6 +233,7 @@ async def single_agent[T: BaseModel](
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
 
@@ -270,6 +275,7 @@ async def single_agent[T: BaseModel](
                 response_model=response_model,
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
+                budget_awareness=budget_awareness,
             )
             return await cohort_task.await_result()
     cohort_task = await single_agent_async(
@@ -283,6 +289,7 @@ async def single_agent[T: BaseModel](
         response_model=response_model,
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        budget_awareness=budget_awareness,
     )
     return await cohort_task.await_result()
 
@@ -298,6 +305,7 @@ async def _submit_single_agent(
     response_schema: dict | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
 ) -> SubmittedTask:
     """Build and submit a single_agent request."""
     input_data = _prepare_single_input(
@@ -321,6 +329,9 @@ async def _submit_single_agent(
         extra_notification_text=extra_notification_text
         if extra_notification_text is not None
         else UNSET,
+        budget_awareness=SingleAgentOperationBudgetAwarenessType0(budget_awareness)
+        if budget_awareness is not None
+        else UNSET,
     )
 
     response = await _call_and_check(
@@ -342,6 +353,7 @@ async def single_agent_async[T: BaseModel](
     response_model: type[T] = DefaultAgentResponse,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
 ) -> FuturesearchTask[T]:
     """Submit a single_agent task asynchronously.
 
@@ -360,6 +372,7 @@ async def single_agent_async[T: BaseModel](
         response_schema=response_model.model_json_schema(),
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        budget_awareness=budget_awareness,
     )
 
     cohort_task: FuturesearchTask[T] = FuturesearchTask(
@@ -385,6 +398,7 @@ async def agent_map(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> TableResult:
@@ -411,6 +425,9 @@ async def agent_map(
         extra_notification_text: Optional text appended to every inter-iteration notification the
             agent receives. Useful for nudging behavior across all steps (e.g. a premortem
             reminder) without changing the task prompt.
+        budget_awareness: How the per-turn status line frames the agent budget:
+            'iterations' (default) or 'context' (live context-window usage, so the
+            agent paces itself and reports before the window runs out).
         page_reader: How the agents read web pages: ``LlmPageReader`` (default; a reader LLM
             answers the agent's query about each page) or ``PaginatedPageReader`` (the agent
             reads the page text itself, one page at a time). ``LlmPageReader`` cannot be
@@ -438,6 +455,7 @@ async def agent_map(
                 document_query_llm=document_query_llm,
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
+                budget_awareness=budget_awareness,
                 agent_harness=agent_harness,
                 page_reader=page_reader,
             )
@@ -458,6 +476,7 @@ async def agent_map(
         document_query_llm=document_query_llm,
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        budget_awareness=budget_awareness,
         agent_harness=agent_harness,
         page_reader=page_reader,
     )
@@ -492,6 +511,7 @@ async def _submit_agent_map(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> SubmittedTask:
@@ -513,6 +533,10 @@ async def _submit_agent_map(
         if extra_notification_text is not None:
             raise FuturesearchError(
                 "agent_harness cannot be combined with extra_notification_text"
+            )
+        if budget_awareness is not None:
+            raise FuturesearchError(
+                "agent_harness cannot be combined with budget_awareness"
             )
         if return_table:
             raise FuturesearchError("agent_harness does not support return_table yet")
@@ -551,6 +575,9 @@ async def _submit_agent_map(
         extra_notification_text=extra_notification_text
         if extra_notification_text is not None
         else UNSET,
+        budget_awareness=AgentMapOperationBudgetAwarenessType0(budget_awareness)
+        if budget_awareness is not None
+        else UNSET,
         page_reader=_to_generated_page_reader(page_reader) if page_reader else UNSET,
     )
     if agent_harness is not None:
@@ -577,6 +604,7 @@ async def agent_map_async(
     document_query_llm: LLM | None = None,
     return_table: bool = False,
     extra_notification_text: str | None = None,
+    budget_awareness: Literal["iterations", "context"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> FuturesearchTask[BaseModel]:
@@ -594,6 +622,7 @@ async def agent_map_async(
         document_query_llm=document_query_llm,
         return_table=return_table,
         extra_notification_text=extra_notification_text,
+        budget_awareness=budget_awareness,
         agent_harness=agent_harness,
         page_reader=page_reader,
     )
