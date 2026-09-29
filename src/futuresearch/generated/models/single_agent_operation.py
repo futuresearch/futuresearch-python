@@ -55,7 +55,8 @@ class SingleAgentOperation:
             task prompt.
         budget_awareness (None | SingleAgentOperationBudgetAwarenessType0 | Unset): How the per-turn status line frames
             the agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-
-            window usage so the agent can pace itself and report before the window runs out.
+            window usage so the agent can pace itself and report before the window runs out. In context mode
+            iteration_budget is ignored (pass any valid value): the context give-up is the budget.
         parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
             research). Default keeps parallel tool calls on.
         prompt_style (None | SingleAgentOperationPromptStyleType0 | Unset): 'minimal' strips the agent's system prompt
