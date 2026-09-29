@@ -8,6 +8,8 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.agent_map_operation_budget_awareness_type_0 import AgentMapOperationBudgetAwarenessType0
+from ..models.agent_map_operation_prompt_style_type_0 import AgentMapOperationPromptStyleType0
+from ..models.agent_map_operation_tool_description_style_type_0 import AgentMapOperationToolDescriptionStyleType0
 from ..models.llm_enum_public import LLMEnumPublic
 from ..models.public_effort_level import PublicEffortLevel
 from ..types import UNSET, Unset
@@ -67,6 +69,11 @@ class AgentMapOperation:
             usage so the agent can pace itself and report before the window runs out.
         parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
             research). Default keeps parallel tool calls on.
+        prompt_style (AgentMapOperationPromptStyleType0 | None | Unset): 'minimal' strips the agent's system prompt and
+            loop scaffold to the bare protocol (no behavioral coaching). Live tasks only: the minimal system prompt omits
+            the retro date/cutoff blocks.
+        tool_description_style (AgentMapOperationToolDescriptionStyleType0 | None | Unset): 'brief' sends each tool's
+            plain description instead of the long-form usage guidance.
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
             agent SDK (Claude Agent SDK or OpenAI Agents SDK) instead of the native ReAct loop. Mutually exclusive with
             effort_level/llm/iteration_budget/extra_notification_text and with return_list. Internal accounts only.
@@ -94,6 +101,8 @@ class AgentMapOperation:
     extra_notification_text: None | str | Unset = UNSET
     budget_awareness: AgentMapOperationBudgetAwarenessType0 | None | Unset = UNSET
     parallel_tool_calls: bool | None | Unset = UNSET
+    prompt_style: AgentMapOperationPromptStyleType0 | None | Unset = UNSET
+    tool_description_style: AgentMapOperationToolDescriptionStyleType0 | None | Unset = UNSET
     agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -209,6 +218,22 @@ class AgentMapOperation:
         else:
             parallel_tool_calls = self.parallel_tool_calls
 
+        prompt_style: None | str | Unset
+        if isinstance(self.prompt_style, Unset):
+            prompt_style = UNSET
+        elif isinstance(self.prompt_style, AgentMapOperationPromptStyleType0):
+            prompt_style = self.prompt_style.value
+        else:
+            prompt_style = self.prompt_style
+
+        tool_description_style: None | str | Unset
+        if isinstance(self.tool_description_style, Unset):
+            tool_description_style = UNSET
+        elif isinstance(self.tool_description_style, AgentMapOperationToolDescriptionStyleType0):
+            tool_description_style = self.tool_description_style.value
+        else:
+            tool_description_style = self.tool_description_style
+
         agent_harness: dict[str, Any] | None | Unset
         if isinstance(self.agent_harness, Unset):
             agent_harness = UNSET
@@ -267,6 +292,10 @@ class AgentMapOperation:
             field_dict["budget_awareness"] = budget_awareness
         if parallel_tool_calls is not UNSET:
             field_dict["parallel_tool_calls"] = parallel_tool_calls
+        if prompt_style is not UNSET:
+            field_dict["prompt_style"] = prompt_style
+        if tool_description_style is not UNSET:
+            field_dict["tool_description_style"] = tool_description_style
         if agent_harness is not UNSET:
             field_dict["agent_harness"] = agent_harness
         if page_reader is not UNSET:
@@ -480,6 +509,40 @@ class AgentMapOperation:
 
         parallel_tool_calls = _parse_parallel_tool_calls(d.pop("parallel_tool_calls", UNSET))
 
+        def _parse_prompt_style(data: object) -> AgentMapOperationPromptStyleType0 | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                prompt_style_type_0 = AgentMapOperationPromptStyleType0(data)
+
+                return prompt_style_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(AgentMapOperationPromptStyleType0 | None | Unset, data)
+
+        prompt_style = _parse_prompt_style(d.pop("prompt_style", UNSET))
+
+        def _parse_tool_description_style(data: object) -> AgentMapOperationToolDescriptionStyleType0 | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                tool_description_style_type_0 = AgentMapOperationToolDescriptionStyleType0(data)
+
+                return tool_description_style_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(AgentMapOperationToolDescriptionStyleType0 | None | Unset, data)
+
+        tool_description_style = _parse_tool_description_style(d.pop("tool_description_style", UNSET))
+
         def _parse_agent_harness(data: object) -> ClaudeAgentHarness | None | OpenAiAgentHarness | Unset:
             if data is None:
                 return data
@@ -548,6 +611,8 @@ class AgentMapOperation:
             extra_notification_text=extra_notification_text,
             budget_awareness=budget_awareness,
             parallel_tool_calls=parallel_tool_calls,
+            prompt_style=prompt_style,
+            tool_description_style=tool_description_style,
             agent_harness=agent_harness,
             page_reader=page_reader,
         )

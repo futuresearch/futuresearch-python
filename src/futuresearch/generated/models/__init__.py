@@ -5,7 +5,9 @@ from .agent_map_operation import AgentMapOperation
 from .agent_map_operation_budget_awareness_type_0 import AgentMapOperationBudgetAwarenessType0
 from .agent_map_operation_input_type_1_item import AgentMapOperationInputType1Item
 from .agent_map_operation_input_type_2 import AgentMapOperationInputType2
+from .agent_map_operation_prompt_style_type_0 import AgentMapOperationPromptStyleType0
 from .agent_map_operation_response_schema_type_0 import AgentMapOperationResponseSchemaType0
+from .agent_map_operation_tool_description_style_type_0 import AgentMapOperationToolDescriptionStyleType0
 from .aggregate_timeline_entry import AggregateTimelineEntry
 from .aggregate_timeline_response import AggregateTimelineResponse
 from .aggregated_summary_response import AggregatedSummaryResponse
@@ -88,7 +90,9 @@ from .single_agent_operation import SingleAgentOperation
 from .single_agent_operation_budget_awareness_type_0 import SingleAgentOperationBudgetAwarenessType0
 from .single_agent_operation_input_type_1_item import SingleAgentOperationInputType1Item
 from .single_agent_operation_input_type_2 import SingleAgentOperationInputType2
+from .single_agent_operation_prompt_style_type_0 import SingleAgentOperationPromptStyleType0
 from .single_agent_operation_response_schema_type_0 import SingleAgentOperationResponseSchemaType0
+from .single_agent_operation_tool_description_style_type_0 import SingleAgentOperationToolDescriptionStyleType0
 from .subscription_info import SubscriptionInfo
 from .subscription_status_response import SubscriptionStatusResponse
 from .task_cost_response import TaskCostResponse
@@ -123,7 +127,9 @@ __all__ = (
     "AgentMapOperationBudgetAwarenessType0",
     "AgentMapOperationInputType1Item",
     "AgentMapOperationInputType2",
+    "AgentMapOperationPromptStyleType0",
     "AgentMapOperationResponseSchemaType0",
+    "AgentMapOperationToolDescriptionStyleType0",
     "AggregatedSummaryResponse",
     "AggregateTimelineEntry",
     "AggregateTimelineResponse",
@@ -206,7 +212,9 @@ __all__ = (
     "SingleAgentOperationBudgetAwarenessType0",
     "SingleAgentOperationInputType1Item",
     "SingleAgentOperationInputType2",
+    "SingleAgentOperationPromptStyleType0",
     "SingleAgentOperationResponseSchemaType0",
+    "SingleAgentOperationToolDescriptionStyleType0",
     "SubscriptionInfo",
     "SubscriptionStatusResponse",
     "TaskCostResponse",
