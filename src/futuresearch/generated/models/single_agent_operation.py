@@ -54,6 +54,8 @@ class SingleAgentOperation:
         budget_awareness (None | SingleAgentOperationBudgetAwarenessType0 | Unset): How the per-turn status line frames
             the agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-
             window usage so the agent can pace itself and report before the window runs out.
+        parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
+            research). Default keeps parallel tool calls on.
         page_reader (LlmPageReader | None | PaginatedPageReader | Unset): How the agent reads web pages: {"type": "llm",
             "model": ...} (a reader LLM answers the agent's query about the page; the default) or {"type": "paginated",
             "page_size_chars": 50000} (the agent reads the page text itself, one page at a time). An llm page_reader cannot
@@ -74,6 +76,7 @@ class SingleAgentOperation:
     include_research: bool | None | Unset = UNSET
     extra_notification_text: None | str | Unset = UNSET
     budget_awareness: None | SingleAgentOperationBudgetAwarenessType0 | Unset = UNSET
+    parallel_tool_calls: bool | None | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -168,6 +171,12 @@ class SingleAgentOperation:
         else:
             budget_awareness = self.budget_awareness
 
+        parallel_tool_calls: bool | None | Unset
+        if isinstance(self.parallel_tool_calls, Unset):
+            parallel_tool_calls = UNSET
+        else:
+            parallel_tool_calls = self.parallel_tool_calls
+
         page_reader: dict[str, Any] | None | Unset
         if isinstance(self.page_reader, Unset):
             page_reader = UNSET
@@ -208,6 +217,8 @@ class SingleAgentOperation:
             field_dict["extra_notification_text"] = extra_notification_text
         if budget_awareness is not UNSET:
             field_dict["budget_awareness"] = budget_awareness
+        if parallel_tool_calls is not UNSET:
+            field_dict["parallel_tool_calls"] = parallel_tool_calls
         if page_reader is not UNSET:
             field_dict["page_reader"] = page_reader
 
@@ -389,6 +400,15 @@ class SingleAgentOperation:
 
         budget_awareness = _parse_budget_awareness(d.pop("budget_awareness", UNSET))
 
+        def _parse_parallel_tool_calls(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        parallel_tool_calls = _parse_parallel_tool_calls(d.pop("parallel_tool_calls", UNSET))
+
         def _parse_page_reader(data: object) -> LlmPageReader | None | PaginatedPageReader | Unset:
             if data is None:
                 return data
@@ -428,6 +448,7 @@ class SingleAgentOperation:
             include_research=include_research,
             extra_notification_text=extra_notification_text,
             budget_awareness=budget_awareness,
+            parallel_tool_calls=parallel_tool_calls,
             page_reader=page_reader,
         )
 

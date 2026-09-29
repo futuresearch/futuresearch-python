@@ -23,6 +23,7 @@ class OpenAiSdkForecasterSlot:
         type_ (Literal['openai_agents_sdk'] | Unset):  Default: 'openai_agents_sdk'.
         reasoning_effort (None | OpenAiSdkForecasterSlotReasoningEffortType0 | Unset):  Default:
             OpenAiSdkForecasterSlotReasoningEffortType0.HIGH.
+        parallel_tool_calls (bool | Unset):  Default: True.
     """
 
     variant_idx: int | Unset = 0
@@ -33,6 +34,7 @@ class OpenAiSdkForecasterSlot:
     reasoning_effort: None | OpenAiSdkForecasterSlotReasoningEffortType0 | Unset = (
         OpenAiSdkForecasterSlotReasoningEffortType0.HIGH
     )
+    parallel_tool_calls: bool | Unset = True
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -54,6 +56,8 @@ class OpenAiSdkForecasterSlot:
         else:
             reasoning_effort = self.reasoning_effort
 
+        parallel_tool_calls = self.parallel_tool_calls
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -69,6 +73,8 @@ class OpenAiSdkForecasterSlot:
             field_dict["type"] = type_
         if reasoning_effort is not UNSET:
             field_dict["reasoning_effort"] = reasoning_effort
+        if parallel_tool_calls is not UNSET:
+            field_dict["parallel_tool_calls"] = parallel_tool_calls
 
         return field_dict
 
@@ -104,6 +110,8 @@ class OpenAiSdkForecasterSlot:
 
         reasoning_effort = _parse_reasoning_effort(d.pop("reasoning_effort", UNSET))
 
+        parallel_tool_calls = d.pop("parallel_tool_calls", UNSET)
+
         open_ai_sdk_forecaster_slot = cls(
             variant_idx=variant_idx,
             model=model,
@@ -111,6 +119,7 @@ class OpenAiSdkForecasterSlot:
             provide_inline_citations=provide_inline_citations,
             type_=type_,
             reasoning_effort=reasoning_effort,
+            parallel_tool_calls=parallel_tool_calls,
         )
 
         open_ai_sdk_forecaster_slot.additional_properties = d

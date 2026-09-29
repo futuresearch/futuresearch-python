@@ -28,6 +28,8 @@ class OpenAiAgentHarness:
             type_ (Literal['openai_agents_sdk'] | Unset):  Default: 'openai_agents_sdk'.
             reasoning_effort (None | OpenAiAgentHarnessReasoningEffortType0 | Unset): OpenAI reasoning effort for the agent
                 model. Default: OpenAiAgentHarnessReasoningEffortType0.HIGH.
+            parallel_tool_calls (bool | Unset): Whether the agent may make several tool calls in one turn. False forces
+                sequential, one-call-per-turn research. Default: True.
     """
 
     model: str
@@ -37,6 +39,7 @@ class OpenAiAgentHarness:
     reasoning_effort: None | OpenAiAgentHarnessReasoningEffortType0 | Unset = (
         OpenAiAgentHarnessReasoningEffortType0.HIGH
     )
+    parallel_tool_calls: bool | Unset = True
 
     def to_dict(self) -> dict[str, Any]:
         model = self.model
@@ -55,6 +58,8 @@ class OpenAiAgentHarness:
         else:
             reasoning_effort = self.reasoning_effort
 
+        parallel_tool_calls = self.parallel_tool_calls
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -69,6 +74,8 @@ class OpenAiAgentHarness:
             field_dict["type"] = type_
         if reasoning_effort is not UNSET:
             field_dict["reasoning_effort"] = reasoning_effort
+        if parallel_tool_calls is not UNSET:
+            field_dict["parallel_tool_calls"] = parallel_tool_calls
 
         return field_dict
 
@@ -102,12 +109,15 @@ class OpenAiAgentHarness:
 
         reasoning_effort = _parse_reasoning_effort(d.pop("reasoning_effort", UNSET))
 
+        parallel_tool_calls = d.pop("parallel_tool_calls", UNSET)
+
         open_ai_agent_harness = cls(
             model=model,
             provide_inline_citations=provide_inline_citations,
             max_turns=max_turns,
             type_=type_,
             reasoning_effort=reasoning_effort,
+            parallel_tool_calls=parallel_tool_calls,
         )
 
         return open_ai_agent_harness

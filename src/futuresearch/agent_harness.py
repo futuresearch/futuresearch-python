@@ -66,6 +66,11 @@ class OpenAIAgentHarness(_BaseAgentHarness):
 
     type: Literal["openai_agents_sdk"] = "openai_agents_sdk"
     reasoning_effort: OpenAIReasoningEffort = "high"
+    parallel_tool_calls: bool = Field(
+        default=True,
+        description="Whether the agent may make several tool calls in one "
+        "turn. False forces sequential, one-call-per-turn research.",
+    )
 
 
 AgentHarness = ClaudeAgentHarness | OpenAIAgentHarness

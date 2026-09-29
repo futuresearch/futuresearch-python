@@ -65,6 +65,8 @@ class AgentMapOperation:
         budget_awareness (AgentMapOperationBudgetAwarenessType0 | None | Unset): How the per-turn status line frames the
             agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-window
             usage so the agent can pace itself and report before the window runs out.
+        parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
+            research). Default keeps parallel tool calls on.
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
             agent SDK (Claude Agent SDK or OpenAI Agents SDK) instead of the native ReAct loop. Mutually exclusive with
             effort_level/llm/iteration_budget/extra_notification_text and with return_list. Internal accounts only.
@@ -91,6 +93,7 @@ class AgentMapOperation:
     return_list: bool | Unset = False
     extra_notification_text: None | str | Unset = UNSET
     budget_awareness: AgentMapOperationBudgetAwarenessType0 | None | Unset = UNSET
+    parallel_tool_calls: bool | None | Unset = UNSET
     agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -200,6 +203,12 @@ class AgentMapOperation:
         else:
             budget_awareness = self.budget_awareness
 
+        parallel_tool_calls: bool | None | Unset
+        if isinstance(self.parallel_tool_calls, Unset):
+            parallel_tool_calls = UNSET
+        else:
+            parallel_tool_calls = self.parallel_tool_calls
+
         agent_harness: dict[str, Any] | None | Unset
         if isinstance(self.agent_harness, Unset):
             agent_harness = UNSET
@@ -256,6 +265,8 @@ class AgentMapOperation:
             field_dict["extra_notification_text"] = extra_notification_text
         if budget_awareness is not UNSET:
             field_dict["budget_awareness"] = budget_awareness
+        if parallel_tool_calls is not UNSET:
+            field_dict["parallel_tool_calls"] = parallel_tool_calls
         if agent_harness is not UNSET:
             field_dict["agent_harness"] = agent_harness
         if page_reader is not UNSET:
@@ -460,6 +471,15 @@ class AgentMapOperation:
 
         budget_awareness = _parse_budget_awareness(d.pop("budget_awareness", UNSET))
 
+        def _parse_parallel_tool_calls(data: object) -> bool | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(bool | None | Unset, data)
+
+        parallel_tool_calls = _parse_parallel_tool_calls(d.pop("parallel_tool_calls", UNSET))
+
         def _parse_agent_harness(data: object) -> ClaudeAgentHarness | None | OpenAiAgentHarness | Unset:
             if data is None:
                 return data
@@ -527,6 +547,7 @@ class AgentMapOperation:
             return_list=return_list,
             extra_notification_text=extra_notification_text,
             budget_awareness=budget_awareness,
+            parallel_tool_calls=parallel_tool_calls,
             agent_harness=agent_harness,
             page_reader=page_reader,
         )

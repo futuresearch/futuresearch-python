@@ -203,6 +203,7 @@ async def single_agent[T: BaseModel](
     return_table: Literal[False] = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
 ) -> ScalarResult[T]: ...
 
 
@@ -219,6 +220,7 @@ async def single_agent(
     return_table: Literal[True] = True,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
 ) -> TableResult: ...
 
 
@@ -234,6 +236,7 @@ async def single_agent[T: BaseModel](
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
 
@@ -276,6 +279,7 @@ async def single_agent[T: BaseModel](
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
                 budget_awareness=budget_awareness,
+                parallel_tool_calls=parallel_tool_calls,
             )
             return await cohort_task.await_result()
     cohort_task = await single_agent_async(
@@ -290,6 +294,7 @@ async def single_agent[T: BaseModel](
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        parallel_tool_calls=parallel_tool_calls,
     )
     return await cohort_task.await_result()
 
@@ -306,6 +311,7 @@ async def _submit_single_agent(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
 ) -> SubmittedTask:
     """Build and submit a single_agent request."""
     input_data = _prepare_single_input(
@@ -332,6 +338,9 @@ async def _submit_single_agent(
         budget_awareness=SingleAgentOperationBudgetAwarenessType0(budget_awareness)
         if budget_awareness is not None
         else UNSET,
+        parallel_tool_calls=parallel_tool_calls
+        if parallel_tool_calls is not None
+        else UNSET,
     )
 
     response = await _call_and_check(
@@ -354,6 +363,7 @@ async def single_agent_async[T: BaseModel](
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
 ) -> FuturesearchTask[T]:
     """Submit a single_agent task asynchronously.
 
@@ -373,6 +383,7 @@ async def single_agent_async[T: BaseModel](
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        parallel_tool_calls=parallel_tool_calls,
     )
 
     cohort_task: FuturesearchTask[T] = FuturesearchTask(
@@ -399,6 +410,7 @@ async def agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> TableResult:
@@ -456,6 +468,7 @@ async def agent_map(
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
                 budget_awareness=budget_awareness,
+                parallel_tool_calls=parallel_tool_calls,
                 agent_harness=agent_harness,
                 page_reader=page_reader,
             )
@@ -477,6 +490,7 @@ async def agent_map(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        parallel_tool_calls=parallel_tool_calls,
         agent_harness=agent_harness,
         page_reader=page_reader,
     )
@@ -512,6 +526,7 @@ async def _submit_agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> SubmittedTask:
@@ -537,6 +552,11 @@ async def _submit_agent_map(
         if budget_awareness is not None:
             raise FuturesearchError(
                 "agent_harness cannot be combined with budget_awareness"
+            )
+        if parallel_tool_calls is not None:
+            raise FuturesearchError(
+                "agent_harness cannot be combined with parallel_tool_calls "
+                "(set it on the harness spec instead)"
             )
         if return_table:
             raise FuturesearchError("agent_harness does not support return_table yet")
@@ -578,6 +598,9 @@ async def _submit_agent_map(
         budget_awareness=AgentMapOperationBudgetAwarenessType0(budget_awareness)
         if budget_awareness is not None
         else UNSET,
+        parallel_tool_calls=parallel_tool_calls
+        if parallel_tool_calls is not None
+        else UNSET,
         page_reader=_to_generated_page_reader(page_reader) if page_reader else UNSET,
     )
     if agent_harness is not None:
@@ -605,6 +628,7 @@ async def agent_map_async(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    parallel_tool_calls: bool | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
 ) -> FuturesearchTask[BaseModel]:
@@ -623,6 +647,7 @@ async def agent_map_async(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        parallel_tool_calls=parallel_tool_calls,
         agent_harness=agent_harness,
         page_reader=page_reader,
     )
