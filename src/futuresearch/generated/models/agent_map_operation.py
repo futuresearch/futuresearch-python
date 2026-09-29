@@ -71,8 +71,9 @@ class AgentMapOperation:
         parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
             research). Default keeps parallel tool calls on.
         prompt_style (AgentMapOperationPromptStyleType0 | None | Unset): 'minimal' strips the agent's system prompt and
-            loop scaffold to the bare protocol (no behavioral coaching). Live tasks only: the minimal system prompt omits
-            the retro date/cutoff blocks.
+            loop scaffold to the bare protocol (no behavioral coaching). 'minimal' is for live tasks: its system prompt
+            omits the retro date/cutoff blocks. 'minimal_retro' is the same plus the date line, so pastcasting tasks get
+            their anchor date as today.
         tool_description_style (AgentMapOperationToolDescriptionStyleType0 | None | Unset): 'brief' sends each tool's
             plain description instead of the long-form usage guidance.
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
