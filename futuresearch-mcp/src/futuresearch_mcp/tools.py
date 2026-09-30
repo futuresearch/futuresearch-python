@@ -136,9 +136,11 @@ async def futuresearch_forecast(
       A single condition is really a yes/no question — use **binary** instead for
       a clean ``probability`` column.
 
-    For causal decision support on a choice the user controls ("if I do X, will Y
-    happen?"), use the ``futuresearch_decision`` tool instead — it forecasts the
-    outcome under each mutually exclusive alternative of the user's own decision.
+    When someone is weighing a choice, or the question is what would follow from
+    one ("if we do X, will Y happen?", "if the regulator does X, what happens to
+    Y?"), use the ``futuresearch_decision`` tool instead: it forecasts the outcome
+    under each alternative. The choice can be the user's or anyone else's: a
+    company, a regulator, a government, a court, a central bank.
 
     **Conditional forecasts** are an orthogonal modifier of any of the modes above.
     Supply ``condition`` (a single shared condition, the same for every row and mapped
@@ -279,7 +281,7 @@ async def futuresearch_forecast(
 async def futuresearch_decision(
     params: DecisionInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Forecast a decision: the outcome under each alternative of the user's choice.
+    """Forecast a decision: the outcome under each alternative of a choice, the user's or anyone else's.
 
     Causal decision support, e.g. "If I fund this organization at $0 / $300k /
     $2M, will it ship its study by 2027?" (binary), "…how many researchers will
@@ -298,10 +300,12 @@ async def futuresearch_decision(
     alternative and requires ``output_field`` and ``units``; ``"date"`` gives a
     percentile date per alternative and requires ``output_field``.
 
-    Use this tool — not ``futuresearch_forecast`` with a ``condition`` —
-    whenever the user asks "what happens if I do X": it answers the causal
-    question about their own decision rather than the correlational "in worlds
-    where X happens" question.
+    Use this tool, not ``futuresearch_forecast`` with a ``condition``, whenever
+    the question is what would follow from a choice, whether the user's ("what
+    happens if I do X") or another actor's ("what happens if the regulator does
+    X"): it answers the causal question about that choice rather than the
+    correlational "in worlds where X happens" question. A ``condition`` is for a
+    state of the world that nobody chooses.
 
     Output columns: ``rationale`` (str) plus a per-alternative column —
     ``probabilities`` (binary: a JSON object mapping each alternative to the

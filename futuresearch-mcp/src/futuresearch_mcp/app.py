@@ -101,14 +101,17 @@ come back as a single text string. For one-shot enrichment of existing rows, use
 ## Choosing the right operation
 
 1. **Forecast** — questions about the future. Best prediction accuracy.
-2. **Classify** — binary yes/no or categorical labels (up to ~20 categories). \
+2. **Decision** — what would follow from a choice, the user's or anyone else's \
+(a company, a regulator, a government): the outcome is forecast under each option. \
+Use it whenever someone is weighing a choice, even if what they typed is a question about the world.
+3. **Classify** — binary yes/no or categorical labels (up to ~20 categories). \
 More efficient than open-ended research for categorical answers.
-3. **Rank** — quantitative rating. Prefer an objective metric with units when possible. \
+4. **Rank** — quantitative rating. Prefer an objective metric with units when possible. \
 Use a subjective 0-100 score only if necessary.
-4. **Agent** — open-ended web research when Classify, Rank, and Forecast don't fit. \
+5. **Agent** — open-ended web research when Classify, Rank, and Forecast don't fit. \
 Pass `response_schema` for multi-field output (see below). Don't add reasoning/justification fields — \
 users can inspect the research behind each row.
-5. **Dedupe / Merge** — data consolidation.
+6. **Dedupe / Merge** — data consolidation.
 
 ## Specifying the response schema (Agent, Multi-Agent, Rank)
 

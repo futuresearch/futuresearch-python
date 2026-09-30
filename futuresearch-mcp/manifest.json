@@ -38,7 +38,7 @@
     },
     {
       "name": "futuresearch_decision",
-      "description": "Forecast a decision: the outcome under each alternative of the user's choice."
+      "description": "Forecast a decision: the outcome under each alternative of a choice, the user's or anyone else's."
     },
     {
       "name": "futuresearch_rank",

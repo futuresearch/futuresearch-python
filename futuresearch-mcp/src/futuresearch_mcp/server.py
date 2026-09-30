@@ -205,24 +205,14 @@ def _sentry_before_send(event, hint):
     return event
 
 
-def main():
-    """Run the MCP server."""
-    input_args = parse_args()
-
-    sentry_dsn = os.environ.get("SENTRY_DSN", "")
-    if sentry_dsn:
-        sentry_sdk.init(
-            dsn=sentry_dsn,
-            send_default_pii=True,
-            traces_sample_rate=0.1,
-            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
-            release=os.environ.get("SENTRY_RELEASE"),
-            before_send=_sentry_before_send,
-        )
-
-    transport = Transport.HTTP if input_args.http else Transport.STDIO
+def configure_tools_for_transport(transport: Transport) -> None:
+    """Make the instructions and the tool registry what a client of this transport
+    is given. ``main`` calls it; so does the everyrow-cc eval harness, which serves
+    a stub of the HTTP registry and must not drift from it. The upload tool is
+    registered separately (``register_upload_tool``) because it needs the server URL.
+    """
     settings.transport = transport.value
-    mcp._mcp_server.instructions = get_instructions(is_http=input_args.http)
+    mcp._mcp_server.instructions = get_instructions(is_http=transport == Transport.HTTP)
 
     # The widget tools are only useful to widget-capable clients (HTTP mode).
     # Remove them in stdio mode so Claude Code never sees them.
@@ -241,6 +231,25 @@ def main():
             structured_output=False,
             annotations=_RESULTS_ANNOTATIONS,
         )(futuresearch_results_http)
+
+
+def main():
+    """Run the MCP server."""
+    input_args = parse_args()
+
+    sentry_dsn = os.environ.get("SENTRY_DSN", "")
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            send_default_pii=True,
+            traces_sample_rate=0.1,
+            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            release=os.environ.get("SENTRY_RELEASE"),
+            before_send=_sentry_before_send,
+        )
+
+    transport = Transport.HTTP if input_args.http else Transport.STDIO
+    configure_tools_for_transport(transport)
 
     if input_args.http:
         # ── HTTP mode logging ──────────────────────────────────────

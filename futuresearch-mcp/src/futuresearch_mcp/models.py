@@ -453,7 +453,9 @@ class ForecastInput(_SingleSourceInput):
         "binary", "numeric", "date", "categorical", "thresholded"
     ] = Field(
         description="Type of the outcome being forecast. 'binary': yes/no probability "
-        "(0-100) for questions like 'Will X happen?'. 'numeric': percentile estimates "
+        "(0-100) for an event that is inherently yes/no. For 'will X happen by a date' "
+        "prefer 'date', and for 'will X pass a level' prefer 'numeric': the distribution "
+        "answers that cutoff and every other one. 'numeric': percentile estimates "
         "(p10-p90) for questions like 'What will the price/value/count be?'. 'date': "
         "date percentile estimates (p10-p90) as YYYY-MM-DD strings for timing questions "
         "like 'When will X happen?'. 'categorical': one probability per listed outcome + "
@@ -464,8 +466,8 @@ class ForecastInput(_SingleSourceInput):
         "output_field when 'numeric' or 'date'. To make any of these CONDITIONAL "
         "(forecasting the outcome in the worlds where a condition does and does not "
         "hold), supply 'condition' or 'condition_field'; the forecast_type still "
-        "describes the outcome. For a decision the user controls, use the "
-        "futuresearch_decision tool instead.",
+        "describes the outcome. When the condition is a choice some actor could make, "
+        "the user or anyone else, use the futuresearch_decision tool instead.",
     )
     effort_level: ForecastEffortLevel | None = Field(
         default=None,
@@ -533,8 +535,9 @@ class ForecastInput(_SingleSourceInput):
         "does not. State it in plain language; where it refers to the entity (e.g. 'the "
         "company'), the agent grounds it in each row. The output contains per-branch "
         "columns suffixed '_given_condition' and '_given_not_condition'. Mutually "
-        "exclusive with condition_field. For a decision the user controls, use the "
-        "futuresearch_decision tool instead.",
+        "exclusive with condition_field. A condition is a state of the world that nobody "
+        "chooses. When it is a choice some actor could make, the user or anyone else, use "
+        "the futuresearch_decision tool instead.",
     )
     condition_field: str | None = Field(
         default=None,
@@ -546,6 +549,26 @@ class ForecastInput(_SingleSourceInput):
         "'_given_condition' and '_given_not_condition'. Mutually exclusive with "
         "condition.",
     )
+
+    @model_validator(mode="after")
+    def _condition_column_needs_condition_field(self) -> "ForecastInput":
+        """A per-row ``condition`` column does nothing unless ``condition_field`` names it.
+
+        Assistants build inline rows with a ``condition`` key and forget the
+        parameter; the forecast then runs unconditionally and nobody is told. Only
+        inline ``data`` is checked: an uploaded table can call a column anything.
+        """
+        if self.condition or self.condition_field or not self.data:
+            return self
+        if any("condition" in row for row in self.data):
+            raise ValueError(
+                "The rows have a 'condition' column but neither condition nor "
+                "condition_field is set, so the forecast would ignore it. Pass "
+                "condition_field='condition' to forecast each row under its own "
+                "condition, or condition='...' for one condition shared by every row. "
+                "If the column is ordinary data, rename it."
+            )
+        return self
 
 
 class DecisionInput(_SingleSourceInput):
