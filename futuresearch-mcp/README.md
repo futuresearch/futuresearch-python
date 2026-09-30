@@ -4,9 +4,30 @@
 
 MCP (Model Context Protocol) server for [FutureSearch](https://futuresearch.ai): AI forecasting you can verify. FutureSearch turns questions about the future into probabilities, dates, and numbers, with accuracy verifiable via our public track record on stocks, prediction markets, public benchmarks, and forecasting tournaments ([markets.futuresearch.ai](https://markets.futuresearch.ai), [evals.futuresearch.ai](https://evals.futuresearch.ai)).
 
-This server exposes FutureSearch's core operations as MCP tools, allowing LLM applications to forecast, classify, rank, dedupe, merge, and run agents on CSV files.
+This server lets an assistant forecast: the probability, date or number for a question about the future, and the outcomes of decisions, yours or anyone else's. It also runs web research agents on one question or on every row of a table.
 
-**All tools operate on local CSV files.** Provide absolute file paths as input, and transformed results are written to new CSV files at your specified output path.
+With the hosted server, pass rows inline as `data`, or reference an uploaded `artifact_id`. When you run the server yourself over stdio, tools also accept absolute paths to local CSV files and write results to a path you give.
+
+A decision, as an MCP call: one row per outcome, a column listing the options, and what the forecaster cannot look up in `context`.
+
+```json
+{
+  "tool": "futuresearch_decision",
+  "arguments": {
+    "data": [
+      {
+        "question": "How many sitting parliamentarians will be listed on ControlAI's campaign statement on December 31, 2028?",
+        "grant": ["$0 (no grant)", "$250k", "$1M"]
+      }
+    ],
+    "alternatives_field": "grant",
+    "forecast_type": "numeric",
+    "output_field": "parliamentarians",
+    "units": "parliamentarians",
+    "context": "We are a family foundation deciding this quarter how much to give ControlAI. The gift would be unrestricted and announced publicly, and no other funder is waiting on our decision."
+  }
+}
+```
 
 ## Installation
 
@@ -67,7 +88,7 @@ and thresholded (one probability per listed threshold condition).
 ```
 Parameters:
 - forecast_type: "binary", "numeric", "date", "categorical", or "thresholded"
-- context: (optional) Batch-level context for all questions
+- context: (optional) What is true for the whole call: facts about who is deciding and their situation, and any instructions that apply to every row.
 - effort_level: (optional) "low" or "high" (default; required for categorical/thresholded)
 - output_field: Name of the forecast quantity (required for numeric/date)
 - units: Units of the forecast quantity (required for numeric)
@@ -77,64 +98,39 @@ Parameters:
 
 Example: "Will the US Federal Reserve cut rates before July 2027?"
 
-### futuresearch_rank
+### futuresearch_decision
 
-Score and sort CSV rows based on qualitative criteria.
+Forecast the outcomes of a decision: the same outcome under each option, e.g. "if we fund this at $0, $300k or $2M, when will it ship?". The decision can be the user's or anyone else's: a company, a regulator, a government. Use this rather than `futuresearch_forecast` with a `condition` whenever the "if" is something someone decides.
 
-```
-Parameters:
-- task: Natural language instructions for scoring a single row
-- input_csv: Absolute path to input CSV
-- field_name: Name of the score field to add
-- field_type: Type of the score field (float, int, str, bool)
-- ascending_order: Sort direction (default: true)
-- response_schema: (optional) JSON schema for custom response fields
-```
-
-Example: Rank leads by "likelihood to need data integration solutions"
-
-### futuresearch_dedupe
-
-Remove duplicate rows using semantic equivalence.
+The input needs a `question` (one outcome per row) and a column listing that row's options. When the decision is the user's own, put what you already know about them in `context`: their size, budget and timeline, what they have tried, what happens if they do nothing. The forecaster cannot look any of that up.
 
 ```
 Parameters:
-- equivalence_relation: Natural language description of what makes rows duplicates
-- input_csv: Absolute path to input CSV
+- data: Inline data as a list of row objects
+- artifact_id: Alternatively, an artifact ID from a previous upload
+- alternatives_field: Name of the column holding each row's alternatives as a JSON array
+- forecast_type: "binary" (default), "numeric", or "date": the outcome type forecast under each alternative
+- output_field: Name of the quantity being forecast (required for numeric and date)
+- units: Units for the outcome (required for numeric)
+- context: (optional) What is true for the whole call: facts about who is deciding and their situation, and any instructions that apply to every row.
+- intervention: (optional) Intervention assumptions
 ```
 
-Example: Dedupe contacts where "same person even with name abbreviations or career changes"
+Provide either `data` or `artifact_id`, not both.
 
-### futuresearch_merge
+Example: the decision call at the top of this README.
 
-Join two CSV files using intelligent entity matching (LEFT JOIN semantics).
+### futuresearch_multi_agent
 
-```
-Parameters:
-- task: Natural language description of how to match rows
-- left_csv: The table being enriched — all its rows are kept in the output
-- right_csv: The lookup/reference table — its columns are appended to matches; unmatched left rows get nulls
-- merge_on_left: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
-- merge_on_right: (optional) Only set if you expect exact string matches on this column or want to draw agent attention to it. Fine to omit.
-- use_web_search: (optional) "auto" (default), "yes", or "no"
-- relationship_type: (optional) "many_to_one" (default) if multiple left rows can match one right row, "one_to_one" matches must be unique, "one_to_many" one left row can match multiple right rows, "many_to_many" multiple left rows can match multiple right rows. For one_to_many and many_to_many, multiple matches are joined with " | " in each added column.
-```
-
-Example: Match software products (left, enriched) to parent companies (right, lookup): Photoshop -> Adobe
-
-### futuresearch_classify
-
-Classify each row into one of the provided categories.
+Deep parallel research: deploy a team of direction agents per row exploring different angles, then synthesize. Use when completeness or depth matters more than per-row cost, e.g. enumerating "all AI startups in Europe", or answers that benefit from parallel investigation across distinct sources, geographies, or methodologies.
 
 ```
 Parameters:
-- task: Natural language classification instructions
-- categories: Allowed categories (minimum 2)
-- classification_field: (optional) Output column name (default: "classification")
-- include_reasoning: (optional) Include reasoning column (default: false)
+- task: What to research per row.
+- directions: (optional) Up to 6 explicit research angles. Each should be a detailed, self-contained brief, not a short title. Auto-generated from task if omitted.
+- response_schema: (optional) Output structure for the synthesized result. Defaults to {"answer": string}.
+- effort_level: (optional) "low" (3 agents per row), "medium" (4, default), "high" (2 frontier agents, deeper but slower).
 ```
-
-Example: Classify companies by GICS sector with categories ["Energy", "Financials", "Information Technology", ...]
 
 ### futuresearch_agent
 
@@ -148,6 +144,35 @@ Parameters:
 ```
 
 Example: "Find this company's latest funding round and lead investors"
+
+### futuresearch_browse_lists
+
+Browse available reference lists of well-known entities (S&P 500, FTSE 100, countries, universities, etc.).
+
+```
+Parameters:
+- search: (optional) Search term to match list names
+- category: (optional) Filter by category (e.g. "Finance", "Geography")
+```
+
+### futuresearch_use_list
+
+Import a reference list into your session and make it available via artifact_id for other futuresearch tools.
+
+```
+Parameters:
+- artifact_id: artifact_id from futuresearch_browse_lists results
+```
+
+### futuresearch_upload_data
+
+Upload data from a URL or local file. Returns an artifact_id for use in processing tools.
+
+```
+Parameters:
+- source: HTTP(S) URL (Google Sheets supported) or local CSV path (stdio mode only)
+- session_id / session_name: (optional)
+```
 
 ### futuresearch_progress
 
@@ -171,6 +196,19 @@ Parameters:
 ```
 
 Only call after `futuresearch_progress` reports status "completed".
+
+### futuresearch_cancel
+
+Cancel a running task.
+
+```
+Parameters:
+- task_id: Task ID to cancel
+```
+
+### Deprecated tools
+
+`futuresearch_rank`, `futuresearch_classify`, `futuresearch_merge` and `futuresearch_dedupe` are deprecated and will be removed. They still work for now.
 
 ## Development
 

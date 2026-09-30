@@ -281,7 +281,7 @@ async def futuresearch_forecast(
 async def futuresearch_decision(
     params: DecisionInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Forecast a decision: the outcome under each alternative of a choice, the user's or anyone else's.
+    """Forecast a decision: the outcome under each option, the user's or anyone else's.
 
     Causal decision support, e.g. "If I fund this organization at $0 / $300k /
     $2M, will it ship its study by 2027?" (binary), "…how many researchers will
@@ -768,7 +768,7 @@ async def futuresearch_multi_agent(
 async def futuresearch_rank(
     params: RankInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Score and sort rows in a CSV file based on any criteria.
+    """Deprecated: Score and sort rows in a CSV file based on any criteria.
 
     Dispatches web agents to research the criteria to rank the entities in the
     table. Conducts research, and can also apply judgment to the results if the
@@ -853,7 +853,7 @@ async def futuresearch_rank(
 async def futuresearch_dedupe(
     params: DedupeInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Remove duplicate rows from a CSV file using semantic equivalence.
+    """Deprecated: Remove duplicate rows from a CSV file using semantic equivalence.
 
     Dedupe identifies rows that represent the same entity even when they
     don't match exactly. The duplicate criterion is semantic and LLM-powered:
@@ -939,7 +939,7 @@ async def futuresearch_dedupe(
 async def futuresearch_merge(
     params: MergeInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Join two CSV files using intelligent entity matching.
+    """Deprecated: Join two CSV files using intelligent entity matching.
 
     Merge combines two tables even when keys don't match exactly. Uses LLM web
     research and judgment to identify which rows from the first table should
@@ -1048,7 +1048,7 @@ async def futuresearch_merge(
 async def futuresearch_classify(
     params: ClassifyInput, ctx: FuturesearchContext
 ) -> list[TextContent]:
-    """Classify each row of a dataset into one of the provided categories.
+    """Deprecated: Classify each row of a dataset into one of the provided categories.
 
     Uses web research that scales to the difficulty of the classification.
     Each row is assigned exactly one of the provided categories.

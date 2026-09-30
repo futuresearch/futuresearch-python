@@ -1,9 +1,10 @@
 [project]
 name = "futuresearch-mcp"
 version = "0.26.0"
-description = "MCP server for FutureSearch: AI forecasting with a public track record, plus dataset research tools"
+description = "MCP server for FutureSearch: forecast questions about the future, including the outcome under each option of a choice, plus web research agents."
 readme = "README.md"
 requires-python = ">=3.12"
+keywords = ["forecasting", "prediction", "decision-making", "mcp", "model-context-protocol", "ai", "agents"]
 dependencies = [
     "PyJWT[crypto]>=2.8.0",
     "futuresearch>=0.26.0",
@@ -18,6 +19,13 @@ dependencies = [
     "litellm>=1.86.4,<2.0",  # 1.86.4+: pondpond optional (PR #14863, fixes #14762); _count_messages skips unknown keys (commit b6f15ed6) so thinking_blocks no longer raises. Earlier <=1.82.6 cap (PR #5019) was for a since-remediated PyPI supply-chain incident.
     "sentry-sdk[starlette]>=2.0.0",
 ]
+
+[project.urls]
+Homepage = "https://futuresearch.ai"
+Documentation = "https://futuresearch.ai/docs"
+Repository = "https://github.com/futuresearch/futuresearch-python"
+"Track record" = "https://markets.futuresearch.ai"
+Benchmarks = "https://evals.futuresearch.ai"
 
 [project.scripts]
 futuresearch-mcp = "futuresearch_mcp.server:main"

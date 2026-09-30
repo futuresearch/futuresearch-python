@@ -75,9 +75,11 @@ def sync_detailed(
     body: MergeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Semantic table join
+    """Semantic table join (deprecated)
 
-     Use AI to semantically merge two tables based on task instructions.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to semantically merge two tables based on task instructions.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -109,9 +111,11 @@ def sync(
     body: MergeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Semantic table join
+    """Semantic table join (deprecated)
 
-     Use AI to semantically merge two tables based on task instructions.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to semantically merge two tables based on task instructions.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -138,9 +142,11 @@ async def asyncio_detailed(
     body: MergeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Semantic table join
+    """Semantic table join (deprecated)
 
-     Use AI to semantically merge two tables based on task instructions.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to semantically merge two tables based on task instructions.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -170,9 +176,11 @@ async def asyncio(
     body: MergeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Semantic table join
+    """Semantic table join (deprecated)
 
-     Use AI to semantically merge two tables based on task instructions.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to semantically merge two tables based on task instructions.
 
     Args:
         x_cohort_source (None | str | Unset):

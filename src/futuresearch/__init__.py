@@ -1,4 +1,4 @@
-"""FutureSearch SDK: AI forecasting with a public track record (https://evals.futuresearch.ai, https://markets.futuresearch.ai), plus dataset research operations."""
+"""FutureSearch SDK: forecast questions about the future, including the outcome under each option of a choice. Public track record: https://evals.futuresearch.ai, https://markets.futuresearch.ai"""
 
 from importlib.metadata import version
 

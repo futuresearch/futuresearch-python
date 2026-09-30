@@ -75,9 +75,11 @@ def sync_detailed(
     body: RankOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Score and sort rows with AI
+    """Score and sort rows with AI (deprecated)
 
-     Use AI to score each row and sort results by the specified field.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to score each row and sort results by the
+    specified field.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -109,9 +111,11 @@ def sync(
     body: RankOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Score and sort rows with AI
+    """Score and sort rows with AI (deprecated)
 
-     Use AI to score each row and sort results by the specified field.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to score each row and sort results by the
+    specified field.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -138,9 +142,11 @@ async def asyncio_detailed(
     body: RankOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Score and sort rows with AI
+    """Score and sort rows with AI (deprecated)
 
-     Use AI to score each row and sort results by the specified field.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to score each row and sort results by the
+    specified field.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -170,9 +176,11 @@ async def asyncio(
     body: RankOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Score and sort rows with AI
+    """Score and sort rows with AI (deprecated)
 
-     Use AI to score each row and sort results by the specified field.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to score each row and sort results by the
+    specified field.
 
     Args:
         x_cohort_source (None | str | Unset):

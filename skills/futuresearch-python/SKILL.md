@@ -1,25 +1,21 @@
 ---
 name: futuresearch-python
-description: Use when the user wants forecasts (probabilities, dates, numbers, odds) or dataset research at scale via FutureSearch.
+description: Use when the user wants a FutureSearch forecast: the probability, date or number for a question about the future, or the outcomes of a decision they, their company, or someone else is facing (pricing, hiring, funding, launch timing, policy). Also covers web research across the rows of a table.
 ---
 
 # FutureSearch Python SDK
 
-FutureSearch turns questions about the future into forecasts, with dataset research tools around it. Use this skill when writing Python code that needs to:
+FutureSearch forecasts questions about the future, including the outcomes of decisions. Use this skill when writing Python code or calling MCP tools that need to:
+
+**Operations:**
+- Forecast the outcomes of a decision, yours or someone else's: the same outcome under each option
+- Forecast probabilities, numbers, dates, and categories for questions about the future
+- Research one question with a team of parallel agents
+- Run AI agents over dataframe rows
 
 > **Documentation**: For detailed guides, case studies, and API reference, see:
 > - Docs site: [futuresearch.ai/docs](https://futuresearch.ai/docs)
 > - GitHub: [github.com/futuresearch/futuresearch-python](https://github.com/futuresearch/futuresearch-python)
-
-**Operations:**
-- Forecast probabilities, numbers, dates, and categories for questions about the future
-- Forecast the outcome under each alternative of a decision you control
-- Research one question with a team of parallel agents
-- Run AI agents over dataframe rows
-- Rank/score rows based on qualitative criteria
-- Deduplicate data using semantic understanding
-- Merge tables using AI-powered matching
-- Classify rows into predefined categories
 
 ## Installation
 
@@ -31,7 +27,7 @@ pip install futuresearch
 
 ### MCP Server (for Claude Code, Claude Desktop, Cursor, etc.)
 
-If an MCP server is available (`futuresearch_classify`, `futuresearch_rank`, etc. tools), you can use it directly without writing Python code. The MCP server operates on uploaded data (via artifact IDs or inline JSON).
+If an MCP server is available (`futuresearch_forecast`, `futuresearch_decision`, etc. tools), you can use it directly without writing Python code. The MCP server operates on uploaded data (via artifact IDs or inline JSON).
 
 To install the MCP server, add to your MCP config:
 
@@ -59,7 +55,7 @@ Config file locations:
 - Simple lookups and enrichments
 
 **Use Python SDK** when:
-- Complex multi-step workflows (dedupe → merge → research)
+- Complex multi-step workflows (research → forecast → decision)
 - Custom data transformations
 - Integration with existing Python scripts
 - Full control over execution and intermediate results
@@ -68,7 +64,7 @@ Config file locations:
 
 # MCP Server Tools
 
-If you have the FutureSearch MCP server configured, these 18 tools are available. All data processing tools accept input via `artifact_id` (from upload_data or request_upload_url) or `data` (inline JSON rows). Provide exactly one.
+If you have the FutureSearch MCP server configured, these tools are available. All data processing tools accept input via `artifact_id` (from upload_data or request_upload_url) or `data` (inline JSON rows). Provide exactly one.
 
 ## Core Operations
 
@@ -83,7 +79,8 @@ Parameters:
 - artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
 - data: Inline data as a list of row objects (must include "question" column)
 - forecast_type: "binary", "numeric", "date", "categorical", or "thresholded" (always the OUTCOME type)
-- context: (optional) Batch-level context for all questions
+- context: (optional) What is true for the whole call: facts about who is deciding
+  and their situation, and any instructions that apply to every row
 - effort_level: (optional) "low" or "high" (default; required for categorical/thresholded and for any conditional forecast)
 - batch_size: (optional) Rows researched together per forecasting agent — see "Batching related questions" below
 - output_field: Name of the forecast quantity (required for numeric/date)
@@ -111,13 +108,41 @@ batching requires a plain unconditional binary/numeric/date forecast
 per-row). Tell the user which mode you chose and roughly what it changes in
 cost, so an expensive per-row run is a choice they saw, not a surprise.
 
-**Conditional forecasting.** Conditionality is a modifier on any forecast type,
-not a type of its own. Whenever the user frames a question with a condition or
-intervention ("if A…", "given/assuming A", "conditional on A", "in the world
-where A"), pick `forecast_type` from the outcome as usual (`date` for "when will
-X", `numeric` for "what will the return be", `binary` for "will X happen", etc.)
-and add the condition. Conditional forecasts are HIGH effort only. Each output
-keeps the type's normal columns and produces them a second time, suffixed
+### futuresearch_decision
+Forecast the outcomes of a decision somebody is facing: the user's, their company's, a competitor's, a regulator's, a government's. Each option gets the same outcome forecast. Use this whenever the "if" is something someone chooses to do, rather than something that happens to the world. Include not acting as an option unless it is ruled out, and prefer a date or a quantity to a cutoff: ask "when does it ship" rather than "does it ship by June".
+
+The outcome under each alternative can be a probability, a number, or a date
+(`forecast_type` `binary` / `numeric` / `date`, as in futuresearch_forecast).
+```
+Parameters:
+- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
+- data: Inline data as a list of row objects (must include "question" column)
+- alternatives_field: (required) Column holding each row's mutually exclusive
+  alternatives as a JSON array of 2-50 numbers or strings
+- forecast_type: (optional) "binary" (default), "numeric", or "date" (the OUTCOME
+  type forecast under each alternative)
+- output_field: Name of the forecast quantity (required for numeric/date)
+- units: Units of the forecast quantity (required for numeric)
+- context: (optional) What is true for the whole call: facts about who is deciding
+  and their situation, and any instructions that apply to every row
+- intervention: (optional) What executing an alternative means (publicity, timing,
+  how the world responds). Replaces the default assumptions wholesale, so state
+  the full set. Tell the user which assumptions were active when presenting results.
+- session_id / session_name: (optional)
+```
+The output always contains a `rationale`. Additionally, for a binary outcome,
+there is a `probabilities` field, which is a JSON object mapping each alternative to
+the outcome's probability. For a numeric or date outcome, the output contains a
+`percentiles` field, which is a JSON object mapping each alternative to its
+`{p10, p25, p50, p75, p90}` record. The values across alternatives need not sum to
+100 and need not be monotonic.
+
+**Conditional forecasting.** Use a condition only when the premise is a state of the world nobody chooses: an election result, a price level, a far-off milestone. If the premise is a decision somebody is making, including a company's, a regulator's or a government's, use `futuresearch_decision` instead. Almost every "if we…" or "should we…" is a decision.
+
+Conditionality is a modifier on any forecast type, not a type of its own: pick
+`forecast_type` from the outcome as usual (`date` for "when will X", `numeric`
+for "what will the return be", `binary` for "will X happen", etc.) and supply the
+condition. Conditional forecasts are HIGH effort only. Each outputkeeps the type's normal columns and produces them a second time, suffixed
 `_given_condition` (the world where the condition holds) and `_given_not_condition`
 (where it does not), so the two branches reflect one coherent view of how the
 condition bears on the outcome, plus a `rationale`.
@@ -132,35 +157,11 @@ Two mutually exclusive ways to supply the condition:
 - **Per-row column** (`condition_field`): the name of an input column holding each
   row's own condition, for a sheet where rows carry distinct conditions.
 
-### futuresearch_decision
-Forecast the outcome under each alternative of a choice the user controls
-("if I fund this at $0 / $300k / $2M, will it ship by 2027?"). The outcome under
-each alternative can be a probability, a number, or a date (`forecast_type`
-`binary` / `numeric` / `date`, as in futuresearch_forecast). Use this, whenever
-the "if" is the user's own decision: a conditional forecast is correlational,
-a decision is causal.
-```
-Parameters:
-- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
-- data: Inline data as a list of row objects (must include "question" column)
-- alternatives_field: (required) Column holding each row's mutually exclusive
-  alternatives as a JSON array of 2-50 numbers or strings
-- forecast_type: (optional) "binary" (default), "numeric", or "date" (the OUTCOME
-  type forecast under each alternative)
-- output_field: Name of the forecast quantity (required for numeric/date)
-- units: Units of the forecast quantity (required for numeric)
-- context: (optional) Table-level context applied to every row
-- intervention: (optional) What executing an alternative means (publicity, timing,
-  how the world responds). Replaces the default assumptions wholesale, so state
-  the full set. Tell the user which assumptions were active when presenting results.
-- session_id / session_name: (optional)
-```
-The output always contains a `rationale`. Additionally, for a binary outcome,
-there is a `probabilities` field, which is a JSON object mapping each alternative to
-the outcome's probability. For a numeric or date outcome, the output contains a
-`percentiles` field, which is a JSON object mapping each alternative to its
-`{p10, p25, p50, p75, p90}` record. The values across alternatives need not sum to
-100 and need not be monotonic.
+### Giving the forecast facts about the user
+
+The web cannot look up the user's situation, so you have to supply it. Put what you know about them in `context`, once: who is deciding, their size, money and timeline, what they have tried, what happens if they do nothing. Write plain dated facts. It applies to every row in the call, so do not repeat it per row. Ask the user for the two or three facts most likely to change the answer if you do not have them, and never pass in numbers from an earlier forecast.
+
+If the options come back level, say so plainly: this decision does not move that outcome, and the rationale explains why. Do not re-run it hoping for a gap. Offer a nearer outcome instead, where the same decision may matter.
 
 ### futuresearch_multi_agent
 Answer one question with a team of agents that each take a different angle, then
@@ -192,56 +193,9 @@ Parameters:
 - session_name: (optional) Name for a new session
 ```
 
-### futuresearch_rank
-Score and sort rows based on qualitative criteria.
-```
-Parameters:
-- task: (required) Natural language instructions for scoring a single row
-- field_name: (required) Name of the score field to add
-- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
-- data: Inline data as a list of row objects
-- field_type: (optional) "float" (default), "int", "str", or "bool"
-- ascending_order: (optional) Sort ascending (default: true)
-- response_schema: (optional) JSON schema for the response model
-- session_id / session_name: (optional)
-```
+### Deprecated: rank, classify, merge, dedupe
 
-### futuresearch_dedupe
-Remove duplicate rows using semantic equivalence.
-```
-Parameters:
-- equivalence_relation: (required) Natural language description of what makes rows duplicates
-- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
-- data: Inline data as a list of row objects
-- session_id / session_name: (optional)
-```
-
-### futuresearch_merge
-Join two tables using intelligent entity matching (LEFT JOIN semantics).
-```
-Parameters:
-- task: (required) Natural language description of how to match rows
-- left_artifact_id / left_data: (required, exactly one) Left table — the table being enriched (all rows kept)
-- right_artifact_id / right_data: (required, exactly one) Right table — lookup/reference (columns appended to matches)
-- merge_on_left: (optional) Only set if you expect exact string matches or want to draw agent attention to a column
-- merge_on_right: (optional) Same as merge_on_left for right table
-- relationship_type: (optional) "many_to_one" (default), "one_to_one", "one_to_many", "many_to_many"
-- use_web_search: (optional) "auto" (default), "yes", or "no"
-- session_id / session_name: (optional)
-```
-
-### futuresearch_classify
-Classify each row into one of the provided categories.
-```
-Parameters:
-- task: (required) Natural language classification instructions
-- categories: (required) Allowed categories (minimum 2)
-- artifact_id: Artifact ID (UUID) from upload_data or request_upload_url
-- data: Inline data as a list of row objects
-- classification_field: (optional) Output column name (default: "classification")
-- include_reasoning: (optional) Include reasoning column (default: false)
-- session_id / session_name: (optional)
-```
+These still work and will be removed. For a label or a score per row use `agent_map` with a `response_schema`; for anything about the future use `forecast`.
 
 ## Data Management
 
@@ -354,7 +308,7 @@ No parameters.
 All operations return a result object. The data is available as a pandas DataFrame in `result.data`:
 
 ```python
-result = await rank(...)
+result = await forecast(...)
 print(result.data.head())  # pandas DataFrame
 ```
 
@@ -387,26 +341,39 @@ Recommended input columns beyond `question`: `resolution_criteria`, `resolution_
 
 ### decision - Outcome under each alternative
 
-Forecast the outcome under each alternative of a choice you control. Use this
-whenever the "if" clause is the user's own decision: a conditional forecast is
-correlational, a decision is causal. The outcome under each alternative can be a
-probability, a number, or a date, set by `forecast_type`, exactly as in `forecast`.
+Forecast the outcomes of a decision somebody is facing: the user's, their company's, a competitor's, a regulator's, a government's. Each option gets the same outcome forecast. Use this whenever the "if" is something someone chooses to do, rather than something that happens to the world. Include not acting as an option unless it is ruled out, and prefer a date or a quantity to a cutoff: ask "when does it ship" rather than "does it ship by June".
+
+The outcome under each alternative can be a probability, a number, or a date, set
+by `forecast_type`, exactly as in `forecast`.
 
 ```python
-import json
+import asyncio
 from pandas import DataFrame
 from futuresearch.ops import decision
 
-decisions = DataFrame([
-    {
-        "question": "Will the study be published in a peer-reviewed journal before 2028-01-01?",
-        "grant_size": json.dumps(["$0 (no grant)", "$300k", "$2M"]),
-        "resolution_criteria": "Resolves YES if it appears in a peer-reviewed journal before 2028-01-01.",
-    },
-])
 
-result = await decision(input=decisions, alternatives_field="grant_size")
-print(result.data[["question", "probabilities", "rationale"]])
+async def main():
+    result = await decision(
+        input=DataFrame([
+            {
+                "question": "How many sitting parliamentarians will be listed on ControlAI's campaign statement on December 31, 2028?",
+                "grant": ["$0 (no grant)", "$250k", "$1M"],
+            },
+        ]),
+        context=(
+            "We are a family foundation deciding this quarter how much to give ControlAI. "
+            "The gift would be unrestricted and announced publicly, and no other funder is "
+            "waiting on our decision."
+        ),
+        alternatives_field="grant",
+        forecast_type="numeric",
+        output_field="parliamentarians",
+        units="parliamentarians",
+    )
+    print(result.data[["question", "percentiles", "rationale"]])
+
+
+asyncio.run(main())
 ```
 
 The output contains `rationale` plus a per-alternative outcome column:
@@ -481,185 +448,14 @@ result = await agent_map(
 
 Parameters: `task`, `input`, `effort_level`, `response_model`, `session`
 
-### rank - Score and rank rows
+### Deprecated: rank, classify, merge, dedupe
 
-Score rows based on criteria you can't put in a database field:
+These still work and will be removed. For a label or a score per row use `agent_map` with a `response_model`; for anything about the future use `forecast`.
 
-```python
-from futuresearch.ops import rank
-
-result = await rank(
-    task="Score by likelihood to need data integration solutions",
-    input=leads_dataframe,
-    field_name="integration_need_score",
-    ascending_order=False,  # highest first
-)
-print(result.data.head())
-```
-
-**Structured output** - get more than just a score:
-
-```python
-from pydantic import BaseModel, Field
-
-class AcquisitionScore(BaseModel):
-    fit_score: float = Field(description="0-100, strategic alignment")
-    annual_revenue_usd: int = Field(description="Estimated annual revenue in USD")
-
-result = await rank(
-    task="Score acquisition targets by product-market fit",
-    input=potential_acquisitions,
-    field_name="fit_score",
-    response_model=AcquisitionScore,
-    ascending_order=False,
-)
-```
-
-Parameters: `task`, `input`, `field_name`, `field_type` (default: "float"), `response_model`, `ascending_order` (default: True), `session`
-
-### classify - Categorize rows
-
-Assign each row to one of the provided categories:
-
-```python
-from futuresearch.ops import classify
-
-result = await classify(
-    task="Classify this company by its GICS industry sector",
-    categories=["Energy", "Materials", "Industrials", "Consumer Discretionary",
-                 "Consumer Staples", "Health Care", "Financials",
-                 "Information Technology", "Communication Services",
-                 "Utilities", "Real Estate"],
-    input=companies,
-)
-print(result.data[["company", "classification"]])
-```
-
-**Binary classification** - for yes/no questions, use two categories:
-
-```python
-result = await classify(
-    task="Is this company founder-led?",
-    categories=["yes", "no"],
-    input=companies,
-)
-```
-
-**With reasoning** - understand why each row was classified:
-
-```python
-result = await classify(
-    task="Classify each company by its primary industry sector",
-    categories=["Technology", "Finance", "Healthcare", "Energy"],
-    input=companies,
-    classification_field="sector",
-    include_reasoning=True,
-)
-```
-
-Parameters: `task`, `categories`, `input`, `classification_field` (default: "classification"), `include_reasoning` (default: False), `session`
-
-### merge - Merge tables with AI matching
-
-Join two tables when the keys don't match exactly (LEFT JOIN semantics). The AI knows "Photoshop" belongs to "Adobe" and "Genentech" is a Roche subsidiary:
-
-```python
-from futuresearch.ops import merge
-
-result = await merge(
-    task="Match each software product to its parent company",
-    left_table=software_products,   # table being enriched — all rows kept
-    right_table=approved_suppliers,  # lookup/reference table — columns appended to matches
-    # merge_on_left/merge_on_right: omit unless you expect exact string matches
-    # on the chosen columns or want to draw agent attention to them.
-)
-print(result.data.head())
-```
-
-Parameters: `task`, `left_table`, `right_table`, `merge_on_left`, `merge_on_right`, `relationship_type`, `use_web_search`, `session`
-
-### dedupe - Deduplicate data
-
-Remove duplicates using AI-powered semantic matching. The AI understands that "AbbVie Inc", "Abbvie", and "AbbVie Pharmaceutical" are the same company:
-
-```python
-from futuresearch.ops import dedupe
-
-result = await dedupe(
-    input=crm_data,
-    equivalence_relation="Two entries are duplicates if they represent the same legal entity",
-)
-print(result.data.head())
-```
-
-**Strategies** - control what happens after clusters are identified:
-
-- `"select"` (default): Pick the best representative from each cluster
-- `"identify"`: Cluster only, no selection (for manual review)
-- `"combine"`: Synthesize a single combined row per cluster
-
-```python
-result = await dedupe(
-    input=crm_data,
-    equivalence_relation="Same legal entity",
-    strategy="select",
-    strategy_prompt="Prefer the record with the most complete contact information",
-)
-deduped = result.data[result.data["selected"] == True]
-```
-
-Results include `equivalence_class_id` (groups duplicates), `equivalence_class_name` (human-readable cluster name), and `selected` (the canonical record when using select/combine strategy).
-
-Parameters: `input`, `equivalence_relation`, `strategy`, `strategy_prompt`, `session`
-
-### single_agent - Single input task (DEPRECATED)
-
-> `single_agent` is deprecated and will be removed in a future release; calling it
-> emits a `DeprecationWarning`. Use `agent_map` (one task per row, optionally with
-> `return_table=True`) or `multi_agent` (parallel agents synthesized per row).
-> Both accept an empty input for a standalone task.
-
-Run an AI agent on a single input:
-
-```python
-from futuresearch.ops import single_agent
-from pydantic import BaseModel
-
-class CompanyInput(BaseModel):
-    company: str
-
-result = await single_agent(
-    task="Find the company's most recent annual revenue and employee count",
-    input=CompanyInput(company="Stripe"),
-)
-print(result.data.head())
-```
-
-**No input required** - agents can work without input data:
-
-```python
-result = await single_agent(
-    task="What company has reported the greatest cost reduction due to internal AI usage?",
-)
-```
-
-**Return a table** - generate datasets from scratch:
-
-```python
-from pydantic import BaseModel, Field
-
-class CompanyInfo(BaseModel):
-    company: str = Field(description="Company name")
-    market_cap: int = Field(description="Market cap in USD")
-
-result = await single_agent(
-    task="Find the three largest US healthcare companies by market cap",
-    response_model=CompanyInfo,
-    return_table=True,
-)
-```
-
-Parameters: `task`, `input`, `effort_level` (LOW/MEDIUM/HIGH), `response_model`, `return_table`, `session`
+`single_agent` is deprecated on the same terms; calling it emits a
+`DeprecationWarning`. Use `agent_map` (one task per row, optionally with
+`return_table=True`) or `multi_agent` (parallel agents synthesized per row).
+Both accept an empty input for a standalone task.
 
 ## Explicit Sessions
 
@@ -678,15 +474,23 @@ async with create_session(name="My Session") as session:
 All operations have `_async` variants for background processing. These need an explicit session since the task persists beyond the function call:
 
 ```python
+from pandas import DataFrame
 from futuresearch import create_session
-from futuresearch.ops import rank_async
+from futuresearch.ops import decision_async
 
-async with create_session(name="Async Ranking") as session:
-    task = await rank_async(
+async with create_session(name="Async Decision") as session:
+    task = await decision_async(
         session=session,
-        task="Score this organization",
-        input=dataframe,
-        field_name="score",
+        input=DataFrame([
+            {
+                "question": "How many sitting parliamentarians will be listed on ControlAI's campaign statement on December 31, 2028?",
+                "grant": ["$0 (no grant)", "$250k", "$1M"],
+            },
+        ]),
+        alternatives_field="grant",
+        forecast_type="numeric",
+        output_field="parliamentarians",
+        units="parliamentarians",
     )
     print(f"Task ID: {task.task_id}")  # Print this! Useful if your script crashes.
 
@@ -705,7 +509,7 @@ df = await fetch_task_data("12345678-1234-1234-1234-123456789abc")
 
 ## Long-Running Operations (MCP)
 
-FutureSearch operations (classify, rank, dedupe, merge, forecast, agent) take 1-10+ minutes.
+FutureSearch operations (forecast, decision, agent, multi_agent) take 1-10+ minutes.
 All MCP tools use an async pattern:
 
 1. Call the operation tool (e.g., `futuresearch_agent(...)`) to get a task_id
@@ -718,32 +522,38 @@ All MCP tools use an async pattern:
 Operations can be chained to build complete workflows. Each step's output feeds the next:
 
 ```python
+from pandas import DataFrame
 from futuresearch import create_session
-from futuresearch.ops import classify, dedupe, rank
+from futuresearch.ops import decision, multi_agent
 
-async with create_session(name="Lead Pipeline") as session:
-    # 1. Filter to qualified leads
-    classified = await classify(
+async with create_session(name="Grant Decision") as session:
+    # 1. Find the options on the table
+    researched = await multi_agent(
         session=session,
-        task="Does this lead have a company email domain (not gmail, yahoo, etc.)?",
-        categories=["qualified", "unqualified"],
-        input=leads,
+        task="What is ControlAI asking funders for, and at what grant sizes?",
+        input=DataFrame(),  # empty input for a standalone question
     )
 
-    # 2. Dedupe across sources
-    deduped = await dedupe(
+    # 2. Forecast the same outcome under each one
+    forecasts = await decision(
         session=session,
-        input=classified.data[classified.data["classification"] == "qualified"],
-        equivalence_relation="Same company, accounting for Inc/LLC variations",
+        input=DataFrame([
+            {
+                "question": "How many sitting parliamentarians will be listed on ControlAI's campaign statement on December 31, 2028?",
+                "grant": ["$0 (no grant)", "$250k", "$1M"],
+            },
+        ]),
+        context=(
+            "We are a family foundation deciding this quarter how much to give ControlAI. "
+            "The gift would be unrestricted and announced publicly, and no other funder is "
+            "waiting on our decision."
+        ),
+        alternatives_field="grant",
+        forecast_type="numeric",
+        output_field="parliamentarians",
+        units="parliamentarians",
     )
-
-    # 3. Prioritize for outreach
-    ranked = await rank(
-        session=session,
-        task="Score by likelihood to convert",
-        input=deduped.data[deduped.data["selected"] == True],
-        field_name="conversion_score",
-    )
+    print(forecasts.data[["question", "percentiles", "rationale"]])
 ```
 
 ## Best Practices

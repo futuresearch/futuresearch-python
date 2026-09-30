@@ -11,10 +11,10 @@ futuresearch = { workspace = true }
 [project]
 name = "futuresearch"
 version = "0.26.0"
-description = "AI forecasting SDK from the team first in Metaculus's Summer 2026 FutureEval tournament. Probabilities, dates, and numbers with a verifiable public track record of accuracy."
+description = "AI forecasting SDK: probabilities, dates and numbers for questions about the future, including the outcome under each option of a choice. Public track record at evals.futuresearch.ai."
 readme = "README.md"
 requires-python = ">=3.12"
-keywords = ["forecasting", "prediction", "probability", "prediction-markets", "ai", "agents"]
+keywords = ["forecasting", "prediction", "decision-making", "scenario-analysis", "probability", "prediction-markets", "ai", "agents"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",

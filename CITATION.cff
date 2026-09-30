@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "futuresearch"
-abstract: "AI forecasting SDK from the team first in Metaculus's Summer 2026 FutureEval tournament. Probabilities, dates, and numbers with a verifiable public track record of accuracy."
+abstract: "AI forecasting SDK: probabilities, dates and numbers for questions about the future, including the outcome under each option of a choice. Public track record at evals.futuresearch.ai."
 license: MIT
 version: 0.26.0
 date-released: 2026-08-11
@@ -11,6 +11,8 @@ url: "https://futuresearch.ai"
 keywords:
   - forecasting
   - prediction
+  - decision-making
+  - scenario-analysis
   - probability
   - prediction-markets
   - ai

@@ -1,6 +1,6 @@
 {
   "name": "futuresearch",
-  "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record. Includes dataset research, rank, classify, dedupe, and merge tools.",
+  "description": "Forecasts for your AI: the probability, date or number for a question about the future, and the outcomes of decisions. Also runs web research agents.",
   "version": "0.26.0",
   "author": {
     "name": "FutureSearch"

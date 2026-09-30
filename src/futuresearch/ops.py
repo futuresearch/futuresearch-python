@@ -188,7 +188,7 @@ async def create_table_artifact(
 _SINGLE_AGENT_DEPRECATION = (
     "futuresearch.single_agent is deprecated and will be removed in a future "
     "release. Use futuresearch.agent_map (one task per row, optionally with "
-    "return_list=True) or futuresearch.multi_agent (parallel agents synthesized "
+    "return_table=True) or futuresearch.multi_agent (parallel agents synthesized "
     "per row) instead. Both accept an empty input list to generate output from "
     "the task alone."
 )
@@ -252,7 +252,7 @@ async def single_agent[T: BaseModel](
 
     .. deprecated::
         Will be removed in a future release. Use :func:`agent_map` (one task
-        per row, optionally with ``return_list=True``) or :func:`multi_agent`
+        per row, optionally with ``return_table=True``) or :func:`multi_agent`
         (parallel agents synthesized per row) instead. Both accept an empty
         input list to generate output from the task alone.
 
@@ -1135,10 +1135,11 @@ async def forecast(
       Output columns: ``probabilities`` (JSON object mapping each condition to
       its probability, 0-100) and ``rationale`` (str).
 
-    For causal decision support on a choice the user controls ("if I fund X at
-    $0 / $300k / $2M, will Y happen?"), use :func:`decision` instead — it
-    forecasts the outcome under each mutually exclusive alternative of the
-    decision, under explicit intervention assumptions.
+    For causal decision support on a decision someone is facing, the caller's
+    or anyone else's ("if we fund X at $0 / $300k / $2M, will Y happen?"), use
+    :func:`decision` instead: it forecasts the outcome under each mutually
+    exclusive alternative of the decision, under explicit intervention
+    assumptions.
 
     **Conditional forecasts** are an orthogonal modifier of any of the modes above:
     supply ``condition`` (a single shared condition, the same for every row and mapped
@@ -1169,9 +1170,11 @@ async def forecast(
     Args:
         input: The input table.  Each row should contain the question/scenario to
             forecast.
-        context: Optional batch-level context or instructions that apply to every
-            row (e.g. "Focus on EU regulatory sources" or "Assume resolution by
-            end of 2027").  Leave *None* when the rows are self-contained.
+        context: What is true for the whole call: facts the forecaster cannot
+            look up about the person or organization the questions concern (who
+            is deciding, their size, money and timeline, what they have tried),
+            and any instructions that apply to every row.  Leave *None* when the
+            rows are self-contained.
         session: Optional session. If not provided, one will be created automatically.
         forecast_type: ``"binary"`` for probability forecasts, ``"numeric"`` for
             percentile estimates, ``"date"`` for date percentile estimates,
@@ -1205,8 +1208,8 @@ async def forecast(
             ``forecast_type="binary"`` for a clean ``probability`` column.
         condition: Makes the forecast conditional: a single condition, the same
             for every row and mapped over the input list (e.g. a list of
-            companies). Mutually exclusive with *condition_field*. For a decision
-            the user controls, prefer :func:`decision`.
+            companies). Mutually exclusive with *condition_field*. When the
+            premise is something someone decides, prefer :func:`decision`.
         condition_field: Makes the forecast conditional using a per-row condition:
             the name of the input column holding each row's own condition. Mutually
             exclusive with *condition*.
@@ -1374,16 +1377,16 @@ async def decision(
     intervention: str | None = None,
     config: dict[str, Any] | None = None,
 ) -> TableResult:
-    """Forecast a decision: the outcome under each alternative of a choice the
-    user controls.
+    """Forecast a decision: the outcome under each alternative of a decision
+    someone is facing, the caller's or anyone else's.
 
     Causal decision support, e.g. "If I fund this organization at $0 / $300k /
     $2M, will it ship its study by 2027?" (binary), "…how many researchers will
     it hire?" (numeric), or "…when will it ship?" (date). Each row states the
     outcome question and lists the decision's mutually exclusive alternatives
-    (in the column named by ``alternatives_field``, as a JSON array of 2-50
-    numbers or strings; a binary "do X / don't do X" decision is the
-    2-alternative case). Exactly one alternative will be chosen, and the row's
+    (in the column named by ``alternatives_field``, as a list of 2 to 50
+    numbers or strings, a JSON array is also accepted; a binary "do X /
+    don't do X" decision is the 2-alternative case). Exactly one alternative will be chosen, and the row's
     outcome is forecast under each alternative as its own hypothetical, all
     alternatives researched jointly so their differences reflect the decision's
     real effect. Each alternative answers its own hypothetical, with no
@@ -1398,7 +1401,7 @@ async def decision(
     Unlike :func:`forecast` with a ``condition``, which answers the
     correlational question ("in worlds where X happens, what else is true?"),
     a decision forecast answers the causal one ("what does choosing X actually
-    cause?") — use it whenever the "if" clause is a choice the user controls.
+    cause?"): use it whenever the "if" clause is something someone decides.
 
     The input table should contain the outcome question (a ``question``
     column) and the alternatives column; recommended additional columns:
@@ -1408,13 +1411,17 @@ async def decision(
     Args:
         input: The input table. Each row should contain the outcome question
             and the row's alternatives (in ``alternatives_field``).
-        context: Optional batch-level context or instructions that apply to
-            every row. Leave *None* when the rows are self-contained.
+        context: What is true for the whole call: facts the forecaster cannot
+            look up about the person or organization the questions concern (who
+            is deciding, their size, money and timeline, what they have tried),
+            and any instructions that apply to every row. Leave *None* when the
+            rows are self-contained.
         session: Optional session. If not provided, one will be created
             automatically.
         alternatives_field: Name of the input column holding each row's
-            mutually exclusive decision alternatives as a JSON array of
-            numbers or strings (2-50 unique values).
+            mutually exclusive decision alternatives as a list of
+            numbers or strings (2-50 unique values; a JSON array is also
+            accepted).
         forecast_type: Outcome type forecast under each alternative:
             ``"binary"`` (default), ``"numeric"``, or ``"date"``.
         output_field: Name of the quantity being forecast (required when

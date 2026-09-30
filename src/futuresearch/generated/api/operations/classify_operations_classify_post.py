@@ -75,9 +75,11 @@ def sync_detailed(
     body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Classify rows into categories
+    """Classify rows into categories (deprecated)
 
-     Use AI to classify each row into one of the provided categories.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to classify each row into one of the provided
+    categories.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -109,9 +111,11 @@ def sync(
     body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Classify rows into categories
+    """Classify rows into categories (deprecated)
 
-     Use AI to classify each row into one of the provided categories.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to classify each row into one of the provided
+    categories.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -138,9 +142,11 @@ async def asyncio_detailed(
     body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """Classify rows into categories
+    """Classify rows into categories (deprecated)
 
-     Use AI to classify each row into one of the provided categories.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to classify each row into one of the provided
+    categories.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -170,9 +176,11 @@ async def asyncio(
     body: ClassifyOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """Classify rows into categories
+    """Classify rows into categories (deprecated)
 
-     Use AI to classify each row into one of the provided categories.
+     **DEPRECATED.** Will be removed in a future release. For a label or a score per row use
+    `/operations/agent-map` with a response model. Use AI to classify each row into one of the provided
+    categories.
 
     Args:
         x_cohort_source (None | str | Unset):

@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.futuresearch/futuresearch-mcp",
   "title": "FutureSearch MCP Server",
-  "description": "AI forecasting for your AI: probabilities, dates, and numbers with a public track record.",
+  "description": "Forecast questions about the future, including the outcome under each option.",
   "repository": {
     "url": "https://github.com/futuresearch/futuresearch-python",
     "source": "github",

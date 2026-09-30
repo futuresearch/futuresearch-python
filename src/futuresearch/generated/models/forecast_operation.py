@@ -73,8 +73,8 @@ class ForecastOperation:
             row's question) is forecast both in the world where this condition holds and the world where it does not. State
             it in plain language; where it refers to the entity (e.g. 'the company'), the agent grounds it in each row.
             Mutually exclusive with condition_field. Conditional forecasts require effort_level 'HIGH'. The output adds per-
-            branch columns suffixed '_given_condition' and '_given_not_condition'. For a decision the user controls, prefer
-            alternatives_field (decision mode) instead.
+            branch columns suffixed '_given_condition' and '_given_not_condition'. For a decision, the user's or anyone
+            else's, prefer alternatives_field (decision mode) instead.
         condition_field (None | str | Unset): Makes the forecast CONDITIONAL using a per-row condition: the name of the
             input column holding each row's own condition. Like 'condition' but varies per row. Mutually exclusive with
             condition.

@@ -75,9 +75,11 @@ def sync_detailed(
     body: DedupeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered deduplication
+    """AI-powered deduplication (deprecated)
 
-     Use AI to identify and remove duplicate rows based on the equivalence relation.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to identify and remove duplicate rows based on the equivalence relation.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -109,9 +111,11 @@ def sync(
     body: DedupeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered deduplication
+    """AI-powered deduplication (deprecated)
 
-     Use AI to identify and remove duplicate rows based on the equivalence relation.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to identify and remove duplicate rows based on the equivalence relation.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -138,9 +142,11 @@ async def asyncio_detailed(
     body: DedupeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered deduplication
+    """AI-powered deduplication (deprecated)
 
-     Use AI to identify and remove duplicate rows based on the equivalence relation.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to identify and remove duplicate rows based on the equivalence relation.
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -170,9 +176,11 @@ async def asyncio(
     body: DedupeOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered deduplication
+    """AI-powered deduplication (deprecated)
 
-     Use AI to identify and remove duplicate rows based on the equivalence relation.
+     **DEPRECATED.** Will be removed in a future release. There is no drop-in replacement for merging or
+    deduplicating tables; `/operations/agent-map` can research each row, and this call keeps working for
+    now. Use AI to identify and remove duplicate rows based on the equivalence relation.
 
     Args:
         x_cohort_source (None | str | Unset):

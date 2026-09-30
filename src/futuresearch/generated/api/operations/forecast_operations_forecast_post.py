@@ -75,10 +75,10 @@ def sync_detailed(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered forecast
+    """Forecast
 
-     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
-    (probability) and numeric (percentile) modes.
+     Forecast each row's question: a probability, a number, a date, one of several outcomes, or the
+    outcome under each option of a choice (alternatives_field).
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -110,10 +110,10 @@ def sync(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered forecast
+    """Forecast
 
-     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
-    (probability) and numeric (percentile) modes.
+     Forecast each row's question: a probability, a number, a date, one of several outcomes, or the
+    outcome under each option of a choice (alternatives_field).
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -140,10 +140,10 @@ async def asyncio_detailed(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> Response[ErrorResponse | InsufficientBalanceResponse | OperationResponse]:
-    """AI-powered forecast
+    """Forecast
 
-     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
-    (probability) and numeric (percentile) modes.
+     Forecast each row's question: a probability, a number, a date, one of several outcomes, or the
+    outcome under each option of a choice (alternatives_field).
 
     Args:
         x_cohort_source (None | str | Unset):
@@ -173,10 +173,10 @@ async def asyncio(
     body: ForecastOperation,
     x_cohort_source: None | str | Unset = UNSET,
 ) -> ErrorResponse | InsufficientBalanceResponse | OperationResponse | None:
-    """AI-powered forecast
+    """Forecast
 
-     Run 6 parallel research agents per row, then synthesize into a forecast. Supports binary
-    (probability) and numeric (percentile) modes.
+     Forecast each row's question: a probability, a number, a date, one of several outcomes, or the
+    outcome under each option of a choice (alternatives_field).
 
     Args:
         x_cohort_source (None | str | Unset):

@@ -79,8 +79,8 @@ _INSTRUCTIONS_COMMON = f"""\
 You are connected to the FutureSearch MCP server. FutureSearch is an AI forecasting \
 service: it turns questions about the future into probabilities, dates, and numeric \
 estimates, validated against a public track record on real markets and Metaculus \
-tournaments. The server also provides web research agents and dataset tools (rank, \
-classify, dedupe, merge), typically used to build the inputs to a forecasting run.
+tournaments. The server also provides web research agents and dataset tools, \
+typically used to build the inputs to a forecasting run.
 
 ## Getting data
 
@@ -100,18 +100,17 @@ come back as a single text string. For one-shot enrichment of existing rows, use
 
 ## Choosing the right operation
 
-1. **Forecast** — questions about the future. Best prediction accuracy.
-2. **Decision** — what would follow from a choice, the user's or anyone else's \
+1. **Forecast**: questions about the future. Best prediction accuracy.
+2. **Decision**: what would follow from a choice, the user's or anyone else's \
 (a company, a regulator, a government): the outcome is forecast under each option. \
-Use it whenever someone is weighing a choice, even if what they typed is a question about the world.
-3. **Classify** — binary yes/no or categorical labels (up to ~20 categories). \
-More efficient than open-ended research for categorical answers.
-4. **Rank** — quantitative rating. Prefer an objective metric with units when possible. \
-Use a subjective 0-100 score only if necessary.
-5. **Agent** — open-ended web research when Classify, Rank, and Forecast don't fit. \
-Pass `response_schema` for multi-field output (see below). Don't add reasoning/justification fields — \
-users can inspect the research behind each row.
-6. **Dedupe / Merge** — data consolidation.
+Use it whenever someone is weighing a choice, even if what they typed is a question \
+about the world, or whenever the "if" is something someone chooses. Put what the \
+forecaster cannot look up about the decider in context.
+3. **Agent**: open-ended web research when Forecast and Decision don't fit. \
+Pass `response_schema` for multi-field output (see below). Don't add \
+reasoning/justification fields. Users can inspect the research behind each row.
+4. **Deprecated**: Classify, Rank, Dedupe and Merge still work but will be removed. \
+For a label or a score per row use futuresearch_agent with a response_schema.
 
 ## Specifying the response schema (Agent, Multi-Agent, Rank)
 
