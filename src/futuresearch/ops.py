@@ -207,6 +207,7 @@ async def single_agent[T: BaseModel](
     return_table: Literal[False] = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -226,6 +227,7 @@ async def single_agent(
     return_table: Literal[True] = True,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -244,6 +246,7 @@ async def single_agent[T: BaseModel](
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -289,6 +292,7 @@ async def single_agent[T: BaseModel](
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
                 budget_awareness=budget_awareness,
+                hard_iteration_cap=hard_iteration_cap,
                 parallel_tool_calls=parallel_tool_calls,
                 prompt_style=prompt_style,
                 tool_description_style=tool_description_style,
@@ -306,6 +310,7 @@ async def single_agent[T: BaseModel](
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
         tool_description_style=tool_description_style,
@@ -325,6 +330,7 @@ async def _submit_single_agent(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -353,6 +359,9 @@ async def _submit_single_agent(
         else UNSET,
         budget_awareness=SingleAgentOperationBudgetAwarenessType0(budget_awareness)
         if budget_awareness is not None
+        else UNSET,
+        hard_iteration_cap=hard_iteration_cap
+        if hard_iteration_cap is not None
         else UNSET,
         parallel_tool_calls=parallel_tool_calls
         if parallel_tool_calls is not None
@@ -387,6 +396,7 @@ async def single_agent_async[T: BaseModel](
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -409,6 +419,7 @@ async def single_agent_async[T: BaseModel](
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
         tool_description_style=tool_description_style,
@@ -438,6 +449,7 @@ async def agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -470,6 +482,10 @@ async def agent_map(
         budget_awareness: How the per-turn status line frames the agent budget:
             'iterations' (default) or 'context' (live context-window usage, so the
             agent paces itself and reports before the window runs out).
+        hard_iteration_cap: Only with ``budget_awareness='context'``: end each row's run after
+            this many iterations, through the same give-up turn as context exhaustion, so the
+            row still gets an answer. Silent: nothing the agent sees mentions it. Default None
+            (off). Separate from ``iteration_budget``, which stays ignored in context mode.
         page_reader: How the agents read web pages: ``LlmPageReader`` (default; a reader LLM
             answers the agent's query about each page) or ``PaginatedPageReader`` (the agent
             reads the page text itself, one page at a time). ``LlmPageReader`` cannot be
@@ -498,6 +514,7 @@ async def agent_map(
                 return_table=return_table,
                 extra_notification_text=extra_notification_text,
                 budget_awareness=budget_awareness,
+                hard_iteration_cap=hard_iteration_cap,
                 parallel_tool_calls=parallel_tool_calls,
                 prompt_style=prompt_style,
                 tool_description_style=tool_description_style,
@@ -522,6 +539,7 @@ async def agent_map(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
         tool_description_style=tool_description_style,
@@ -560,6 +578,7 @@ async def _submit_agent_map(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -588,6 +607,10 @@ async def _submit_agent_map(
         if budget_awareness is not None:
             raise FuturesearchError(
                 "agent_harness cannot be combined with budget_awareness"
+            )
+        if hard_iteration_cap is not None:
+            raise FuturesearchError(
+                "agent_harness cannot be combined with hard_iteration_cap"
             )
         if parallel_tool_calls is not None:
             raise FuturesearchError(
@@ -639,6 +662,9 @@ async def _submit_agent_map(
         budget_awareness=AgentMapOperationBudgetAwarenessType0(budget_awareness)
         if budget_awareness is not None
         else UNSET,
+        hard_iteration_cap=hard_iteration_cap
+        if hard_iteration_cap is not None
+        else UNSET,
         parallel_tool_calls=parallel_tool_calls
         if parallel_tool_calls is not None
         else UNSET,
@@ -677,6 +703,7 @@ async def agent_map_async(
     return_table: bool = False,
     extra_notification_text: str | None = None,
     budget_awareness: Literal["iterations", "context"] | None = None,
+    hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
     prompt_style: Literal["standard", "minimal"] | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
@@ -698,6 +725,7 @@ async def agent_map_async(
         return_table=return_table,
         extra_notification_text=extra_notification_text,
         budget_awareness=budget_awareness,
+        hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
         tool_description_style=tool_description_style,

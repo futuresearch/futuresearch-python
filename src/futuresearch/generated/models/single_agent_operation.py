@@ -57,6 +57,9 @@ class SingleAgentOperation:
             the agent budget: 'iterations' (default) is the iteration counter; 'context' replaces it with live context-
             window usage so the agent can pace itself and report before the window runs out. In context mode
             iteration_budget is ignored (pass any valid value): the context give-up is the budget.
+        hard_iteration_cap (int | None | Unset): Context budgeting only: end the run after this many iterations through
+            the same give-up turn as context exhaustion, so the row still gets an answer. Silent: nothing the agent sees
+            mentions it. Requires budget_awareness='context'; default off.
         parallel_tool_calls (bool | None | Unset): When False, each agent turn makes exactly one tool call (sequential
             research). Default keeps parallel tool calls on.
         prompt_style (None | SingleAgentOperationPromptStyleType0 | Unset): 'minimal' strips the agent's system prompt
@@ -84,6 +87,7 @@ class SingleAgentOperation:
     include_research: bool | None | Unset = UNSET
     extra_notification_text: None | str | Unset = UNSET
     budget_awareness: None | SingleAgentOperationBudgetAwarenessType0 | Unset = UNSET
+    hard_iteration_cap: int | None | Unset = UNSET
     parallel_tool_calls: bool | None | Unset = UNSET
     prompt_style: None | SingleAgentOperationPromptStyleType0 | Unset = UNSET
     tool_description_style: None | SingleAgentOperationToolDescriptionStyleType0 | Unset = UNSET
@@ -181,6 +185,12 @@ class SingleAgentOperation:
         else:
             budget_awareness = self.budget_awareness
 
+        hard_iteration_cap: int | None | Unset
+        if isinstance(self.hard_iteration_cap, Unset):
+            hard_iteration_cap = UNSET
+        else:
+            hard_iteration_cap = self.hard_iteration_cap
+
         parallel_tool_calls: bool | None | Unset
         if isinstance(self.parallel_tool_calls, Unset):
             parallel_tool_calls = UNSET
@@ -243,6 +253,8 @@ class SingleAgentOperation:
             field_dict["extra_notification_text"] = extra_notification_text
         if budget_awareness is not UNSET:
             field_dict["budget_awareness"] = budget_awareness
+        if hard_iteration_cap is not UNSET:
+            field_dict["hard_iteration_cap"] = hard_iteration_cap
         if parallel_tool_calls is not UNSET:
             field_dict["parallel_tool_calls"] = parallel_tool_calls
         if prompt_style is not UNSET:
@@ -430,6 +442,15 @@ class SingleAgentOperation:
 
         budget_awareness = _parse_budget_awareness(d.pop("budget_awareness", UNSET))
 
+        def _parse_hard_iteration_cap(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        hard_iteration_cap = _parse_hard_iteration_cap(d.pop("hard_iteration_cap", UNSET))
+
         def _parse_parallel_tool_calls(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -512,6 +533,7 @@ class SingleAgentOperation:
             include_research=include_research,
             extra_notification_text=extra_notification_text,
             budget_awareness=budget_awareness,
+            hard_iteration_cap=hard_iteration_cap,
             parallel_tool_calls=parallel_tool_calls,
             prompt_style=prompt_style,
             tool_description_style=tool_description_style,
