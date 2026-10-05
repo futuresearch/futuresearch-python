@@ -1,6 +1,6 @@
 import json
 import warnings
-from typing import Any, Literal, NamedTuple, TypeVar, overload
+from typing import Any, Literal, NamedTuple, TypeVar, cast, overload
 from uuid import UUID
 
 from pandas import DataFrame
@@ -68,7 +68,7 @@ from futuresearch.generated.models import (
 from futuresearch.generated.models import (
     PaginatedPageReader as GeneratedPaginatedPageReader,
 )
-from futuresearch.generated.types import UNSET
+from futuresearch.generated.types import UNSET, Unset
 from futuresearch.page_reader import LlmPageReader, PageReader, PaginatedPageReader
 from futuresearch.result import MergeResult, Result, ScalarResult, TableResult
 from futuresearch.session import Session, create_session
@@ -440,7 +440,7 @@ async def agent_map(
     session: Session | None = None,
     input: DataFrame | UUID | TableResult | None = None,
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
-    llm: LLM | None = None,
+    llm: LLM | str | None = None,
     iteration_budget: int | None = None,
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
@@ -464,7 +464,8 @@ async def agent_map(
         input: The input table (DataFrame, UUID, or TableResult).
         effort_level: Effort level preset (low/medium/high). Mutually exclusive with
             custom params (llm, iteration_budget, include_reasoning). Default: medium.
-        llm: LLM to use for each agent. Required when effort_level is None.
+        llm: LLM to use for each agent. Required when effort_level is None. Internal accounts
+            may also pass a model name string the server accepts outside the ``LLM`` enum.
         iteration_budget: Number of agent iterations per row (0-100). Required when effort_level is None.
         include_reasoning: Include reasoning notes. Required when effort_level is None.
         response_model: Pydantic model for the response schema. When ``return_table`` is True,
@@ -564,12 +565,23 @@ def _to_generated_page_reader(
     return GeneratedLlmPageReader.from_dict(payload)
 
 
+def _agent_map_llm(llm: LLM | str | None) -> LLMEnumPublic | Unset:
+    """The wire value for agent_map's llm. A string is a model name the server
+    validates; that is how internal accounts name a model outside the public
+    enum. The generated client serializes a non-enum value as-is."""
+    if llm is None:
+        return UNSET
+    if isinstance(llm, LLMEnumPublic):
+        return LLMEnumPublic(llm.value)
+    return cast(LLMEnumPublic, llm)
+
+
 async def _submit_agent_map(
     task: str,
     session: Session,
     input: DataFrame | UUID | TableResult,
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
-    llm: LLM | None = None,
+    llm: LLM | str | None = None,
     iteration_budget: int | None = None,
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
@@ -647,7 +659,7 @@ async def _submit_agent_map(
         effort_level=PublicEffortLevel(effort_level.value)
         if effort_level is not None
         else UNSET,
-        llm=LLMEnumPublic(llm.value) if llm is not None else UNSET,
+        llm=_agent_map_llm(llm),
         iteration_budget=iteration_budget if iteration_budget is not None else UNSET,
         include_reasoning=include_reasoning if include_reasoning is not None else UNSET,
         join_with_input=True,
@@ -694,7 +706,7 @@ async def agent_map_async(
     session: Session,
     input: DataFrame | UUID | TableResult,
     effort_level: EffortLevel | None = DEFAULT_EFFORT_LEVEL,
-    llm: LLM | None = None,
+    llm: LLM | str | None = None,
     iteration_budget: int | None = None,
     include_reasoning: bool | None = None,
     enforce_row_independence: bool = False,
