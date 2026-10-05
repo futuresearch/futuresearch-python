@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "futuresearch-mcp",
   "display_name": "FutureSearch MCP Server",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Forecasts for your AI: the probability, date or number for a question about the future, and the outcomes of decisions. Also runs web research agents.",
   "long_description": "FutureSearch turns questions about the future into probabilities, dates and numbers. Ask about the world, or about a choice someone is weighing, and get predicted outcomes. Backed by a public track record on stocks, prediction markets, public benchmarks and forecasting tournaments.",
   "author": {
