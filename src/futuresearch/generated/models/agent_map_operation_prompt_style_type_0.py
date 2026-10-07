@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class AgentMapOperationPromptStyleType0(str, Enum):
+    BARE = "bare"
     MINIMAL = "minimal"
     STANDARD = "standard"
 

@@ -75,7 +75,11 @@ class AgentMapOperation:
             research). Default keeps parallel tool calls on.
         prompt_style (AgentMapOperationPromptStyleType0 | None | Unset): 'minimal' strips the agent's system prompt and
             loop scaffold to the bare protocol (no behavioral coaching). Retro tasks keep the one-line date block so the
-            agent takes the anchor date as today; live tasks get no date line.
+            agent takes the anchor date as today; live tasks get no date line. 'bare' goes further: the task text is sent
+            verbatim (no wrapper), the REPORT_RESULT contract is stated once, the per-turn reminder is dropped, and inline
+            citations are forced off.
+        extra_task_text (None | str | Unset): Optional text appended once to the end of the agent's task message (e.g.
+            an encouragement to plan up front and research thoroughly).
         tool_description_style (AgentMapOperationToolDescriptionStyleType0 | None | Unset): 'brief' sends each tool's
             plain description instead of the long-form usage guidance.
         agent_harness (ClaudeAgentHarness | None | OpenAiAgentHarness | Unset): Run each row through a self-driving
@@ -107,6 +111,7 @@ class AgentMapOperation:
     hard_iteration_cap: int | None | Unset = UNSET
     parallel_tool_calls: bool | None | Unset = UNSET
     prompt_style: AgentMapOperationPromptStyleType0 | None | Unset = UNSET
+    extra_task_text: None | str | Unset = UNSET
     tool_description_style: AgentMapOperationToolDescriptionStyleType0 | None | Unset = UNSET
     agent_harness: ClaudeAgentHarness | None | OpenAiAgentHarness | Unset = UNSET
     page_reader: LlmPageReader | None | PaginatedPageReader | Unset = UNSET
@@ -237,6 +242,12 @@ class AgentMapOperation:
         else:
             prompt_style = self.prompt_style
 
+        extra_task_text: None | str | Unset
+        if isinstance(self.extra_task_text, Unset):
+            extra_task_text = UNSET
+        else:
+            extra_task_text = self.extra_task_text
+
         tool_description_style: None | str | Unset
         if isinstance(self.tool_description_style, Unset):
             tool_description_style = UNSET
@@ -307,6 +318,8 @@ class AgentMapOperation:
             field_dict["parallel_tool_calls"] = parallel_tool_calls
         if prompt_style is not UNSET:
             field_dict["prompt_style"] = prompt_style
+        if extra_task_text is not UNSET:
+            field_dict["extra_task_text"] = extra_task_text
         if tool_description_style is not UNSET:
             field_dict["tool_description_style"] = tool_description_style
         if agent_harness is not UNSET:
@@ -548,6 +561,15 @@ class AgentMapOperation:
 
         prompt_style = _parse_prompt_style(d.pop("prompt_style", UNSET))
 
+        def _parse_extra_task_text(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        extra_task_text = _parse_extra_task_text(d.pop("extra_task_text", UNSET))
+
         def _parse_tool_description_style(data: object) -> AgentMapOperationToolDescriptionStyleType0 | None | Unset:
             if data is None:
                 return data
@@ -635,6 +657,7 @@ class AgentMapOperation:
             hard_iteration_cap=hard_iteration_cap,
             parallel_tool_calls=parallel_tool_calls,
             prompt_style=prompt_style,
+            extra_task_text=extra_task_text,
             tool_description_style=tool_description_style,
             agent_harness=agent_harness,
             page_reader=page_reader,

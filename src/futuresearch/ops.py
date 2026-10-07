@@ -209,7 +209,8 @@ async def single_agent[T: BaseModel](
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> ScalarResult[T]: ...
 
@@ -229,7 +230,8 @@ async def single_agent(
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> TableResult: ...
 
@@ -248,7 +250,8 @@ async def single_agent[T: BaseModel](
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> ScalarResult[T] | TableResult:
     """Execute an AI agent task on the provided input.
@@ -295,6 +298,7 @@ async def single_agent[T: BaseModel](
                 hard_iteration_cap=hard_iteration_cap,
                 parallel_tool_calls=parallel_tool_calls,
                 prompt_style=prompt_style,
+                extra_task_text=extra_task_text,
                 tool_description_style=tool_description_style,
             )
             return await cohort_task.await_result()
@@ -313,6 +317,7 @@ async def single_agent[T: BaseModel](
         hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
+        extra_task_text=extra_task_text,
         tool_description_style=tool_description_style,
     )
     return await cohort_task.await_result()
@@ -332,7 +337,8 @@ async def _submit_single_agent(
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> SubmittedTask:
     """Build and submit a single_agent request."""
@@ -369,6 +375,7 @@ async def _submit_single_agent(
         prompt_style=SingleAgentOperationPromptStyleType0(prompt_style)
         if prompt_style is not None
         else UNSET,
+        extra_task_text=extra_task_text if extra_task_text is not None else UNSET,
         tool_description_style=SingleAgentOperationToolDescriptionStyleType0(
             tool_description_style
         )
@@ -398,7 +405,8 @@ async def single_agent_async[T: BaseModel](
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
 ) -> FuturesearchTask[T]:
     """Submit a single_agent task asynchronously.
@@ -422,6 +430,7 @@ async def single_agent_async[T: BaseModel](
         hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
+        extra_task_text=extra_task_text,
         tool_description_style=tool_description_style,
     )
 
@@ -451,7 +460,8 @@ async def agent_map(
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
@@ -518,6 +528,7 @@ async def agent_map(
                 hard_iteration_cap=hard_iteration_cap,
                 parallel_tool_calls=parallel_tool_calls,
                 prompt_style=prompt_style,
+                extra_task_text=extra_task_text,
                 tool_description_style=tool_description_style,
                 agent_harness=agent_harness,
                 page_reader=page_reader,
@@ -543,6 +554,7 @@ async def agent_map(
         hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
+        extra_task_text=extra_task_text,
         tool_description_style=tool_description_style,
         agent_harness=agent_harness,
         page_reader=page_reader,
@@ -592,7 +604,8 @@ async def _submit_agent_map(
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
@@ -629,10 +642,14 @@ async def _submit_agent_map(
                 "agent_harness cannot be combined with parallel_tool_calls "
                 "(set it on the harness spec instead)"
             )
-        if prompt_style is not None or tool_description_style is not None:
+        if (
+            prompt_style is not None
+            or extra_task_text is not None
+            or tool_description_style is not None
+        ):
             raise FuturesearchError(
                 "agent_harness cannot be combined with prompt_style/"
-                "tool_description_style"
+                "extra_task_text/tool_description_style"
             )
         if return_table:
             raise FuturesearchError("agent_harness does not support return_table yet")
@@ -683,6 +700,7 @@ async def _submit_agent_map(
         prompt_style=AgentMapOperationPromptStyleType0(prompt_style)
         if prompt_style is not None
         else UNSET,
+        extra_task_text=extra_task_text if extra_task_text is not None else UNSET,
         tool_description_style=AgentMapOperationToolDescriptionStyleType0(
             tool_description_style
         )
@@ -717,7 +735,8 @@ async def agent_map_async(
     budget_awareness: Literal["iterations", "context"] | None = None,
     hard_iteration_cap: int | None = None,
     parallel_tool_calls: bool | None = None,
-    prompt_style: Literal["standard", "minimal"] | None = None,
+    prompt_style: Literal["standard", "minimal", "bare"] | None = None,
+    extra_task_text: str | None = None,
     tool_description_style: Literal["full", "brief"] | None = None,
     agent_harness: AgentHarness | None = None,
     page_reader: PageReader | None = None,
@@ -740,6 +759,7 @@ async def agent_map_async(
         hard_iteration_cap=hard_iteration_cap,
         parallel_tool_calls=parallel_tool_calls,
         prompt_style=prompt_style,
+        extra_task_text=extra_task_text,
         tool_description_style=tool_description_style,
         agent_harness=agent_harness,
         page_reader=page_reader,
