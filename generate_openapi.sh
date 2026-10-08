@@ -3,7 +3,7 @@
 #
 # By default the spec is fetched from the live public API. Pass
 # `--path <spec.json>` to generate from a local spec instead (used by
-# cohort/engine/generate_openapi.py to regenerate hermetically from the
+# futuresearch-app/engine/generate_openapi.py to regenerate hermetically from the
 # code in this repo).
 
 set -e  # Exit on error

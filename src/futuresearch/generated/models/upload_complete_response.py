@@ -17,7 +17,7 @@ class UploadCompleteResponse:
     CAUTION: This JSON schema is parsed by everyrow-cc's stream_parser.py
     (parse_upload_response) to extract task_id and trigger the viz pane.
     If you rename or remove fields, update the parser too:
-        cohort/everyrow-cc/agent/src/stream_parser.py
+        futuresearch-app/chat-agent/src/stream_parser.py
 
         Attributes:
             task_id (UUID): The ID of the upload task
