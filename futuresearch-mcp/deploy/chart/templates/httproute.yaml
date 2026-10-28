@@ -1,3 +1,4 @@
+{{- if ne (toString .Values.httproute.enabled) "false" }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -17,3 +18,4 @@ spec:
     - name: {{ .Release.Name }}
       namespace: {{ .Release.Namespace }}
       port: {{ .Values.service.port }}
+{{- end }}

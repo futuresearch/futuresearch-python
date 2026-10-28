@@ -19,3 +19,8 @@ env:
 
 httproute:
   host: mcp-staging.futuresearch.ai
+  # Internal: served through the Cloudflare tunnel behind Access
+  # (infra/cloudflare/access.yaml). To test with claude.ai web connectors
+  # (which call from Anthropic's cloud and can't pass Access), see
+  # "Temporarily public" in the cloudflare-access skill.
+  enabled: false
