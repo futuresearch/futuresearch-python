@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.serialization import (
     Encoding,
     PublicFormat,
 )
-from mcp.server.auth.provider import AccessToken, AuthorizationParams
+from mcp.server.auth.provider import AccessToken, AuthorizationParams, TokenError
 from mcp.shared.auth import OAuthClientInformationFull
 from pydantic import AnyUrl
 from starlette.exceptions import HTTPException
@@ -572,6 +572,64 @@ class TestAuthProvider:
         assert raw is not None
         new_rt = FuturesearchRefreshToken.model_validate_json(raw)
         assert set(new_rt.scopes) == {"read", "write"}
+
+    @staticmethod
+    def _supabase_error(status: int) -> httpx.HTTPStatusError:
+        req = httpx.Request(
+            "POST", "https://x.supabase.co/auth/v1/token?grant_type=refresh_token"
+        )
+        return httpx.HTTPStatusError(
+            "err", request=req, response=httpx.Response(status, request=req)
+        )
+
+    @pytest.mark.asyncio
+    async def test_refresh_dead_supabase_token_is_invalid_grant(
+        self, provider, test_client
+    ):
+        """Supabase 400 -> invalid_grant and the token stays consumed (FS-MCP-1)."""
+        refresh_token = FuturesearchRefreshToken(
+            token="rt-dead",
+            client_id="test-client-id",
+            scopes=["read"],
+            supabase_refresh_token="supa-rt",
+        )
+        with (
+            patch.object(
+                provider,
+                "_refresh_supabase_token",
+                new_callable=AsyncMock,
+                side_effect=self._supabase_error(400),
+            ),
+            pytest.raises(TokenError) as exc_info,
+        ):
+            await provider.exchange_refresh_token(test_client, refresh_token, [])
+
+        assert exc_info.value.error == "invalid_grant"
+        assert await provider._redis.get("mcp:refresh:rt-dead") is None
+
+    @pytest.mark.asyncio
+    async def test_refresh_transient_supabase_error_restores_token(
+        self, provider, test_client
+    ):
+        """Supabase 5xx re-raises and re-stores the token so the user can retry."""
+        refresh_token = FuturesearchRefreshToken(
+            token="rt-retry",
+            client_id="test-client-id",
+            scopes=["read"],
+            supabase_refresh_token="supa-rt",
+        )
+        with (
+            patch.object(
+                provider,
+                "_refresh_supabase_token",
+                new_callable=AsyncMock,
+                side_effect=self._supabase_error(503),
+            ),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await provider.exchange_refresh_token(test_client, refresh_token, [])
+
+        assert await provider._redis.get("mcp:refresh:rt-retry") is not None
 
 
 # ── Redirect URI validation tests ────────────────────────────────────

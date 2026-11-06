@@ -19,6 +19,7 @@ from mcp.server.auth.provider import (
     AuthorizationParams,
     OAuthAuthorizationServerProvider,
     RefreshToken,
+    TokenError,
     TokenVerifier,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
@@ -923,13 +924,26 @@ class FuturesearchAuthProvider(
             supa_tokens = await self._refresh_supabase_token(
                 refresh_token.supabase_refresh_token
             )
-        except Exception:
-            # Re-store the consumed refresh token so the user isn't locked out.
-            await self._redis.setex(
-                name=build_key("refresh", refresh_token.token),
-                time=settings.refresh_token_ttl,
-                value=encrypt_value(refresh_token.model_dump_json()),
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 400:
+                await self._restore_refresh_token(refresh_token)
+                raise
+            # Supabase rejected the refresh token itself (expired, rotated or
+            # revoked session). It will never work again, so leave it consumed
+            # and tell the client to re-authenticate. Re-storing it and raising
+            # made clients retry the same dead token forever (FS-MCP-1).
+            logger.info(
+                "Supabase refresh token rejected, client must re-authenticate user=%s",
+                client.client_id,
             )
+            raise TokenError(
+                error="invalid_grant",
+                error_description="Session expired, please sign in again",
+            ) from exc
+        except Exception:
+            # Transient failure: re-store the consumed refresh token so the
+            # user isn't locked out.
+            await self._restore_refresh_token(refresh_token)
             raise
         assert client.client_id is not None
         logger.info("Token refresh successful user=%s", client.client_id)
@@ -939,6 +953,15 @@ class FuturesearchAuthProvider(
             scopes=final_scopes,
             supabase_refresh_token=supa_tokens.refresh_token,
             selected_account_id=refresh_token.selected_account_id,
+        )
+
+    async def _restore_refresh_token(
+        self, refresh_token: FuturesearchRefreshToken
+    ) -> None:
+        await self._redis.setex(
+            name=build_key("refresh", refresh_token.token),
+            time=settings.refresh_token_ttl,
+            value=encrypt_value(refresh_token.model_dump_json()),
         )
 
     async def revoke_token(self, token: AccessToken | FuturesearchRefreshToken) -> None:
