@@ -121,6 +121,7 @@ from .user_base import UserBase
 from .user_base_auth_method import UserBaseAuthMethod
 from .validation_error import ValidationError
 from .whoami_response import WhoamiResponse
+from .world_model import WorldModel
 
 __all__ = (
     "AccountInfo",
@@ -242,4 +243,5 @@ __all__ = (
     "UserBaseAuthMethod",
     "ValidationError",
     "WhoamiResponse",
+    "WorldModel",
 )

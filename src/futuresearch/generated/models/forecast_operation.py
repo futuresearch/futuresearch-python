@@ -9,6 +9,7 @@ from attrs import field as _attrs_field
 
 from ..models.forecast_effort_level import ForecastEffortLevel
 from ..models.forecast_operation_forecast_type import ForecastOperationForecastType
+from ..models.world_model import WorldModel
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -89,6 +90,12 @@ class ForecastOperation:
             when rows share little context). With effort_level 'high', batching requires a plain unconditional 'binary',
             'numeric', or 'date' forecast (categorical/thresholded, decision, and conditional forecasts always run per-row).
             With effort_level 'low', this is the rows-per-batch of the batched pipeline (default 4).
+        world_model (None | Unset | WorldModel): What the forecast's world model (the consistency pass that reconciles
+            it with related forecasts) may draw on. 'full': your account's earlier forecasts plus forecasts other users have
+            published. 'account': only your account's earlier forecasts (your team's, on a team account). 'off': no
+            consistency pass, so each row is exactly what its forecaster produced and nothing from this run informs later
+            ones. Use 'off' when forecasts must be independent of each other, e.g. experiment arms or repeated runs of one
+            question. Omit to use your account's default (set in account settings; 'full' unless changed).
         config (ForecastTaskConfig | None | Unset): Experimental per-task overrides of internal forecast pipeline
             parameters (forecaster/refiner ensembles, summarizer model, iteration budget). Internal accounts only. Every
             field is optional and defaults to the effort level's stock value; supplied list fields replace the default
@@ -110,6 +117,7 @@ class ForecastOperation:
     condition_field: None | str | Unset = UNSET
     effort_level: ForecastEffortLevel | None | Unset = UNSET
     batch_size: int | None | Unset = UNSET
+    world_model: None | Unset | WorldModel = UNSET
     config: ForecastTaskConfig | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -208,6 +216,14 @@ class ForecastOperation:
         else:
             batch_size = self.batch_size
 
+        world_model: None | str | Unset
+        if isinstance(self.world_model, Unset):
+            world_model = UNSET
+        elif isinstance(self.world_model, WorldModel):
+            world_model = self.world_model.value
+        else:
+            world_model = self.world_model
+
         config: dict[str, Any] | None | Unset
         if isinstance(self.config, Unset):
             config = UNSET
@@ -249,6 +265,8 @@ class ForecastOperation:
             field_dict["effort_level"] = effort_level
         if batch_size is not UNSET:
             field_dict["batch_size"] = batch_size
+        if world_model is not UNSET:
+            field_dict["world_model"] = world_model
         if config is not UNSET:
             field_dict["config"] = config
 
@@ -420,6 +438,23 @@ class ForecastOperation:
 
         batch_size = _parse_batch_size(d.pop("batch_size", UNSET))
 
+        def _parse_world_model(data: object) -> None | Unset | WorldModel:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                world_model_type_0 = WorldModel(data)
+
+                return world_model_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | Unset | WorldModel, data)
+
+        world_model = _parse_world_model(d.pop("world_model", UNSET))
+
         def _parse_config(data: object) -> ForecastTaskConfig | None | Unset:
             if data is None:
                 return data
@@ -453,6 +488,7 @@ class ForecastOperation:
             condition_field=condition_field,
             effort_level=effort_level,
             batch_size=batch_size,
+            world_model=world_model,
             config=config,
         )
 

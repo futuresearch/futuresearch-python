@@ -62,6 +62,7 @@ from futuresearch.generated.models import (
     UploadDataArtifactsUploadPostJsonBody,
     UploadDataArtifactsUploadPostJsonBodyDataType0Item,
     UploadDataArtifactsUploadPostJsonBodyDataType1,
+    WorldModel,
 )
 from futuresearch.generated.models import (
     LlmPageReader as GeneratedLlmPageReader,
@@ -1188,6 +1189,7 @@ async def forecast(
     condition_field: str | None = None,
     condition: str | None = None,
     config: dict[str, Any] | None = None,
+    world_model: Literal["full", "account", "off"] | None = None,
 ) -> TableResult:
     """Forecast questions using deep research.
 
@@ -1318,6 +1320,17 @@ async def forecast(
                     "iteration_budget": 12,
                 }
 
+        world_model: What the forecast's world model (the consistency pass
+            that reconciles it with related forecasts) may draw on.
+            ``"full"``: your account's earlier forecasts plus forecasts other
+            users have published. ``"account"``: only your account's earlier
+            forecasts (your team's, on a team account). ``"off"``: no
+            consistency pass, so each row is exactly what its forecaster
+            produced and nothing from this run informs later ones; use it when
+            forecasts must stay independent, e.g. experiment arms or repeated
+            runs of one question. *None* (default) uses your account's
+            default, which is ``"full"`` unless changed in account settings.
+
     Returns:
         TableResult with forecast columns added to each input row.
     """
@@ -1338,6 +1351,7 @@ async def forecast(
                 condition_field=condition_field,
                 condition=condition,
                 config=config,
+                world_model=world_model,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -1357,6 +1371,7 @@ async def forecast(
         condition_field=condition_field,
         condition=condition,
         config=config,
+        world_model=world_model,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -1379,6 +1394,7 @@ async def forecast_async(
     condition_field: str | None = None,
     condition: str | None = None,
     config: dict[str, Any] | None = None,
+    world_model: Literal["full", "account", "off"] | None = None,
 ) -> FuturesearchTask[BaseModel]:
     """Submit a forecast task asynchronously.
 
@@ -1412,6 +1428,9 @@ async def forecast_async(
         config: Experimental per-task overrides of internal forecast pipeline
             parameters. Internal FutureSearch accounts only; opaque here,
             validated server-side. See :func:`forecast`.
+        world_model: ``"full"``, ``"account"`` or ``"off"``: what the
+            forecast's world model may draw on. *None* uses your account's
+            default. See :func:`forecast`.
 
     Returns:
         FuturesearchTask that resolves to a TableResult with forecast columns.
@@ -1431,6 +1450,7 @@ async def forecast_async(
         thresholds_field=thresholds_field,
         condition_field=condition_field,
         condition=condition,
+        world_model=WorldModel(world_model) if world_model is not None else UNSET,
     )
     if config is not None:
         # Opaque passthrough (same mechanism as agent_map's agent_harness):
@@ -1464,6 +1484,7 @@ async def decision(
     units: str | None = None,
     intervention: str | None = None,
     config: dict[str, Any] | None = None,
+    world_model: Literal["full", "account", "off"] | None = None,
 ) -> TableResult:
     """Forecast a decision: the outcome under each alternative of a decision
     someone is facing, the caller's or anyone else's.
@@ -1530,6 +1551,9 @@ async def decision(
         config: Experimental per-task overrides of internal forecast pipeline
             parameters. Internal FutureSearch accounts only; opaque here,
             validated server-side. See :func:`forecast`.
+        world_model: ``"full"``, ``"account"`` or ``"off"``: what the
+            forecast's world model may draw on. *None* uses your account's
+            default. See :func:`forecast`.
 
     Returns:
         TableResult with ``rationale`` (str) and a per-alternative column:
@@ -1551,6 +1575,7 @@ async def decision(
                 units=units,
                 intervention=intervention,
                 config=config,
+                world_model=world_model,
             )
             result = await cohort_task.await_result(on_progress=print_progress)
             if isinstance(result, TableResult):
@@ -1566,6 +1591,7 @@ async def decision(
         units=units,
         intervention=intervention,
         config=config,
+        world_model=world_model,
     )
     result = await cohort_task.await_result(on_progress=print_progress)
     if isinstance(result, TableResult):
@@ -1584,6 +1610,7 @@ async def decision_async(
     units: str | None = None,
     intervention: str | None = None,
     config: dict[str, Any] | None = None,
+    world_model: Literal["full", "account", "off"] | None = None,
 ) -> FuturesearchTask[BaseModel]:
     """Submit a decision task asynchronously.
 
@@ -1602,6 +1629,9 @@ async def decision_async(
         config: Experimental per-task overrides of internal forecast pipeline
             parameters. Internal FutureSearch accounts only; opaque here,
             validated server-side. See :func:`forecast`.
+        world_model: ``"full"``, ``"account"`` or ``"off"``: what the
+            forecast's world model may draw on. *None* uses your account's
+            default. See :func:`forecast`.
 
     Returns:
         FuturesearchTask that resolves to a TableResult with decision columns.
@@ -1621,6 +1651,7 @@ async def decision_async(
         units=units,
         alternatives_field=alternatives_field,
         intervention=intervention,
+        world_model=WorldModel(world_model) if world_model is not None else UNSET,
     )
     if config is not None:
         # Opaque passthrough (same mechanism as agent_map's agent_harness):

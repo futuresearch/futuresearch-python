@@ -549,6 +549,16 @@ class ForecastInput(_SingleSourceInput):
         "'_given_condition' and '_given_not_condition'. Mutually exclusive with "
         "condition.",
     )
+    world_model: Literal["full", "account", "off"] | None = Field(
+        default=None,
+        description="What the forecast's world model (the consistency pass that "
+        "reconciles it with related forecasts) may draw on. 'full': the account's "
+        "earlier forecasts plus forecasts other users have published. 'account': "
+        "only the account's own earlier forecasts. 'off': no consistency pass, so "
+        "each row is exactly what its forecaster produced. Leave unset to use the "
+        "account's default; set it only when the user asks for forecasts that are "
+        "independent of other forecasts or of their own earlier ones.",
+    )
 
     @model_validator(mode="after")
     def _condition_column_needs_condition_field(self) -> "ForecastInput":
@@ -619,6 +629,16 @@ class DecisionInput(_SingleSourceInput):
         "responds realistically in every branch, reasoning through mechanism). "
         "Supplying this text replaces the default wholesale, so state the full "
         "assumptions. Applies to every row.",
+    )
+    world_model: Literal["full", "account", "off"] | None = Field(
+        default=None,
+        description="What the forecast's world model (the consistency pass that "
+        "reconciles it with related forecasts) may draw on. 'full': the account's "
+        "earlier forecasts plus forecasts other users have published. 'account': "
+        "only the account's own earlier forecasts. 'off': no consistency pass, so "
+        "each row is exactly what its forecaster produced. Leave unset to use the "
+        "account's default; set it only when the user asks for forecasts that are "
+        "independent of other forecasts or of their own earlier ones.",
     )
 
 

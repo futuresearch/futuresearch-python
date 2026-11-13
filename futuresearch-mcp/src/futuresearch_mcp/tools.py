@@ -204,6 +204,7 @@ async def futuresearch_forecast(
                 thresholds_field=params.thresholds_field,
                 condition_field=params.condition_field,
                 condition=params.condition,
+                world_model=params.world_model,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0
@@ -346,6 +347,7 @@ async def futuresearch_decision(
                 output_field=params.output_field,
                 units=params.units,
                 intervention=params.intervention,
+                world_model=params.world_model,
             )
             task_id = str(cohort_task.task_id)
             total = len(input_data) if isinstance(input_data, pd.DataFrame) else 0

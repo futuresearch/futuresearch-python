@@ -12,7 +12,7 @@
 
 FutureSearch turns questions about the future into probabilities, dates and numbers. Ask about the world ("When will Anthropic IPO?"), or about a decision ("If we give this organization nothing, $250k or $1M, how many lawmakers back its campaign by 2028?") and get predicted outcomes for each option. The decision can be yours or someone else's: a company's, a government's, a public figure's.
 
-Accuracy is verifiable via our [public track record](https://evals.futuresearch.ai) on stocks, prediction markets, public benchmarks, and forecasting tournaments, including live standings on Metaculus, against human forecasters in the Metaculus Cup, on ForecastBench and on BTF-3, our pastcasting benchmark. Every forecast draws on a [shared world model](https://futuresearch.ai/docs/world-modeling) that reconciles related questions against each other.
+Accuracy is verifiable via our [public track record](https://evals.futuresearch.ai) on stocks, prediction markets, public benchmarks, and forecasting tournaments, including live standings on Metaculus, against human forecasters in the Metaculus Cup, on ForecastBench and on BTF-3, our pastcasting benchmark. Every forecast draws on a [shared world model](https://futuresearch.ai/docs/world-modeling) that reconciles related questions against each other. It is on by default; pass `world_model="account"` to use only your own forecasts, or `world_model="off"` to keep each forecast independent.
 
 | Track Record | |
 | --- | --- |

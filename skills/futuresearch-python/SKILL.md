@@ -333,7 +333,7 @@ result = await forecast(
 print(result.data[["question", "probability", "rationale"]])
 ```
 
-Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"`), `effort_level`, `batch_size` (rows researched together — see "Batching related questions" under `futuresearch_forecast` above), `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition` *or* `condition_field` (makes any type conditional), `session`
+Parameters: `input`, `forecast_type` (`"binary"` | `"numeric"` | `"date"` | `"categorical"` | `"thresholded"`), `effort_level`, `batch_size` (rows researched together — see "Batching related questions" under `futuresearch_forecast` above), `context`, `output_field` (required for numeric/date), `units` (required for numeric), `categories_field` (required for categorical), `thresholds_field` (required for thresholded), `condition` *or* `condition_field` (makes any type conditional), `world_model` (`"full"` | `"account"` | `"off"`; leave unset for the account default, set `"off"` only when the user wants forecasts independent of other forecasts), `session`
 
 For **conditional** forecasts (P(B|A) and P(B|not A) for a condition A and outcome B), see "Conditional forecasting" under `futuresearch_forecast` above. Conditionality is a modifier on any `forecast_type`, not a type of its own: keep `forecast_type` describing the outcome B (taken from each row's `question`) and supply the condition A via `condition` (a single shared condition mapped over every row) or `condition_field` (a per-row condition column). The two are mutually exclusive.
 
